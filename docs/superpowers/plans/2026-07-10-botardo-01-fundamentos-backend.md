@@ -4,19 +4,21 @@
 
 **Goal:** Levantar el esqueleto del backend de Botardo (repo nuevo) con la persistencia, el catálogo de categorías, la conversión de moneda a USD y el cálculo del neto splitwise — todo unit-testeable con `pytest`, sin HTTP ni bot ni frontend todavía.
 
-**Architecture:** FastAPI + SQLAlchemy 2.0 async (asyncpg contra Supabase en prod, aiosqlite en tests) + Alembic. Un solo libro compartido: los movimientos referencian `paid_by` entre 2 usuarios. FX vía Frankfurter (ECB) con cache en Postgres y fallback estático. El neto se computa on-the-fly con una función pura.
+**Architecture:** FastAPI + SQLAlchemy 2.0 async (asyncpg contra Railway Postgres en prod, aiosqlite en tests) + Alembic. Un solo libro compartido: los movimientos referencian `paid_by` entre 2 usuarios. FX vía Frankfurter (ECB) con cache en Postgres, **dólar MEP (dolarapi.com) para ARS**, y fallback estático. El neto se computa on-the-fly con una función pura. Las fechas "hoy" se derivan de una timezone del viaje (`app/trip_time.py`), nunca del UTC del servidor.
 
-**Tech Stack:** Python 3.11, FastAPI, SQLAlchemy[asyncio] 2.0, asyncpg, alembic, httpx, pydantic-settings, pytest + pytest-asyncio + aiosqlite.
+**Tech Stack:** Python 3.11, FastAPI, SQLAlchemy[asyncio] 2.0, asyncpg, alembic, httpx, pydantic-settings, anthropic (SDK, se usa en Plan 3), pytest + pytest-asyncio + aiosqlite.
 
 ## Global Constraints
 
 - Python `>=3.11`. SQLAlchemy `>=2.0` estilo async (`AsyncSession`, `Mapped`/`mapped_column`).
-- **Sin Redis, sin embeddings, sin OpenAI en este plan.** No portar `scheduled_expenses`, `recurring_movements`, `user_category_examples`, `merchant_aliases`.
+- **Sin Redis, sin embeddings, sin llamadas LLM en este plan.** No portar `scheduled_expenses`, `recurring_movements`, `user_category_examples`, `merchant_aliases`, **ni `bot_pending_confirmations`** (con `bot_pending_actions` alcanza).
 - Moneda base del neto = **USD** (constante). Montos como `Decimal` (`Numeric(12,2)`; FX `Numeric(14,6)`).
 - Enum `split`: exactamente `shared` | `payer_only` | `other_only`. Enum `type` de movimiento: `expense` | `settlement`. Guardados como `String`, no como tipos enum nativos de PG (portabilidad sqlite).
+- Valores de `fx_source`: `frankfurter` | `dolarapi` | `manual` | `fallback`.
 - Categorías: exactamente 7 fijas — `Alojamiento`, `Comida`, `Transporte`, `Actividades`, `Compras`, `Bebidas/Salidas`, `Otros`.
 - Tests deben correr sobre sqlite (aiosqlite) sin Postgres. Nada específico de PG (no `JSONB`, no `server_default` que sqlite no soporte de forma incompatible).
-- Vercel serverless: nada de estado en proceso; la conexión se crea por request. (Se respeta ya con el `async_session` factory.)
+- Deploy = Railway (proceso siempre vivo): pool normal de SQLAlchemy, sin hacks serverless.
+- Fechas: nunca `date.today()` pelado en lógica de negocio — usar `app.trip_time.today_in_tz()` (Task 6).
 
 **Referencia de reutilización:** el repo `~/Desktop/Expenses/backend` tiene los patrones originales (`app/config.py`, `app/db/engine.py`, `app/db/models.py`, `app/services/exchange_rate.py`). Se adaptan, no se copian tal cual.
 
@@ -31,10 +33,11 @@
 - Create: `backend/app/db/__init__.py`, `backend/app/db/engine.py` — engine async + `async_session`.
 - Create: `backend/app/db/models.py` — todas las tablas del esquema (sección 4 del spec).
 - Create: `backend/app/categories/__init__.py`, `backend/app/categories/catalog.py`, `backend/app/categories/seed.py`.
-- Create: `backend/app/fx.py` — conversión a USD (Frankfurter + cache + fallback).
+- Create: `backend/app/fx.py` — conversión a USD (Frankfurter + dolarapi MEP para ARS + cache + fallback).
 - Create: `backend/app/balance.py` — cálculo del neto (función pura).
+- Create: `backend/app/trip_time.py` — "hoy" en una timezone dada (fallback Europe/Madrid).
 - Create: `backend/alembic.ini`, `backend/alembic/env.py`, `backend/alembic/script.py.mako`, `backend/alembic/versions/0001_initial.py`.
-- Create (tests): `backend/tests/__init__.py`, `backend/tests/conftest.py`, `backend/tests/test_models.py`, `backend/tests/test_categories_seed.py`, `backend/tests/test_fx.py`, `backend/tests/test_balance.py`.
+- Create (tests): `backend/tests/__init__.py`, `backend/tests/conftest.py`, `backend/tests/test_models.py`, `backend/tests/test_categories_seed.py`, `backend/tests/test_fx.py`, `backend/tests/test_balance.py`, `backend/tests/test_trip_time.py`.
 
 ---
 
@@ -96,7 +99,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3",
     "python-multipart>=0.0.9",
     "bcrypt>=4.0",
-    "openai>=1.51",
+    "anthropic>=0.69",
 ]
 
 [project.optional-dependencies]
@@ -133,10 +136,11 @@ __pycache__/
 
 `backend/.env.example`:
 ```
-# DB (Supabase en prod; local docker en dev)
+# DB (Railway Postgres en prod; local docker en dev)
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/botardo
 # FX
 FRANKFURTER_URL=https://api.frankfurter.dev/v1
+DOLARAPI_URL=https://dolarapi.com/v1
 ENVIRONMENT=dev
 ```
 
@@ -170,7 +174,9 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/botardo"
     frankfurter_url: str = Field(default="https://api.frankfurter.dev/v1", alias="FRANKFURTER_URL")
+    dolarapi_url: str = Field(default="https://dolarapi.com/v1", alias="DOLARAPI_URL")
     environment: str = "dev"
+    trip_default_timezone: str = "Europe/Madrid"
 
     # No es env: se expone como propiedad para tests/servicios.
     @property
@@ -211,7 +217,7 @@ git commit -m "feat(backend): scaffold repo + Settings"
 **Interfaces:**
 - Produces:
   - `app.db.engine.make_engine(url: str)`, `app.db.engine.async_session_factory(engine)`, `app.db.engine.get_engine()`, `app.db.engine.get_sessionmaker()`.
-  - `app.db.models.Base` (DeclarativeBase) y modelos: `User`, `Category`, `Movement`, `Stop`, `FxRate`, `WhatsAppDedupe`, `BotPendingConfirmation`, `BotPendingAction`, `WhatsAppSessionState`.
+  - `app.db.models.Base` (DeclarativeBase) y modelos: `User`, `Category`, `Movement`, `Stop`, `FxRate`, `WhatsAppDedupe`, `BotPendingAction`, `WhatsAppSessionState`.
   - `Movement` campos: `id, type, amount, currency, amount_usd, fx_rate, fx_source, paid_by(FK users.id), split, description, category_id(FK categories.id), stop_slug, city_name, movement_date, raw_message, created_by(FK users.id), created_at, updated_at`.
   - Test fixture `db_session` (AsyncSession sobre sqlite en memoria con tablas creadas por `Base.metadata.create_all`).
 
@@ -409,6 +415,7 @@ class Stop(Base):
     arrival_date: Mapped[date | None] = mapped_column(Date)
     departure_date: Mapped[date | None] = mapped_column(Date)
     currency_code: Mapped[str | None] = mapped_column(String(3))
+    timezone: Mapped[str | None] = mapped_column(String(64))
     is_transit: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     is_candidate: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     is_flex_margin: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
@@ -431,26 +438,6 @@ class WhatsAppDedupe(Base):
 
     wamid: Mapped[str] = mapped_column(String(128), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
-
-
-class BotPendingConfirmation(Base):
-    __tablename__ = "bot_pending_confirmations"
-    __table_args__ = (UniqueConstraint("channel", "external_message_id"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    token: Mapped[str] = mapped_column(
-        String(64), unique=True, index=True, default=lambda: secrets.token_urlsafe(24)
-    )
-    channel: Mapped[str] = mapped_column(String(20), nullable=False)
-    owner: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    external_message_id: Mapped[str | None] = mapped_column(String(128))
-    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
-    result_json: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)
-    processing_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
-    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
-    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
 
 
 class BotPendingAction(Base):
@@ -732,7 +719,7 @@ git commit -m "feat(backend): catálogo y seed de 7 categorías del viaje"
 **Interfaces:**
 - Consumes: `app.db.models.FxRate`, `app.config.get_settings`, fixture `db_session`.
 - Produces:
-  - `async app.fx.get_rate_to_usd(session, currency: str, on_date: date, *, client: httpx.AsyncClient | None = None) -> tuple[Decimal, str]` → `(rate, source)` con `source ∈ {"frankfurter","fallback","cache","direct"}`. Para `USD` devuelve `(Decimal("1"), "direct")`.
+  - `async app.fx.get_rate_to_usd(session, currency: str, on_date: date, *, client: httpx.AsyncClient | None = None) -> tuple[Decimal, str]` → `(rate, source)` con `source ∈ {"frankfurter","dolarapi","fallback","cache","direct"}`. Para `USD` devuelve `(Decimal("1"), "direct")`. Para `ARS` (Frankfurter no lo soporta) usa dolarapi MEP: `GET {dolarapi_url}/dolares/bolsa` → `rate = 1 / venta` (cuantizado a 6 decimales), `source="dolarapi"`.
   - `async app.fx.convert_to_usd(session, amount: Decimal, currency: str, on_date: date, *, client=None) -> tuple[Decimal, Decimal, str]` → `(amount_usd, rate, source)`. `amount_usd` redondeado a 2 decimales.
 
 - [ ] **Step 1: Escribir el test que falla**
@@ -780,6 +767,35 @@ async def test_fallback_on_api_error(db_session):
         rate, source = await get_rate_to_usd(db_session, "EUR", date(2026, 8, 6), client=client)
     assert source == "fallback"
     assert rate == Decimal("1.08")
+
+
+def _mock_mep_client(venta: float | None):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if venta is None:
+            return httpx.Response(500)
+        assert "dolares/bolsa" in str(request.url)
+        return httpx.Response(200, json={
+            "moneda": "USD", "casa": "bolsa", "compra": venta - 20, "venta": venta,
+        })
+
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+async def test_ars_uses_dolarapi_mep(db_session):
+    # ARS no está en Frankfurter: va directo a dolarapi (MEP) -> 1/venta.
+    async with _mock_mep_client(1600.0) as client:
+        rate, source = await get_rate_to_usd(db_session, "ARS", date(2026, 8, 6), client=client)
+    assert source == "dolarapi"
+    assert rate == Decimal("0.000625")  # 1/1600
+    # Segunda llamada: cache.
+    rate2, source2 = await get_rate_to_usd(db_session, "ARS", date(2026, 8, 6))
+    assert (rate2, source2) == (Decimal("0.000625"), "cache")
+
+
+async def test_ars_fallback_on_dolarapi_error(db_session):
+    async with _mock_mep_client(None) as client:
+        rate, source = await get_rate_to_usd(db_session, "ARS", date(2026, 8, 6), client=client)
+    assert source == "fallback"
 
 
 async def test_convert_rounds_to_2dp(db_session):
@@ -847,17 +863,25 @@ async def get_rate_to_usd(
     if cached is not None:
         return cached, "cache"
 
-    url = f"{get_settings().frankfurter_url}/{on_date.isoformat()}"
-    params = {"base": currency, "symbols": "USD"}
     owns_client = client is None
     if owns_client:
         client = httpx.AsyncClient(timeout=10.0)
     try:
-        resp = await client.get(url, params=params)
-        resp.raise_for_status()
-        rate = Decimal(str(resp.json()["rates"]["USD"]))
+        if currency == "ARS":
+            # Frankfurter (ECB) no publica ARS: usamos dólar MEP (dolarapi).
+            resp = await client.get(f"{get_settings().dolarapi_url}/dolares/bolsa")
+            resp.raise_for_status()
+            venta = Decimal(str(resp.json()["venta"]))
+            rate = (Decimal("1") / venta).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+            source = "dolarapi"
+        else:
+            url = f"{get_settings().frankfurter_url}/{on_date.isoformat()}"
+            resp = await client.get(url, params={"base": currency, "symbols": "USD"})
+            resp.raise_for_status()
+            rate = Decimal(str(resp.json()["rates"]["USD"]))
+            source = "frankfurter"
         await _store_rate(session, currency, on_date, rate)
-        return rate, "frankfurter"
+        return rate, source
     except Exception:
         return _fallback_rate(currency), "fallback"
     finally:
@@ -881,7 +905,7 @@ async def convert_to_usd(
 - [ ] **Step 4: Correr los tests de FX**
 
 Run: `cd backend && pytest tests/test_fx.py -v`
-Expected: PASS (4 tests).
+Expected: PASS (6 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -1052,18 +1076,93 @@ git commit -m "feat(backend): cálculo del neto splitwise en USD"
 
 ---
 
+### Task 6: Fecha del viaje por timezone (`trip_time`)
+
+**Files:**
+- Create: `backend/app/trip_time.py`
+- Test: `backend/tests/test_trip_time.py`
+
+**Interfaces:**
+- Produces: `app.trip_time.today_in_tz(tz_name: str | None, *, now: datetime | None = None) -> date` — "hoy" en la timezone dada (`zoneinfo`); si `tz_name` es `None` o inválida, usa `get_settings().trip_default_timezone` (Europe/Madrid). `now` (aware, UTC) es inyectable para tests. **Motivo:** con `date.today()` (UTC del servidor) un gasto cargado a las 00:30 en Praga cae en el día anterior y puede resolver mal la parada activa/moneda.
+- Consumers futuros: Plan 2 (default de `movement_date`), Plan 3 (dispatcher/webhook), Plan 4 (la timezone real viene de la parada activa sincronizada de Andiamo).
+
+- [ ] **Step 1: Escribir el test que falla**
+
+`backend/tests/test_trip_time.py`:
+```python
+from datetime import datetime, timezone
+
+from app.trip_time import today_in_tz
+
+# 2026-08-05 23:30 UTC == 2026-08-06 01:30 en Madrid (CEST, UTC+2)
+_NOW = datetime(2026, 8, 5, 23, 30, tzinfo=timezone.utc)
+
+
+def test_today_crosses_midnight_in_local_tz():
+    assert today_in_tz("Europe/Madrid", now=_NOW).isoformat() == "2026-08-06"
+    # Londres (UTC+1 en agosto) sigue en el día 5.
+    assert today_in_tz("Europe/London", now=_NOW).isoformat() == "2026-08-05"
+
+
+def test_invalid_or_missing_tz_falls_back_to_default():
+    assert today_in_tz(None, now=_NOW).isoformat() == "2026-08-06"      # Madrid
+    assert today_in_tz("No/Existe", now=_NOW).isoformat() == "2026-08-06"
+```
+
+- [ ] **Step 2: Correr y verificar fallo**
+
+Run: `cd backend && pytest tests/test_trip_time.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'app.trip_time'`.
+
+- [ ] **Step 3: Implementar `trip_time.py`**
+
+`backend/app/trip_time.py`:
+```python
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from app.config import get_settings
+
+
+def today_in_tz(tz_name: str | None, *, now: datetime | None = None) -> date:
+    """'Hoy' en la timezone del viaje. Nunca usar date.today() (UTC del server)."""
+    if now is None:
+        now = datetime.now(timezone.utc)
+    name = tz_name or get_settings().trip_default_timezone
+    try:
+        tz = ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = ZoneInfo(get_settings().trip_default_timezone)
+    return now.astimezone(tz).date()
+```
+
+- [ ] **Step 4: Correr los tests y toda la suite**
+
+Run: `cd backend && pytest tests/test_trip_time.py -v && pytest -v`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd ~/Desktop/Trip/Botardo
+git add backend/app/trip_time.py backend/tests/test_trip_time.py
+git commit -m "feat(backend): fecha del viaje por timezone (fallback Europe/Madrid)"
+```
+
+---
+
 ## Self-review (Plan 1)
 
-- **Cobertura de spec (secciones aplicables):** §4 modelo de datos → Tasks 2 (todas las tablas: movements, users, categories, stops, fx_rates, whatsapp_dedupe, pending, session). §5 neto → Task 5. §8 FX → Task 4. Categorías (§3/§4) → Task 3. Scaffold/deploy base → Task 1. Bot/HTTP/frontend/Andiamo quedan para plans posteriores (por diseño).
+- **Cobertura de spec (secciones aplicables):** §4 modelo de datos → Task 2 (todas las tablas: movements, users, categories, stops [con `timezone`], fx_rates, whatsapp_dedupe, bot_pending_actions, session states). §5 neto → Task 5. §8 FX (incl. ARS/MEP) → Task 4. Categorías (§3/§4) → Task 3. Timezone (§3) → Task 6. Scaffold → Task 1. Bot/HTTP/frontend/Andiamo quedan para plans posteriores (por diseño).
 - **Placeholders:** ninguno; todo el código está completo.
-- **Consistencia de tipos:** `Movement.split`/`type`/`fx_source` valores string consistentes entre modelo (Task 2), seed no aplica, FX (`fx_source` producido por Task 4: `frankfurter|fallback|cache|direct`) y balance (Task 5 consume `type`/`split`/`paid_by`/`amount_usd`). `convert_to_usd` devuelve `(amount_usd, rate, source)` — el `source` de FX (`frankfurter|fallback|cache|direct`) se mapeará al `fx_source` persistido (`frankfurter|manual|fallback`) en el Plan 2 al crear movimientos: `cache`/`direct` → se guarda la tasa igual; el campo `fx_source` guardará `frankfurter` cuando vino de la API/cache y `fallback` cuando cayó al fallback. (Nota para Plan 2.)
+- **Consistencia de tipos:** `Movement.split`/`type`/`fx_source` valores string consistentes entre modelo (Task 2), FX (`source` producido por Task 4: `frankfurter|dolarapi|fallback|cache|direct`) y balance (Task 5 consume `type`/`split`/`paid_by`/`amount_usd`). `convert_to_usd` devuelve `(amount_usd, rate, source)` — el mapeo a `fx_source` persistido lo hace el Plan 2 con `_map_source(src, currency)`: `fallback`→`fallback`; si `currency=="ARS"`→`dolarapi`; el resto (`frankfurter|cache|direct`)→`frankfurter`; override del usuario→`manual`.
 
 ---
 
 ## Roadmap del resto (plans siguientes)
 
-- **Plan 2 — API HTTP + auth:** `app/main.py` (FastAPI, CORS, startup seed), auth JWT (reciclado de Expenses), `POST/GET/PATCH/DELETE /api/v1/movements` (crea movimiento: FX + `paid_by` + split + parada activa), `GET /api/v1/balance` (usa `compute_balance`), `GET /api/v1/categories`, endpoints de dashboard (`summary`/`by-city`/`by-category`/`timeseries`). Mapea `fx_source` de FX→persistido.
-- **Plan 3 — Captura WhatsApp:** fusión del webhook en el backend (verify HMAC, dedupe tabla, lock por chat), parser LLM (monto/moneda/categoría/split), dispatcher determinista, botones de override de split, settlement por comando, override de parada activa. Retira tarjeta/recurrentes/cuotas.
-- **Plan 4 — Integración Andiamo:** `app/andiamo.py` (sync de `stops` desde `GET {ANDIAMO_URL}/api/stops`), derivación de parada activa por fecha + moneda default, `GET /api/v1/cities/spend` (X-Api-Key). **Cambios en repo Andiamo:** endpoint `/api/stops` (X-Api-Key) + widget "Gastado: USD X" en `/stops/[slug]`.
-- **Plan 5 — Frontend dashboard:** shell React 19 + Vite reciclado; balance destacado + botón saldar; gasto por ciudad/categoría; timeline; lista de movimientos (editar/borrar/corregir FX); login.
-- **Plan 6 — Deploy:** Vercel (frontend estático + backend Python serverless / ASGI), Supabase (DATABASE_URL + migraciones), envs (`TRIP_SHARED_API_KEY`, `ANDIAMO_URL`, WhatsApp, OpenAI), verificación end-to-end.
+- **Plan 2 — API HTTP + auth:** `app/main.py` (FastAPI, CORS dev, startup seed), auth JWT (reciclado de Expenses), `POST/GET/PATCH/DELETE /api/v1/movements` (crea con FX; PATCH parcial con `MovementUpdate` que no pisa tasas manuales), `GET /api/v1/balance`, `GET /api/v1/users` (para nombres en el frontend), `GET /api/v1/categories`, dashboard (`summary`/`by-city`/`by-category`/`timeseries`). Mapea `fx_source` de FX→persistido.
+- **Plan 3 — Captura WhatsApp:** webhook fusionado con **ACK inmediato + background task** (verify HMAC, dedupe tabla, lock por chat), parser LLM con **Claude Haiku 4.5 structured outputs**, dispatcher determinista (devuelve `movement_id` para los botones de split — sin race), comando "borrar" con confirmación, settlement por comando, override de parada activa.
+- **Plan 4 — Integración Andiamo:** `app/andiamo.py` (sync de `stops` con `timezone` incluida, refresh perezoso TTL 6h), parada activa por fecha + moneda + timezone, `GET /api/v1/cities/spend` (X-Api-Key). **Cambios en repo Andiamo:** endpoint `/api/stops` (X-Api-Key) + widget "Gastado: USD X" en `/stops/[slug]`.
+- **Plan 5 — Frontend dashboard:** shell React 19 + Vite reciclado; balance destacado + botón saldar; gasto por ciudad/categoría; timeline; lista de movimientos (editar/borrar/corregir FX); login; nombres reales vía `GET /users`.
+- **Plan 6 — Deploy:** Railway (backend FastAPI + Railway Postgres + frontend estático servido por FastAPI, un solo servicio), envs (`TRIP_SHARED_API_KEY`, `ANDIAMO_URL`, WhatsApp, `ANTHROPIC_API_KEY`), webhook Meta, verificación end-to-end.

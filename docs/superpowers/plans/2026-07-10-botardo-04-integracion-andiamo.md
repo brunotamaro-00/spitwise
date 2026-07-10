@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Conectar Botardo ↔ Andiamo por HTTP con `X-Api-Key`. Botardo sincroniza el itinerario (`stops`) desde Andiamo, deriva la parada activa por fecha (y su moneda default), y expone gasto por ciudad. Andiamo expone `/api/stops` y muestra un chip "Gastado: USD X" por parada.
+**Goal:** Conectar Botardo ↔ Andiamo por HTTP con `X-Api-Key`. Botardo sincroniza el itinerario (`stops`, **incluida la `timezone` de cada parada**), deriva la parada activa por fecha (moneda default + timezone para "hoy"), mantiene el snapshot fresco con **refresh perezoso (TTL 6h) en background**, y expone gasto por ciudad. Andiamo expone `/api/stops` y muestra un chip "Gastado: USD X" por parada.
 
-**Architecture:** Sin DB compartida. Botardo: `app/andiamo.py` (sync stops), `resolve_active_stop` derivada por fecha, `GET /api/v1/cities/spend` (X-Api-Key). Andiamo (repo `~/Desktop/Trip/andiamo`): nuevo route `GET /api/stops` (X-Api-Key, excluido del proxy auth) y un widget cliente que consume Botardo, degradando en silencio.
+**Architecture:** Sin DB compartida. Botardo: `app/andiamo.py` (sync stops + `ensure_stops_fresh`), `resolve_active_stop` derivada por fecha, `resolve_trip_timezone` (alimenta `today_in_tz`), `GET /api/v1/cities/spend` (X-Api-Key). Andiamo (repo `~/Desktop/Trip/andiamo`): nuevo route `GET /api/stops` (X-Api-Key, excluido del proxy auth) y un widget cliente que consume Botardo, degradando en silencio.
 
 **Tech Stack:** Botardo (FastAPI, httpx). Andiamo (Next.js 16 App Router, Prisma 7, React 19, Tailwind 4 / design system Panini).
 
@@ -50,7 +50,8 @@
 - Produces:
   - `async app.andiamo.fetch_stops(*, client: httpx.AsyncClient | None = None) -> list[dict]` — GET `{andiamo_url}/api/stops` con `X-Api-Key`. Lanza en error de red (el caller decide fallback).
   - `async app.andiamo.sync_stops(session, *, client=None) -> int` — upsert por `slug`; devuelve cantidad sincronizada. Si `fetch_stops` falla, no toca la tabla y devuelve `0`.
-  - Mapea camelCase de Andiamo → snake_case de `Stop`: `arrivalDate→arrival_date`, `departureDate→departure_date`, `currencyCode→currency_code`, `countryFlag→country_flag`, `isTransit→is_transit`, etc. Fechas `YYYY-MM-DD`→`date`.
+  - `async app.andiamo.ensure_stops_fresh(session) -> None` — si `max(stops.synced_at)` es más viejo que **6 horas** (o no hay stops), dispara `sync_stops` en background (`asyncio.create_task` con su propia sesión) y retorna al instante. **Nunca bloquea el camino crítico**: la request actual usa el snapshot existente. Se llama desde el webhook/dispatcher antes de resolver la parada activa.
+  - Mapea camelCase de Andiamo → snake_case de `Stop`: `arrivalDate→arrival_date`, `departureDate→departure_date`, `currencyCode→currency_code`, `countryFlag→country_flag`, `timezone→timezone`, `isTransit→is_transit`, etc. Fechas `YYYY-MM-DD`→`date`.
 
 - [ ] **Step 1: Escribir el test que falla**
 
@@ -67,10 +68,12 @@ from sqlalchemy import select
 _STOPS = [
     {"slug": "londres", "order": 1, "name": "Londres", "country": "Reino Unido",
      "countryFlag": "🇬🇧", "arrivalDate": "2026-08-05", "departureDate": "2026-08-13",
-     "currencyCode": "GBP", "isTransit": False, "isCandidate": False, "isFlexMargin": False},
+     "currencyCode": "GBP", "timezone": "Europe/London",
+     "isTransit": False, "isCandidate": False, "isFlexMargin": False},
     {"slug": "paris", "order": 6, "name": "París", "country": "Francia",
      "countryFlag": "🇫🇷", "arrivalDate": "2026-08-29", "departureDate": "2026-09-04",
-     "currencyCode": "EUR", "isTransit": False, "isCandidate": False, "isFlexMargin": False},
+     "currencyCode": "EUR", "timezone": "Europe/Paris",
+     "isTransit": False, "isCandidate": False, "isFlexMargin": False},
 ]
 
 
@@ -90,6 +93,7 @@ async def test_sync_upserts(db_session, monkeypatch):
     rows = (await db_session.execute(select(Stop).order_by(Stop.order))).scalars().all()
     assert rows[0].slug == "londres"
     assert rows[0].currency_code == "GBP"
+    assert rows[0].timezone == "Europe/London"
     assert rows[0].arrival_date == date(2026, 8, 5)
     # Idempotente
     async with _client(_STOPS) as c:
@@ -169,6 +173,7 @@ async def sync_stops(session: AsyncSession, *, client: httpx.AsyncClient | None 
         row.arrival_date = _parse_date(item.get("arrivalDate"))
         row.departure_date = _parse_date(item.get("departureDate"))
         row.currency_code = item.get("currencyCode")
+        row.timezone = item.get("timezone")
         row.is_transit = bool(item.get("isTransit"))
         row.is_candidate = bool(item.get("isCandidate"))
         row.is_flex_margin = bool(item.get("isFlexMargin"))
@@ -177,7 +182,41 @@ async def sync_stops(session: AsyncSession, *, client: httpx.AsyncClient | None 
         n += 1
     await session.commit()
     return n
+
+
+_FRESH_TTL = timedelta(hours=6)
+_refresh_running = False
+
+
+async def _background_refresh() -> None:
+    global _refresh_running
+    from app.db.engine import get_sessionmaker
+    try:
+        maker = get_sessionmaker()
+        async with maker() as session:
+            await sync_stops(session)
+    except Exception:
+        logger.warning("andiamo_lazy_refresh_failed", exc_info=True)
+    finally:
+        _refresh_running = False
+
+
+async def ensure_stops_fresh(session: AsyncSession) -> None:
+    """Refresh perezoso del snapshot (TTL 6h). Nunca bloquea: dispara un task y retorna."""
+    global _refresh_running
+    if _refresh_running:
+        return
+    import asyncio
+    from datetime import datetime
+    from sqlalchemy import func
+    last = (await session.execute(select(func.max(Stop.synced_at)))).scalar_one_or_none()
+    if last is not None and datetime.utcnow() - last < _FRESH_TTL:
+        return
+    _refresh_running = True
+    asyncio.create_task(_background_refresh())
 ```
+
+(Agregar `from datetime import date, timedelta` arriba.)
 
 - [ ] **Step 4: Correr los tests**
 
@@ -207,6 +246,18 @@ git commit -m "feat(andiamo): sync de stops (itinerario) desde Andiamo"
   3. Fallback: última parada con `arrival_date <= today` (o la primera si `today` es previo a todo).
   4. Si no hay stops sincronizadas → `(None, None, "USD")`.
   Devuelve `(stop_slug, city_name, currency_code or "USD")`.
+- **Nuevo:** `async app.bot.active_stop.resolve_trip_timezone(session) -> str | None` — la `timezone` de la parada activa por fecha (misma lógica 2/3, sin override), o `None` si no hay stops (→ `today_in_tz` cae a Europe/Madrid). La usa el webhook para calcular "hoy" **antes** de despachar.
+- **Cableado (nuevo Step):** en `app/api/webhook.py::process_message`, antes de despachar:
+  ```python
+  from app.andiamo import ensure_stops_fresh
+  from app.bot.active_stop import resolve_trip_timezone
+  ...
+  async with maker() as session:
+      await ensure_stops_fresh(session)          # lazy TTL, no bloquea
+      tz = await resolve_trip_timezone(session)
+      reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, today_in_tz(tz))
+  ```
+  Y en el lifespan de `app/main.py`: `await sync_stops(session)` (tolerante a fallo) tras el seed — primer sync al startup.
 
 - [ ] **Step 1: Escribir el test que falla**
 
@@ -282,8 +333,26 @@ async def resolve_active_stop(session: AsyncSession, wa_id: str, today: date):
         current = arrived[-1] if arrived else stops[0]
 
     return current.slug, current.name, (current.currency_code or "USD")
+
+
+async def resolve_trip_timezone(session: AsyncSession) -> str | None:
+    """Timezone de la parada activa por fecha (para today_in_tz). None => fallback default."""
+    from datetime import datetime, timezone as _tz
+    from app.db.models import Stop
+    from app.config import get_settings
+    from zoneinfo import ZoneInfo
+    stops = (await session.execute(select(Stop).order_by(Stop.arrival_date))).scalars().all()
+    if not stops:
+        return None
+    # Aproximación de "hoy" con la tz default para elegir la parada (el error de ±1h no cambia la parada).
+    probe = datetime.now(_tz.utc).astimezone(ZoneInfo(get_settings().trip_default_timezone)).date()
+    for s in stops:
+        if s.arrival_date and s.departure_date and s.arrival_date <= probe < s.departure_date:
+            return s.timezone
+    arrived = [s for s in stops if s.arrival_date and s.arrival_date <= probe]
+    return (arrived[-1] if arrived else stops[0]).timezone
 ```
-Asegurar el import de `Stop` (ya está dentro de la función) y que `select` esté importado arriba (lo está).
+Asegurar el import de `Stop` (ya está dentro de la función) y que `select` esté importado arriba (lo está). Test extra en `test_active_stop_by_date.py`: con los stops sembrados y fecha dentro de Londres, `resolve_trip_timezone` devuelve `"Europe/London"` (usar `freezegun` o inyectar; alternativa simple: probar solo el caso "sin stops → None").
 
 - [ ] **Step 4: Correr los tests (nuevos + los del Plan 3)**
 
@@ -461,7 +530,7 @@ git commit -m "feat(andiamo): endpoint cities/spend (X-Api-Key) + sync manual"
 - Test: `src/app/api/stops/route.test.ts`
 
 **Interfaces:**
-- `GET /api/stops` con header `X-Api-Key` == `TRIP_SHARED_API_KEY` → JSON `[{ slug, order, name, country, countryFlag, arrivalDate, departureDate, nights, datesFixed, currencyCode, isTransit, isCandidate, isFlexMargin }]`. Sin key válida → 401. Fechas serializadas `YYYY-MM-DD`.
+- `GET /api/stops` con header `X-Api-Key` == `TRIP_SHARED_API_KEY` → JSON `[{ slug, order, name, country, countryFlag, arrivalDate, departureDate, nights, datesFixed, currencyCode, timezone, isTransit, isCandidate, isFlexMargin }]`. Sin key válida → 401. Fechas serializadas `YYYY-MM-DD`. (`timezone` ya existe en el modelo `Stop` de Andiamo.)
 - Nuevo env `TRIP_SHARED_API_KEY` en Andiamo.
 
 - [ ] **Step 0: Verificar identidad git del repo Andiamo**
@@ -483,7 +552,8 @@ vi.mock("@/lib/db", () => ({
           slug: "londres", order: 1, name: "Londres", country: "Reino Unido",
           countryFlag: "🇬🇧", arrivalDate: new Date("2026-08-05"),
           departureDate: new Date("2026-08-13"), nights: 8, datesFixed: true,
-          currencyCode: "GBP", isTransit: false, isCandidate: false, isFlexMargin: false,
+          currencyCode: "GBP", timezone: "Europe/London",
+          isTransit: false, isCandidate: false, isFlexMargin: false,
         },
       ]),
     },
@@ -550,6 +620,7 @@ export async function GET(request: Request): Promise<Response> {
     nights: s.nights,
     datesFixed: s.datesFixed,
     currencyCode: s.currencyCode,
+    timezone: s.timezone,
     isTransit: s.isTransit,
     isCandidate: s.isCandidate,
     isFlexMargin: s.isFlexMargin,
@@ -659,7 +730,7 @@ git commit -m "feat(stops): chip 'Gastado USD X' por parada (Botardo integration
 
 ## Self-review (Plan 4)
 
-- **Cobertura de spec §6:** sync Andiamo→Botardo (Task 1), parada activa por fecha + moneda default (Task 2), Botardo→Andiamo `cities/spend` (Task 3), Andiamo `/api/stops` (Task 4), widget de gasto (Task 5), auth `X-Api-Key` (Tasks 3/4/5). Resiliencia: `sync_stops` devuelve 0 sin tocar snapshot; `fetchStopSpend` degrada a `null`.
-- **Placeholders:** el Step 4 de Task 4 (editar `proxy.ts`) describe la edición sin código exacto porque depende del matcher actual del repo — es una instrucción de "seguir el patrón `api/documents` existente", verificable leyendo el archivo. No es un placeholder de lógica nueva.
-- **Consistencia de tipos:** camelCase de `/api/stops` (Andiamo) ↔ mapeo snake_case en `sync_stops` (Botardo) — verificado campo por campo. `cities/spend` devuelve `total_usd` string `.2f`, consumido por `fetchStopSpend`. `resolve_active_stop` firma sin cambios (solo cuerpo) → Plan 3 sigue funcionando.
+- **Cobertura de spec §6:** sync Andiamo→Botardo con `timezone` (Task 1), refresh perezoso TTL 6h + sync al startup (Task 1/2), parada activa por fecha + moneda + timezone (Task 2, incl. `resolve_trip_timezone` cableado al webhook), Botardo→Andiamo `cities/spend` (Task 3), Andiamo `/api/stops` (Task 4), widget de gasto (Task 5), auth `X-Api-Key` (Tasks 3/4/5). Resiliencia: `sync_stops` devuelve 0 sin tocar snapshot; `ensure_stops_fresh` nunca bloquea; `fetchStopSpend` degrada a `null`.
+- **Placeholders:** el Step 4 de Task 4 (editar `proxy.ts`) describe la edición sin código exacto porque depende del matcher actual del repo — es una instrucción de "seguir el patrón `api/documents` existente" (matcher verificado: `/((?!api/documents|_next/static|_next/image|favicon.ico).*)`). No es un placeholder de lógica nueva.
+- **Consistencia de tipos:** camelCase de `/api/stops` (Andiamo) ↔ mapeo snake_case en `sync_stops` (Botardo) — verificado campo por campo, incl. `timezone`. `cities/spend` devuelve `total_usd` string `.2f`, consumido por `fetchStopSpend`. `resolve_active_stop` firma sin cambios (solo cuerpo) → Plan 3 sigue funcionando; `resolve_trip_timezone` es aditiva.
 - **Identidad git:** Task 4/Step 0 fuerza la verificación en el repo Andiamo.

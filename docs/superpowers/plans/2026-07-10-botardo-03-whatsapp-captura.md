@@ -2,23 +2,27 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Capturar gastos por WhatsApp en un solo backend: webhook (verify HMAC, dedupe en Postgres, lock por chat) → parser LLM (monto, moneda, categoría, split) → dispatcher determinista → auto-registro del movimiento, con botones para override de split, comando de settlement, override de parada activa y confirmación de borrado.
+**Goal:** Capturar gastos por WhatsApp en un solo backend: webhook (verify HMAC + dedupe → **200 inmediato**, procesamiento en background) → parser LLM (monto, moneda, categoría, split) → dispatcher determinista → auto-registro del movimiento, con botones para override de split, comando de settlement, comando de borrado con confirmación y override de parada activa.
 
-**Architecture:** El webhook vive dentro del backend FastAPI (no hay servicio wpp-bot separado). El dispatcher es determinista (sin FSM): botones → settlement → borrado → captura. El parser hace **1 llamada LLM** que devuelve monto/moneda/categoría/split. `paid_by` = usuario del `wa_id`. La parada activa se resuelve con `app.bot.active_stop.resolve_active_stop` (en este plan: override de sesión o `None`; Plan 4 la deriva de Andiamo por fecha).
+**Architecture:** El webhook vive dentro del backend FastAPI (no hay servicio wpp-bot separado). **Meta exige 200 en ~5s y entrega at-least-once**: el POST valida firma, parsea y reclama el `wamid` (dedupe) de forma síncrona, y despacha el resto (LLM + FX + envío por Graph) como background task de FastAPI — viable porque el deploy es Railway (proceso persistente). El dispatcher es determinista (sin FSM): botones → settlement → borrado → captura. El parser hace **1 llamada LLM a Claude Haiku 4.5 con structured outputs** (`client.messages.parse` + schema Pydantic) que devuelve monto/moneda/categoría/split. `paid_by` = usuario del `wa_id`. La parada activa se resuelve con `app.bot.active_stop.resolve_active_stop` (en este plan: override de sesión o `None`; Plan 4 la deriva de Andiamo por fecha).
 
-**Tech Stack:** FastAPI, OpenAI SDK (structured parse), SQLAlchemy async, httpx (Meta Graph client), hmac/hashlib (verify), pytest.
+**Tech Stack:** FastAPI (BackgroundTasks), Anthropic SDK (`anthropic`, Claude Haiku 4.5, structured outputs), SQLAlchemy async, httpx (Meta Graph client), hmac/hashlib (verify), pytest.
 
 ## Global Constraints
 
 - **Un solo backend.** No portar el servicio `wpp-bot` de Expenses; su lógica de webhook/meta_client se funde acá (`app/whatsapp/*`).
-- Dedupe de `wamid` en tabla Postgres (`WhatsAppDedupe`), no Redis. Lock por chat en proceso (`asyncio.Lock` por `wa_id`) — aceptable, y en serverless cada invocación procesa un mensaje.
+- **Webhook ACK-fast:** el POST devuelve 200 apenas verifica firma y reclama el `wamid`; el procesamiento corre en `BackgroundTasks`. El dedupe absorbe los reintentos at-least-once de Meta.
+- Dedupe de `wamid` en tabla Postgres (`WhatsAppDedupe`), no Redis. Lock por chat en proceso (`asyncio.Lock` por `wa_id`) — funciona de verdad en Railway (proceso único persistente).
 - Bot de **captura pura**: registra/edita/borra + settlement. Sin recurrentes, sin tarjeta, sin cuotas, sin consultas por chat (los números se ven en el dashboard → CTA).
-- Auto-registra sin confirmación salvo: categoría genuinamente ambigua (botones), o borrado (irreversible).
+- Auto-registra sin confirmación salvo: categoría genuinamente ambigua (botones), o borrado (irreversible; comando "borrar" → botones de confirmación sobre el último movimiento **de ese usuario**).
+- Los botones de split se cuelgan del **`movement_id` que devuelve la captura** (campo `BotReply.movement_id`), nunca de "el último movimiento global" — con 2 usuarios cargando a la vez eso edita el gasto del otro (race).
+- "Hoy" del dispatcher = `today_in_tz(...)` (Plan 1); Plan 4 le pasa la timezone de la parada activa.
 - Errores del bot: nunca genéricos → `⚠️ {Tipo}: {mensaje}`, un solo try/except en el borde del dispatcher.
 - Botones: ids planos con token opaco del pending. `split_shared:`, `split_mine:`, `split_theirs:`, `del_confirm:`, `del_cancel:`, `cat_pick:{token}|{cat_id}`.
 - `wa_id` desconocido se rechaza salvo `WHATSAPP_AUTO_REGISTER` (default dev).
+- LLM: **Claude Haiku 4.5** (`claude-haiku-4-5`) vía SDK `anthropic`, structured outputs con `client.messages.parse` — la respuesta ya viene validada contra el schema, sin parseo manual de JSON.
 
-**Referencia de reutilización:** `~/Desktop/Expenses/wpp-bot/wpp_bot/{webhook.py,meta_client.py}` (verify HMAC + envío Graph), `~/Desktop/Expenses/backend/app/bot/dispatcher.py` (patrón de ruteo), `app/llm/parser.py` + `app/llm/prompts.py` (parse LLM — simplificar radicalmente).
+**Referencia de reutilización:** `~/Desktop/Expenses/wpp-bot/wpp_bot/{webhook.py,meta_client.py}` (verify HMAC + envío Graph), `~/Desktop/Expenses/backend/app/bot/dispatcher.py` (patrón de ruteo). El parser LLM se reescribe (era OpenAI): queda solo el patrón de prompt.
 
 ---
 
@@ -108,35 +112,51 @@ async def test_low_confidence_keeps_candidates():
 Run: `cd backend && pytest tests/test_llm_parser.py -v`
 Expected: FAIL — import error.
 
-- [ ] **Step 3: Crear `client.py` (OpenAI)**
+- [ ] **Step 3: Crear `client.py` (Anthropic, Claude Haiku 4.5 + structured outputs)**
 
 `backend/app/llm/__init__.py`: (vacío)
 
 `backend/app/llm/client.py`:
 ```python
-import json
+from pydantic import BaseModel
 
-from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
 
 from app.config import get_settings
 
 _SYSTEM = (
-    "Sos un parser de gastos de viaje. Dado un mensaje, devolvé SOLO un JSON con: "
-    "amount (string decimal o null), currency (ISO 4217 o null si no se menciona), "
-    "description (string corta), category (una de la lista dada), "
-    "split ('shared'|'payer_only'|'other_only'; 'shared' salvo que diga que es solo de uno), "
-    "is_settlement (true si es un pago entre las dos personas para saldar, no un gasto), "
-    "confidence (0..1 de qué tan clara es la categoría), "
-    "candidates (lista de categorías candidatas si confidence < 0.6, si no []). "
+    "Sos un parser de gastos de un viaje de una pareja. Extraé del mensaje: "
+    "amount (string decimal o null si no hay monto), "
+    "currency (código ISO 4217 si el texto menciona la moneda — '45 libras'→GBP, '12€'→EUR — o null), "
+    "description (string corta en minúsculas), "
+    "category (exactamente una de la lista dada), "
+    "split ('shared' salvo que el texto diga que es solo de uno: 'solo mío'→payer_only, "
+    "'de ella'/'de él'→other_only), "
+    "is_settlement (true solo si es un pago ENTRE las dos personas para saldar deuda, no un gasto), "
+    "confidence (0..1: qué tan clara es la categoría), "
+    "candidates (si confidence < 0.6, 2-3 categorías candidatas de la lista; si no, lista vacía). "
     "No inventes categorías fuera de la lista."
 )
 
 
-class OpenAILLM:
+class ParsedMovementSchema(BaseModel):
+    amount: str | None
+    currency: str | None
+    description: str | None
+    category: str | None
+    split: str
+    is_settlement: bool
+    confidence: float
+    candidates: list[str]
+
+
+class AnthropicLLM:
     def __init__(self) -> None:
         s = get_settings()
-        self._client = AsyncOpenAI(api_key=s.openai_api_key, timeout=s.openai_timeout_seconds)
-        self._model = s.openai_model
+        self._client = AsyncAnthropic(
+            api_key=s.anthropic_api_key, timeout=s.anthropic_timeout_seconds
+        )
+        self._model = s.anthropic_model  # claude-haiku-4-5
 
     async def parse(self, text: str, default_currency: str, category_names: list[str]) -> dict:
         user = (
@@ -144,13 +164,18 @@ class OpenAILLM:
             f"Moneda por defecto (ciudad actual): {default_currency}.\n"
             f"Mensaje: {text}"
         )
-        resp = await self._client.chat.completions.create(
+        resp = await self._client.messages.parse(
             model=self._model,
-            messages=[{"role": "system", "content": _SYSTEM}, {"role": "user", "content": user}],
-            response_format={"type": "json_object"},
+            max_tokens=1024,
+            system=_SYSTEM,
+            messages=[{"role": "user", "content": user}],
+            output_format=ParsedMovementSchema,
         )
-        return json.loads(resp.choices[0].message.content or "{}")
+        parsed = resp.parsed_output
+        return parsed.model_dump() if parsed is not None else {}
 ```
+
+Nota: structured outputs garantiza JSON válido contra el schema (sin `json.loads` frágil). `parsed_output` puede ser `None` solo ante refusal/max_tokens — el `{}` cae en el manejo de "monto no leído" del parser.
 
 - [ ] **Step 4: Crear `parser.py`**
 
@@ -206,8 +231,8 @@ def _to_decimal(v):
 
 async def parse_movement(text, *, default_currency, category_names, client=None):
     if client is None:
-        from app.llm.client import OpenAILLM
-        client = OpenAILLM()
+        from app.llm.client import AnthropicLLM
+        client = AnthropicLLM()
     raw = await client.parse(text, default_currency, category_names)
 
     category = raw.get("category")
@@ -499,7 +524,7 @@ git commit -m "feat(bot): dedupe de wamid en Postgres"
 
 **Interfaces:**
 - Produces:
-  - `@dataclass app.bot.render.BotReply`: `text: str | None`, `buttons: list[tuple[str,str]] = []`. Helpers `text_reply(s)`, `buttons_reply(s, buttons)`.
+  - `@dataclass app.bot.render.BotReply`: `text: str | None`, `buttons: list[tuple[str,str]] = []`, `movement_id: int | None = None` (id del movimiento recién creado, para que el dispatcher cuelgue los botones de split sin consultar "el último global" — evita la race con 2 usuarios). Helpers `text_reply(s)`, `buttons_reply(s, buttons)`.
   - `async app.bot.active_stop.resolve_active_stop(session, wa_id: str, today: date) -> tuple[str | None, str | None, str]` → `(stop_slug, city_name, currency_code)`. En este plan: si `whatsapp_session_states` tiene override (`{"stop_slug","city_name","currency_code"}`) lo usa; si no, `(None, None, "USD")`. **Plan 4 reemplaza el cuerpo** para derivar de `stops` por fecha.
   - `async app.bot.active_stop.set_active_stop_override(session, wa_id, stop_slug, city_name, currency_code)`.
   - `async app.bot.resolve_user_by_wa_id(session, wa_id) -> User | None` (en `app/bot/__init__.py`).
@@ -540,6 +565,7 @@ from dataclasses import dataclass, field
 class BotReply:
     text: str | None = None
     buttons: list[tuple[str, str]] = field(default_factory=list)
+    movement_id: int | None = None  # seteado por la captura al crear un movimiento
 
 
 def text_reply(s: str) -> BotReply:
@@ -626,8 +652,8 @@ git commit -m "feat(bot): render + parada activa (override de sesión) + resoluc
 - Consumes: `parse_movement`, `convert_to_usd`, `resolve_active_stop`, `Movement`, `Category`, `resolve_user_by_wa_id`, `BotReply`.
 - Produces:
   - `app.bot.pending`: `async create_pending(session, owner, payload: dict, kind: str) -> str` (token); `async load_pending(session, token) -> dict | None`; `async close_pending(session, token)`. (Usa `BotPendingAction`.)
-  - `async app.bot.capture.handle_capture(session, user, wa_id, text, today, *, llm_client=None) -> BotReply`. Parsea, resuelve parada activa, convierte a USD, crea `Movement`. Si `confidence < 0.6` y hay ≥2 candidatas → NO crea, guarda pending y devuelve botones `cat_pick:{token}|{cat_id}`. Devuelve confirmación de auto-registro.
-  - `async app.bot.capture.apply_category_pick(session, token, category_id) -> BotReply` — materializa el movimiento pendiente con la categoría elegida.
+  - `async app.bot.capture.handle_capture(session, user, wa_id, text, today, *, llm_client=None) -> BotReply`. Parsea, resuelve parada activa, convierte a USD, crea `Movement`. Si `confidence < 0.6` y hay ≥2 candidatas → NO crea, guarda pending y devuelve botones `cat_pick:{token}|{cat_id}`. Al auto-registrar un gasto devuelve la confirmación **con `BotReply.movement_id` seteado** (el dispatcher lo usa para los botones de split).
+  - `async app.bot.capture.apply_category_pick(session, user, token, category_id) -> BotReply` — materializa el movimiento pendiente con la categoría elegida (`paid_by`/`created_by` = `user.id`).
 
 - [ ] **Step 1: Escribir el test que falla**
 
@@ -759,15 +785,20 @@ async def _category_id(session: AsyncSession, name: str | None) -> int | None:
     return (await session.execute(select(Category.id).where(Category.name == name))).scalar_one_or_none()
 
 
-def _map_source(src: str) -> str:
-    return "fallback" if src == "fallback" else "frankfurter"
+def _map_source(src: str, currency: str) -> str:
+    # Igual que app/api/movements.py (Plan 2).
+    if src == "fallback":
+        return "fallback"
+    if currency.upper() == "ARS":
+        return "dolarapi"
+    return "frankfurter"
 
 
 async def _persist(session, *, user, parsed, amount_usd, rate, src, stop_slug, city_name, cat_id, today, raw):
     mv = Movement(
         type="settlement" if parsed.is_settlement else "expense",
         amount=parsed.amount, currency=parsed.currency, amount_usd=amount_usd,
-        fx_rate=rate, fx_source=_map_source(src), paid_by=user.id, split=parsed.split,
+        fx_rate=rate, fx_source=_map_source(src, parsed.currency), paid_by=user.id, split=parsed.split,
         description=parsed.description, category_id=cat_id, stop_slug=stop_slug, city_name=city_name,
         movement_date=today, created_by=user.id, raw_message=raw,
     )
@@ -790,7 +821,7 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
     if not parsed.is_settlement and parsed.confidence < _CONF_THRESHOLD and len(parsed.category_candidates) >= 2:
         payload = {
             "amount": str(parsed.amount), "currency": parsed.currency, "amount_usd": str(amount_usd),
-            "fx_rate": str(rate), "fx_source": _map_source(src), "split": parsed.split,
+            "fx_rate": str(rate), "fx_source": _map_source(src, parsed.currency), "split": parsed.split,
             "description": parsed.description, "stop_slug": stop_slug, "city_name": city_name,
             "movement_date": today.isoformat(),
         }
@@ -802,44 +833,38 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
         return buttons_reply(f"¿Qué categoría? ({parsed.description or 'gasto'} · {parsed.currency} {parsed.amount})", buttons)
 
     cat_id = await _category_id(session, parsed.category_name)
-    await _persist(session, user=user, parsed=parsed, amount_usd=amount_usd, rate=rate, src=src,
-                   stop_slug=stop_slug, city_name=city_name, cat_id=cat_id, today=today, raw=text)
+    mv = await _persist(session, user=user, parsed=parsed, amount_usd=amount_usd, rate=rate, src=src,
+                        stop_slug=stop_slug, city_name=city_name, cat_id=cat_id, today=today, raw=text)
     kind = "Pago (saldo)" if parsed.is_settlement else (parsed.category_name or "Otros")
     loc = f" · {city_name}" if city_name else ""
-    return text_reply(f"✅ {kind}: {parsed.currency} {parsed.amount} (USD {amount_usd}){loc}")
+    reply = text_reply(f"✅ {kind}: {parsed.currency} {parsed.amount} (USD {amount_usd}){loc}")
+    if not parsed.is_settlement:
+        reply.movement_id = mv.id  # el dispatcher cuelga acá los botones de split
+    return reply
 
 
-async def apply_category_pick(session, token: str, category_id: int) -> BotReply:
+async def apply_category_pick(session, user: User, token: str, category_id: int) -> BotReply:
+    from datetime import date
     from decimal import Decimal
 
     data = await load_pending(session, token)
     if data is None:
         return text_reply("⚠️ Expiró: ese pending ya no está disponible.")
-    from app.db.models import Movement
-    from app.bot.pending import close_pending
     mv = Movement(
         type="expense", amount=Decimal(data["amount"]), currency=data["currency"],
         amount_usd=Decimal(data["amount_usd"]), fx_rate=Decimal(data["fx_rate"]),
-        fx_source=data["fx_source"], paid_by=None, split=data["split"],
+        fx_source=data["fx_source"], paid_by=user.id, split=data["split"],
         description=data.get("description"), category_id=category_id,
         stop_slug=data.get("stop_slug"), city_name=data.get("city_name"),
-        movement_date=date.fromisoformat(data["movement_date"]), created_by=None,
+        movement_date=date.fromisoformat(data["movement_date"]), created_by=user.id,
     )
-    # paid_by/created_by se completan por el dispatcher (usuario del wa_id) antes de llamar.
-    return _MovementDraft(mv)  # ver nota
-```
-
-Nota de implementación (Step 4): `apply_category_pick` necesita el `user`. Ajustar la firma a `apply_category_pick(session, user, token, category_id)` y setear `paid_by=user.id`, `created_by=user.id`, hacer `session.add(mv)`, `commit`, `close_pending(session, token)`, y devolver `text_reply(...)`. Reemplazar el `return _MovementDraft(...)` por:
-```python
-    mv.paid_by = user.id
-    mv.created_by = user.id
     session.add(mv)
     await session.commit()
     await close_pending(session, token)
     cat = (await session.execute(select(Category).where(Category.id == category_id))).scalar_one_or_none()
-    return text_reply(f"✅ {cat.name if cat else 'Otros'}: {mv.currency} {mv.amount} (USD {mv.amount_usd})")
-```
-(y agregar `user` como 2º parámetro; importar lo necesario arriba).
+    reply = text_reply(f"✅ {cat.name if cat else 'Otros'}: {mv.currency} {mv.amount} (USD {mv.amount_usd})")
+    reply.movement_id = mv.id
+    return reply
 
 - [ ] **Step 5: Correr los tests**
 
@@ -866,7 +891,7 @@ git commit -m "feat(bot): captura con auto-registro + pending de categoría"
 - Produces:
   - `async app.bot.interactive.handle_interactive(session, user, wa_id, interactive_id, today) -> BotReply`. Rutea por prefijo: `cat_pick:` → `apply_category_pick`; `split_shared:|split_mine:|split_theirs:{movement_id}` → actualiza `Movement.split` (mine=`payer_only`, theirs=`other_only`) y responde; `del_confirm:{id}` → borra; `del_cancel:` → cancela.
   - `async app.bot.settlement.looks_like_settlement(text) -> bool` y manejo dentro de capture (el parser ya marca `is_settlement`). (Este archivo expone `format_settlement_confirm`.)
-  - `async app.bot.dispatcher.dispatch(session, wa_id, message_type, text, interactive_id, today) -> BotReply`. Un solo try/except → `⚠️ {Tipo}: {msg}`. Resuelve usuario por `wa_id` (rechaza desconocidos salvo auto-register). Tras auto-registrar un gasto, ofrece botones de split override `[Compartido ✓][Solo mío][Solo de ella]` con el `movement_id`.
+  - `async app.bot.dispatcher.dispatch(session, wa_id, message_type, text, interactive_id, today) -> BotReply`. Un solo try/except → `⚠️ {Tipo}: {msg}`. Resuelve usuario por `wa_id` (rechaza desconocidos salvo auto-register). Ruteo de texto: comando **"borrar"** (o "borrar último") → busca el último movimiento `created_by == user.id` y devuelve botones `[Borrar 🗑️](del_confirm:{id})` `[Cancelar](del_cancel:0)`; si no, captura. Tras auto-registrar un gasto, ofrece botones de split override `[Compartido ✓][Solo mío][Solo de ella]` usando **`reply.movement_id`** (nunca una query del "último global": race con 2 usuarios).
 
 - [ ] **Step 1: Escribir el test que falla**
 
@@ -902,21 +927,36 @@ async def _two_users(db_session):
     return u1, u2
 
 
-async def test_capture_then_split_override_to_mine(db_session, monkeypatch):
+async def test_capture_then_split_override_to_mine(db_session):
     u1, u2 = await _two_users(db_session)
     fake = FakeLLM({"amount": "100", "currency": "USD", "description": "hotel", "category": "Alojamiento",
                     "split": "shared", "is_settlement": False, "confidence": 0.95, "candidates": []})
-    import app.bot.capture as capture
-    monkeypatch.setattr(capture, "parse_movement", None, raising=False)
     reply = await dispatch(db_session, "549111", "text", "hotel 100", None, date(2026, 8, 6), llm_client=fake)
     assert reply.buttons  # ofrece override de split
     mv = (await db_session.execute(select(Movement))).scalar_one()
+    # Los botones apuntan al movimiento recién creado (no al "último global").
+    assert reply.buttons[0][0] == f"split_shared:{mv.id}"
     # Simular tap en "Solo mío"
     r2 = await handle_interactive(db_session, u1, "549111", f"split_mine:{mv.id}", date(2026, 8, 6))
     await db_session.refresh(mv)
     assert mv.split == "payer_only"
     bal = compute_balance((await db_session.execute(select(Movement))).scalars().all(), u1.id, u2.id)
     assert bal.amount_usd == Decimal("0")  # solo mío => nadie debe
+
+
+async def test_borrar_command_confirms_then_deletes(db_session):
+    u1, u2 = await _two_users(db_session)
+    db_session.add(Movement(type="expense", amount=Decimal("20"), currency="USD",
+                            amount_usd=Decimal("20"), fx_rate=Decimal("1"), fx_source="frankfurter",
+                            paid_by=u1.id, split="shared", movement_date=date(2026, 8, 6), created_by=u1.id))
+    await db_session.commit()
+    mv = (await db_session.execute(select(Movement))).scalar_one()
+    # "borrar" pide confirmación con botones sobre el último movimiento del usuario.
+    reply = await dispatch(db_session, "549111", "text", "borrar", None, date(2026, 8, 6))
+    assert reply.buttons and reply.buttons[0][0] == f"del_confirm:{mv.id}"
+    # Confirmar borra.
+    await handle_interactive(db_session, u1, "549111", f"del_confirm:{mv.id}", date(2026, 8, 6))
+    assert (await db_session.execute(select(Movement))).scalars().all() == []
 
 
 async def test_settlement_capture(db_session):
@@ -1013,6 +1053,22 @@ from app.db.models import Movement, User
 logger = logging.getLogger(__name__)
 
 
+_DELETE_COMMANDS = {"borrar", "borrar último", "borrar ultimo", "eliminar"}
+
+
+async def _handle_delete_command(session, user: User) -> BotReply:
+    last = (await session.execute(
+        select(Movement).where(Movement.created_by == user.id).order_by(Movement.id.desc())
+    )).scalars().first()
+    if last is None:
+        return text_reply("⚠️ Nada que borrar: no tenés movimientos cargados.")
+    desc = last.description or last.type
+    return buttons_reply(
+        f"¿Borrar '{desc}' ({last.currency} {last.amount})? Es irreversible.",
+        [(f"del_confirm:{last.id}", "Borrar 🗑️"), ("del_cancel:0", "Cancelar")],
+    )
+
+
 async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, today, *, llm_client) -> BotReply:
     user = await resolve_user_by_wa_id(session, wa_id)
     if user is None:
@@ -1025,21 +1081,21 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
     if message_type == "interactive":
         return await handle_interactive(session, user, wa_id, interactive_id or "", today)
 
-    if not (text or "").strip():
+    stripped = (text or "").strip()
+    if not stripped:
         return text_reply("Mandame un gasto, ej: 'cena 20 euros'.")
 
+    if stripped.lower() in _DELETE_COMMANDS:
+        return await _handle_delete_command(session, user)
+
     reply = await handle_capture(session, user, wa_id, text, today, llm_client=llm_client)
-    # Si se auto-registró un gasto (no ambiguo, no settlement), ofrecer override de split.
-    if reply.text and reply.text.startswith("✅") and "Pago (saldo)" not in reply.text and not reply.buttons:
-        last = (await session.execute(
-            select(Movement).where(Movement.type == "expense").order_by(Movement.id.desc())
-        )).scalars().first()
-        if last is not None:
-            return buttons_reply(reply.text, [
-                (f"split_shared:{last.id}", "Compartido ✓"),
-                (f"split_mine:{last.id}", "Solo mío"),
-                (f"split_theirs:{last.id}", "Solo de ella"),
-            ])
+    # Si se auto-registró un gasto, ofrecer override de split sobre ESE movimiento.
+    if reply.movement_id is not None and not reply.buttons:
+        return buttons_reply(reply.text or "", [
+            (f"split_shared:{reply.movement_id}", "Compartido ✓"),
+            (f"split_mine:{reply.movement_id}", "Solo mío"),
+            (f"split_theirs:{reply.movement_id}", "Solo de ella"),
+        ])
     return reply
 
 
@@ -1051,18 +1107,12 @@ async def dispatch(session: AsyncSession, wa_id, message_type, text, interactive
         return text_reply(f"⚠️ {type(exc).__name__}: {exc}")
 ```
 
-Nota: `handle_capture` recibe `llm_client`; para que el test `test_capture_then_split_override_to_mine` funcione, `dispatch` debe pasar `llm_client` a `handle_capture` (ya lo hace). El `monkeypatch` del test no es necesario; quitar esa línea `monkeypatch.setattr(...)` si molesta — el `FakeLLM` se inyecta por `llm_client`.
-
-- [ ] **Step 6: Ajustar el test**
-
-Editar `test_capture_then_split_override_to_mine`: eliminar las dos líneas de `monkeypatch` (`import app.bot.capture...` y `monkeypatch.setattr(...)`) y quitar `monkeypatch` de la firma. La inyección se hace por `llm_client=fake`.
-
-- [ ] **Step 7: Correr los tests**
+- [ ] **Step 6: Correr los tests**
 
 Run: `cd backend && pytest tests/test_dispatcher_split_settlement.py -v`
-Expected: PASS (2 tests).
+Expected: PASS (3 tests).
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -1082,8 +1132,9 @@ git commit -m "feat(bot): interactive (split/borrado) + settlement + dispatcher"
 **Interfaces:**
 - Produces:
   - `GET /webhooks/whatsapp` → verificación de Meta (`hub.mode=subscribe`, `hub.verify_token`, echo `hub.challenge`).
-  - `POST /webhooks/whatsapp` → valida HMAC (`X-Hub-Signature-256`), parsea mensajes, dedupe (`claim_wamid`), dispatch, envía respuesta por `MetaClient`. Responde `200 {"status":"ok"}` siempre (Meta reintenta si no es 2xx).
-- Consumes: `verify_signature`, `iter_incoming_messages`, `claim_wamid`, `dispatch`, `MetaClient`.
+  - `POST /webhooks/whatsapp` → **camino síncrono mínimo**: valida HMAC (`X-Hub-Signature-256`), parsea mensajes y reclama cada `wamid` (dedupe); luego encola el procesamiento real (lock por chat → dispatch → envío por `MetaClient`) en `BackgroundTasks` y responde `200 {"status":"ok"}` de inmediato. Meta exige 2xx en ~5s; una llamada LLM + FX síncronas lo excederían y dispararían reintentos.
+  - `async process_message(m: IncomingMessage)` — helper background: abre su propia sesión (`get_sessionmaker()`), toma el lock del chat, despacha con `today_in_tz(None)` (Plan 4 lo cambia por la tz de la parada activa) y envía la respuesta por Graph. Errores → log, nunca rompen el request original (ya respondido).
+- Consumes: `verify_signature`, `iter_incoming_messages`, `claim_wamid`, `dispatch`, `MetaClient`, `today_in_tz`.
 
 - [ ] **Step 1: Escribir el test que falla**
 
@@ -1128,24 +1179,25 @@ Expected: FAIL — 404 (ruta no existe).
 `backend/app/api/webhook.py`:
 ```python
 import asyncio
+import json
 import logging
-from datetime import date
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.dispatcher import dispatch
 from app.config import get_settings
-from app.db.engine import get_session
+from app.db.engine import get_session, get_sessionmaker
+from app.trip_time import today_in_tz
 from app.whatsapp.dedupe import claim_wamid
 from app.whatsapp.meta_client import MetaClient
-from app.whatsapp.verify import iter_incoming_messages, verify_signature
+from app.whatsapp.verify import IncomingMessage, iter_incoming_messages, verify_signature
 
 router = APIRouter(prefix="/webhooks", tags=["webhook"])
 logger = logging.getLogger(__name__)
 
-# Locks por chat (best-effort en proceso).
+# Locks por chat: válidos porque Railway corre un único proceso persistente.
 _wa_locks: dict[str, asyncio.Lock] = {}
 
 
@@ -1166,34 +1218,46 @@ async def verify(request: Request) -> Response:
     return Response(status_code=403)
 
 
+async def process_message(m: IncomingMessage) -> None:
+    """Corre en background: LLM + FX + respuesta por Graph, fuera del camino del 200."""
+    s = get_settings()
+    meta = MetaClient(s.whatsapp_access_token, s.whatsapp_phone_number_id, s.whatsapp_graph_version)
+    maker = get_sessionmaker()
+    try:
+        async with _lock(m.wa_id):
+            async with maker() as session:
+                # Plan 4: today_in_tz(tz de la parada activa).
+                reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, today_in_tz(None))
+        if reply.buttons:
+            await meta.send_buttons(m.wa_id, reply.text or "", reply.buttons)
+        elif reply.text:
+            await meta.send_text(m.wa_id, reply.text)
+    except Exception:
+        logger.exception("webhook_background_error wamid=%s", m.wamid)
+    finally:
+        await meta.aclose()
+
+
 @router.post("/whatsapp")
-async def receive(request: Request, session: AsyncSession = Depends(get_session)) -> Response:
+async def receive(
+    request: Request,
+    background: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+) -> Response:
     s = get_settings()
     body = await request.body()
     sig = request.headers.get("X-Hub-Signature-256")
-    if s.environment != "dev" or s.whatsapp_app_secret:
+    # Siempre verificar salvo dev explícito sin secret configurado.
+    if s.whatsapp_app_secret or s.environment != "dev":
         if not verify_signature(s.whatsapp_app_secret, body, sig):
             return Response(status_code=403)
 
-    import json
     payload = json.loads(body or b"{}")
-    messages = iter_incoming_messages(payload)
-    if not messages:
-        return Response(content='{"status":"ok"}', media_type="application/json")
-
-    meta = MetaClient(s.whatsapp_access_token, s.whatsapp_phone_number_id, s.whatsapp_graph_version)
-    try:
-        for m in messages:
-            if not await claim_wamid(session, m.wamid):
-                continue
-            async with _lock(m.wa_id):
-                reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, date.today())
-            if reply.buttons:
-                await meta.send_buttons(m.wa_id, reply.text or "", reply.buttons)
-            elif reply.text:
-                await meta.send_text(m.wa_id, reply.text)
-    finally:
-        await meta.aclose()
+    # Camino síncrono mínimo: dedupe + encolar. Meta exige 2xx en ~5s.
+    for m in iter_incoming_messages(payload):
+        if not await claim_wamid(session, m.wamid):
+            continue  # reintento at-least-once de Meta: ya lo procesamos/estamos procesando
+        background.add_task(process_message, m)
     return Response(content='{"status":"ok"}', media_type="application/json")
 ```
 
@@ -1228,7 +1292,7 @@ git commit -m "feat(bot): rutas del webhook de WhatsApp (verify + receive)"
 
 ## Self-review (Plan 3)
 
-- **Cobertura de spec §7:** parser LLM +moneda +split → Task 1. Webhook fusionado (verify HMAC, dedupe, lock) → Tasks 2/3/7. Auto-registro + categoría ambigua con botones → Task 5. Override de split por botones → Task 6. Settlement → Tasks 1/5/6. Parada activa (override) → Task 4 (Plan 4 la deriva de Andiamo). Retiro de tarjeta/recurrentes/cuotas: no se implementan (por ausencia).
-- **Placeholders:** las "Notas de implementación" en Task 5/6 son ajustes concretos con código, no placeholders. Verificarlas al ejecutar.
-- **Consistencia de tipos:** `BotReply` usado en todo el bot. `dispatch(...)` firma consistente entre dispatcher y webhook (el webhook no pasa `llm_client` → usa OpenAI real en prod; los tests llaman `dispatch` con `llm_client=fake`). `apply_category_pick(session, user, token, cid)` — firma corregida en la nota de Task 5. `resolve_active_stop` devuelve `(slug, city, currency)` consumido por `handle_capture`.
-- **Deuda para Plan 4:** `resolve_active_stop` hoy solo usa override de sesión; Plan 4 reemplaza el cuerpo para derivar la parada por fecha desde `stops` sincronizadas de Andiamo, y agrega el comando/botón para setear override.
+- **Cobertura de spec §7:** parser LLM (Claude Haiku 4.5, structured outputs) +moneda +split → Task 1. Webhook fusionado con **ACK inmediato + background** (verify HMAC, dedupe, lock) → Tasks 2/3/7. Auto-registro + categoría ambigua con botones → Task 5. Override de split por botones sobre `movement_id` (sin race) → Task 6. Comando "borrar" con confirmación → Task 6. Settlement → Tasks 1/5/6. Parada activa (override) → Task 4 (Plan 4 la deriva de Andiamo).
+- **Placeholders:** ninguno; `apply_category_pick` quedó con la firma y código finales (sin notas de parche).
+- **Consistencia de tipos:** `BotReply` (con `movement_id`) usado en todo el bot. `dispatch(...)` firma consistente entre dispatcher y webhook (el webhook no pasa `llm_client` → usa Claude real en prod; los tests inyectan `llm_client=fake`). `apply_category_pick(session, user, token, cid)`. `resolve_active_stop` devuelve `(slug, city, currency)` consumido por `handle_capture`. `_map_source(src, currency)` idéntico al del Plan 2.
+- **Deuda para Plan 4:** `resolve_active_stop` hoy solo usa override de sesión; Plan 4 deriva la parada por fecha desde `stops` sincronizadas, expone `resolve_trip_timezone` (reemplaza el `today_in_tz(None)` del webhook) y agrega refresh perezoso del snapshot.

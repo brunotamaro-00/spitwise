@@ -23,7 +23,7 @@
 
 ## Estructura de archivos (Plan 2)
 
-- Modify: `backend/app/config.py` — agregar `secret_key`, `jwt_expire_days`, `bot_api_key`, `cors_origins`, `auth_users`, `trip_shared_api_key`, `andiamo_url`, campos WhatsApp/OpenAI (placeholders para plans 3/4).
+- Modify: `backend/app/config.py` — agregar `secret_key`, `jwt_expire_days`, `bot_api_key`, `cors_origins`, `auth_users`, `trip_shared_api_key`, `andiamo_url`, campos WhatsApp/Anthropic (placeholders para plans 3/4).
 - Modify: `backend/app/db/engine.py` — agregar `async def get_session()` (dependency).
 - Create: `backend/app/main.py` — FastAPI app, CORS, lifespan (seed categorías + usuarios), `/health`.
 - Create: `backend/app/api/__init__.py`, `backend/app/api/router.py`, `backend/app/api/schemas.py`.
@@ -120,10 +120,10 @@ Agregar a la clase `Settings` en `backend/app/config.py` (después de `environme
     trip_shared_api_key: str = "change-me-shared-key"
     andiamo_url: str = ""  # ej. https://andiamo-production.up.railway.app
 
-    # LLM (parse) — usado en Plan 3
-    openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
-    openai_timeout_seconds: float = 20.0
+    # LLM (parse, Claude Haiku 4.5) — usado en Plan 3
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-haiku-4-5"
+    anthropic_timeout_seconds: float = 20.0
 
     # WhatsApp Cloud — usado en Plan 3
     whatsapp_access_token: str = ""
@@ -236,6 +236,7 @@ git commit -m "feat(backend): app FastAPI + CORS + get_session + health"
   - `app.api.auth.hash_password(p)->str`, `verify_password(p,h)->bool`, `create_jwt(username)->str`.
   - `app.api.auth.get_current_user(...)` dependency → `User` (401 si token inválido).
   - `POST /api/v1/auth/login` (form `username`,`password`) → `{"access_token","token_type":"bearer"}`.
+  - `GET /api/v1/users` (JWT) → `[{id, username}]` de los 2 usuarios (orden `id` asc). **Lo necesitan `BalanceHero` ("X le debe a Y") y `SettleDialog` (elegir pagador) del Plan 5 — no es opcional.**
   - `app.users.get_trip_users(session) -> tuple[User, User]` — los 2 usuarios del libro (por `id` asc). Lanza `HTTPException(500)` si no hay exactamente 2.
   - `app.users.seed_users_from_env(session)` — crea usuarios de `AUTH_USERS` (idempotente, vincula wa_id).
 
@@ -271,6 +272,19 @@ async def test_login_and_protected_route(app_client):
 
     r3 = await app_client.get("/api/v1/auth/me")
     assert r3.status_code == 401
+
+
+async def test_users_endpoint(app_client):
+    from app.db.models import User
+    async with app_client._maker() as s:
+        s.add_all([User(username="bruno", password_hash=hash_password("pw")),
+                   User(username="novia", password_hash=hash_password("pw"))])
+        await s.commit()
+    r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
+    h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    users = await app_client.get("/api/v1/users", headers=h)
+    assert users.status_code == 200
+    assert [u["username"] for u in users.json()] == ["bruno", "novia"]
 ```
 
 - [ ] **Step 2: Correr y verificar fallo**
@@ -310,6 +324,24 @@ class MovementIn(BaseModel):
     city_name: str | None = None
     movement_date: date | None = None
     fx_rate: Decimal | None = None  # override manual
+
+
+class MovementUpdate(BaseModel):
+    """PATCH parcial: todos opcionales; solo se aplica lo que vino en el body
+    (via model_fields_set). Nunca usar MovementIn acá: sus campos obligatorios
+    romperían las ediciones parciales."""
+
+    type: str | None = None
+    amount: Decimal | None = None
+    currency: str | None = None
+    split: str | None = None
+    paid_by: int | None = None
+    description: str | None = None
+    category_id: int | None = None
+    stop_slug: str | None = None
+    city_name: str | None = None
+    movement_date: date | None = None
+    fx_rate: Decimal | None = None  # setearlo => fx_source='manual'
 
 
 class MovementOut(BaseModel):
@@ -415,6 +447,22 @@ async def me(user: User = Depends(get_current_user)) -> User:
     return user
 ```
 
+Y agregar el endpoint de usuarios (mismo archivo o `app/api/users.py`; acá en `auth.py` por simplicidad, registrado bajo `/api/v1`):
+
+```python
+users_router = APIRouter(tags=["users"])
+
+
+@users_router.get("/users", response_model=list[UserOut])
+async def list_users(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[User]:
+    return list((await session.execute(select(User).order_by(User.id))).scalars().all())
+```
+
+(En el Step 6, incluir también `users_router` en `app/api/router.py`.)
+
 - [ ] **Step 5: Crear `users.py`**
 
 `backend/app/users.py`:
@@ -466,9 +514,10 @@ async def seed_users_from_env(session: AsyncSession) -> None:
 
 En `backend/app/api/router.py`, agregar:
 ```python
-from app.api.auth import router as auth_router
+from app.api.auth import router as auth_router, users_router
 
 router.include_router(auth_router)
+router.include_router(users_router)
 ```
 
 En `backend/app/main.py`, agregar lifespan (reemplazar la creación `app = FastAPI(...)`):
@@ -496,7 +545,7 @@ app = FastAPI(title="Botardo Viaje", lifespan=lifespan)
 - [ ] **Step 7: Correr los tests**
 
 Run: `cd backend && pytest tests/test_auth.py -v`
-Expected: PASS (2 tests).
+Expected: PASS (3 tests).
 
 - [ ] **Step 8: Commit**
 
@@ -516,11 +565,14 @@ git commit -m "feat(backend): auth JWT + seed de 2 usuarios del viaje"
 - Test: `backend/tests/test_movements_api.py`
 
 **Interfaces:**
-- Consumes: `MovementIn`/`MovementOut`, `get_current_user`, `app.fx.convert_to_usd`, `app.local_time`-no (usar `date.today()` si falta fecha).
+- Consumes: `MovementIn`/`MovementUpdate`/`MovementOut`, `get_current_user`, `app.fx.convert_to_usd`, `app.trip_time.today_in_tz` (default de `movement_date`; la tz real de la parada activa se cablea en Plan 4).
 - Produces:
-  - `POST /api/v1/movements` → crea; si `currency != USD` y no hay `fx_rate` override, llama `convert_to_usd`. `paid_by` default = usuario actual. `fx_source` mapeado. → `MovementOut`.
+  - `POST /api/v1/movements` → crea; si no hay `fx_rate` override, llama `convert_to_usd`. `paid_by` default = usuario actual. `fx_source` mapeado con `_map_source(src, currency)`. → `MovementOut`.
   - `GET /api/v1/movements` → lista (orden `movement_date desc, id desc`).
-  - `PATCH /api/v1/movements/{id}` → edita campos; si cambia `amount`/`currency`/`movement_date` recalcula `amount_usd`; si mandan `fx_rate` → `fx_source='manual'` y recalcula.
+  - `PATCH /api/v1/movements/{id}` → **parcial** (`MovementUpdate`, solo campos presentes en el body):
+    - Si mandan `fx_rate` → `fx_source='manual'`, recalcula `amount_usd`.
+    - Si cambia `amount`/`currency`/`movement_date` y **no** hay tasa manual vigente (`fx_source != 'manual'`) → recalcula FX. Con tasa manual, recalcula `amount_usd` con la tasa manual existente.
+    - Editar solo `description`/`category`/`split`/etc. **no toca** FX (bug del diseño original: pisaba correcciones manuales).
   - `DELETE /api/v1/movements/{id}` → 204.
 
 - [ ] **Step 1: Escribir el test que falla**
@@ -575,6 +627,26 @@ async def test_list_and_delete(app_client):
     d = await app_client.delete(f"/api/v1/movements/{mid}", headers=h)
     assert d.status_code == 204
     assert (await app_client.get("/api/v1/movements", headers=h)).json() == []
+
+
+async def test_partial_patch_keeps_manual_fx(app_client):
+    # Regresión del bug de diseño: editar la descripción NO debe pisar una tasa manual.
+    h = await _auth(app_client)
+    r = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "100.00", "currency": "GBP", "fx_rate": "1.30", "movement_date": "2026-08-06",
+    })
+    mid = r.json()["id"]
+    p = await app_client.patch(f"/api/v1/movements/{mid}", headers=h, json={"description": "cena rica"})
+    assert p.status_code == 200
+    body = p.json()
+    assert body["description"] == "cena rica"
+    assert body["fx_source"] == "manual"
+    assert body["fx_rate"] == "1.30"
+    assert body["amount_usd"] == "130.00"
+    # PATCH parcial sin amount no debe fallar por validación (MovementUpdate, no MovementIn).
+    p2 = await app_client.patch(f"/api/v1/movements/{mid}", headers=h, json={"amount": "50.00"})
+    assert p2.status_code == 200
+    assert p2.json()["amount_usd"] == "65.00"  # recalcula con la tasa manual 1.30
 ```
 
 - [ ] **Step 2: Correr y verificar fallo**
@@ -586,7 +658,6 @@ Expected: FAIL — import error de `app.api.movements`.
 
 `backend/app/api/movements.py`:
 ```python
-from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -594,18 +665,23 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
-from app.api.schemas import MovementIn, MovementOut
+from app.api.schemas import MovementIn, MovementOut, MovementUpdate
 from app.db.engine import get_session
 from app.db.models import Movement, User
 from app.fx import convert_to_usd
+from app.trip_time import today_in_tz
 
 router = APIRouter(prefix="/movements", tags=["movements"])
 _TWO = Decimal("0.01")
 
 
-def _map_source(fx_source: str) -> str:
-    # FX devuelve frankfurter|cache|direct|fallback -> persistimos frankfurter|fallback.
-    return "fallback" if fx_source == "fallback" else "frankfurter"
+def _map_source(fx_source: str, currency: str) -> str:
+    # FX devuelve frankfurter|dolarapi|cache|direct|fallback.
+    if fx_source == "fallback":
+        return "fallback"
+    if currency.upper() == "ARS":
+        return "dolarapi"
+    return "frankfurter"
 
 
 @router.post("", response_model=MovementOut, status_code=status.HTTP_201_CREATED)
@@ -614,14 +690,15 @@ async def create_movement(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Movement:
-    mdate = body.movement_date or date.today()
+    # Plan 4 reemplaza el None por la timezone de la parada activa.
+    mdate = body.movement_date or today_in_tz(None)
     if body.fx_rate is not None:
         rate = body.fx_rate
         amount_usd = (body.amount * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         fx_source = "manual"
     else:
         amount_usd, rate, src = await convert_to_usd(session, body.amount, body.currency, mdate)
-        fx_source = _map_source(src)
+        fx_source = _map_source(src, body.currency)
     mv = Movement(
         type=body.type,
         amount=body.amount,
@@ -660,34 +737,41 @@ async def list_movements(
 @router.patch("/{movement_id}", response_model=MovementOut)
 async def update_movement(
     movement_id: int,
-    body: MovementIn,
+    body: MovementUpdate,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Movement:
     mv = (await session.execute(select(Movement).where(Movement.id == movement_id))).scalar_one_or_none()
     if mv is None:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
-    mv.type = body.type
-    mv.amount = body.amount
-    mv.currency = body.currency.upper()
-    mv.split = body.split
-    if body.paid_by:
-        mv.paid_by = body.paid_by
-    mv.description = body.description
-    mv.category_id = body.category_id
-    mv.stop_slug = body.stop_slug
-    mv.city_name = body.city_name
-    if body.movement_date:
-        mv.movement_date = body.movement_date
-    if body.fx_rate is not None:
+
+    sent = body.model_fields_set  # solo lo que vino en el body
+    for field in ("type", "split", "paid_by", "description", "category_id",
+                  "stop_slug", "city_name", "movement_date"):
+        if field in sent:
+            setattr(mv, field, getattr(body, field))
+    if "amount" in sent:
+        mv.amount = body.amount
+    if "currency" in sent:
+        mv.currency = body.currency.upper()
+
+    fx_inputs_changed = sent & {"amount", "currency", "movement_date"}
+    if "fx_rate" in sent:
+        # Override explícito -> manual.
         mv.fx_rate = body.fx_rate
         mv.fx_source = "manual"
         mv.amount_usd = (mv.amount * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
-    else:
-        amount_usd, rate, src = await convert_to_usd(session, mv.amount, mv.currency, mv.movement_date)
-        mv.amount_usd = amount_usd
-        mv.fx_rate = rate
-        mv.fx_source = _map_source(src)
+    elif fx_inputs_changed:
+        if mv.fx_source == "manual":
+            # Respetar la tasa manual vigente; solo recalcular el monto.
+            mv.amount_usd = (mv.amount * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
+        else:
+            amount_usd, rate, src = await convert_to_usd(session, mv.amount, mv.currency, mv.movement_date)
+            mv.amount_usd = amount_usd
+            mv.fx_rate = rate
+            mv.fx_source = _map_source(src, mv.currency)
+    # Si no cambió nada relevante al FX, no se toca (no pisar correcciones).
+
     await session.commit()
     await session.refresh(mv)
     return mv
@@ -718,7 +802,7 @@ router.include_router(movements_router)
 - [ ] **Step 5: Correr los tests**
 
 Run: `cd backend && pytest tests/test_movements_api.py -v`
-Expected: PASS (3 tests).
+Expected: PASS (4 tests).
 
 - [ ] **Step 6: Commit**
 
@@ -1077,7 +1161,7 @@ git commit -m "feat(backend): categorías + agregados del dashboard (total/ciuda
 
 ## Self-review (Plan 2)
 
-- **Cobertura de spec:** §9 dashboard (summary/by-city/by-category/timeseries) → Task 5. §5 balance → Task 4. §4 movements CRUD → Task 3. Auth/login (web) → Task 2. App/CORS/health → Task 1. FX se integra en Task 3 mapeando `source`→`fx_source`.
+- **Cobertura de spec:** §9 dashboard (summary/by-city/by-category/timeseries) → Task 5. §5 balance → Task 4. §4 movements CRUD (PATCH parcial que respeta tasas manuales) → Task 3. Auth/login (web) + `GET /users` (nombres para Plan 5) → Task 2. App/CORS/health → Task 1. FX se integra en Task 3 mapeando `_map_source(src, currency)`→`fx_source` (incluye `dolarapi` para ARS).
 - **Placeholders:** ninguno. La nota de formato de dinero en Task 5/Step 6 da una alternativa concreta (no es placeholder).
-- **Consistencia de tipos:** `MovementIn`/`MovementOut` consistentes entre Task 3 y schemas. `compute_balance` (Plan 1) consumido en Task 4 con `Movement` real (tiene `type/split/paid_by/amount_usd`). `convert_to_usd` (Plan 1) devuelve `(amount_usd, rate, source)`, consumido en Task 3. `get_current_user`/`get_trip_users` consistentes.
-- **Deuda para Plan 3/4:** `stop_slug`/`city_name` hoy los manda el cliente; en Plan 4 el bot/deriva-de-Andiamo los completa.
+- **Consistencia de tipos:** `MovementIn` (POST, campos obligatorios) vs `MovementUpdate` (PATCH, todo opcional + `model_fields_set`) — nunca compartir el schema. `compute_balance` (Plan 1) consumido en Task 4 con `Movement` real. `convert_to_usd` y `today_in_tz` (Plan 1) consumidos en Task 3. `get_current_user`/`get_trip_users` consistentes.
+- **Deuda para Plan 3/4:** `stop_slug`/`city_name` hoy los manda el cliente; `today_in_tz(None)` usa Europe/Madrid — en Plan 4 el bot/deriva-de-Andiamo completa parada activa y su timezone.

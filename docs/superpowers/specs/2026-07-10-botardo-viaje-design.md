@@ -1,6 +1,6 @@
 # Botardo Viaje — Diseño
 
-**Fecha:** 2026-07-10
+**Fecha:** 2026-07-10 (revisado el mismo día tras revisión crítica: hosting → Railway, LLM → Claude Haiku 4.5, ARS → dólar MEP, fechas → timezone de la parada activa)
 **Repo:** `~/Desktop/Trip/Botardo` (nuevo, git init). Recicla lo útil de `~/Desktop/Expenses`; ese repo queda intacto.
 **Integra con:** Andiamo (`~/Desktop/Trip/andiamo`, prod: `https://andiamo-production.up.railway.app`) — el plan de implementación incluye cambios chicos del lado Andiamo.
 
@@ -24,13 +24,16 @@ Cambio de paradigma respecto de Expenses: aquél era aislado por `owner` (cada q
 |------|----------|
 | Alcance | Reemplazo total: solo modo viaje, un libro compartido |
 | Split | Denormalizado a 2 personas: `paid_by` + enum `split` (`shared`/`payer_only`/`other_only`). Default `shared` (50/50) |
-| Moneda | Auto vía API FX (Frankfurter/ECB, sin key), cache por día+moneda, override manual. Base del neto = USD. Divisa default del parser = `currencyCode` de la parada activa (de Andiamo) |
+| Moneda | Auto vía API FX (Frankfurter/ECB, sin key), cache por día+moneda, override manual. **ARS no está en Frankfurter → se resuelve con dólar MEP (dolarapi.com `/v1/dolares/bolsa`, tasa `venta`)**. Base del neto = USD. Divisa default del parser = `currencyCode` de la parada activa (de Andiamo) |
 | Ciudad | Derivada de las fechas del itinerario de Andiamo (parada cuyo rango contiene hoy). Override puntual por bot para day-trips; editable en web. El movimiento guarda el `slug` de la parada |
+| Fecha/TZ | "Hoy" se calcula en la **timezone de la parada activa** (campo `timezone` del `Stop` de Andiamo, expuesto en `/api/stops`), fallback `Europe/Madrid`. Nunca UTC del servidor (evita gastos imputados al día equivocado de noche) |
 | Categorías | 7 fijas: Alojamiento, Comida, Transporte, Actividades, Compras, Bebidas/Salidas, Otros. LLM clasifica directo (sin embeddings) |
+| LLM parser | **Claude Haiku 4.5** (`claude-haiku-4-5`, Anthropic SDK) con structured outputs (`client.messages.parse` + schema Pydantic). Reemplaza OpenAI de Expenses |
 | Settlement | Sí: registrar pago entre ellos que baja el neto |
 | Integración | HTTP bidireccional con API key compartida. Andiamo = fuente de verdad del itinerario. Sin DB compartida |
-| Hosting | Frontend estático en Vercel; Postgres en Supabase; backend FastAPI como funciones serverless Python en Vercel. Andiamo sigue en Railway con su DB |
-| Servicios | Uno solo (Botardo): webhook WhatsApp + API en la misma app FastAPI (se fusiona wpp-bot) |
+| Hosting | **Todo en Railway**: backend FastAPI (proceso siempre vivo) + Railway Postgres en el mismo proyecto; el frontend estático (Vite build) lo sirve el propio FastAPI → un solo servicio, mismo origen, sin CORS. Andiamo sigue en su servicio Railway con su DB. (Se descartó Vercel serverless: sin background tasks tras responder, timeout 10s Hobby, y el webhook de Meta exige 200 en <5s) |
+| Servicios | Uno solo (Botardo): webhook WhatsApp + API + frontend en la misma app FastAPI (se fusiona wpp-bot) |
+| Webhook | Responde 200 **inmediato** tras verify HMAC + dedupe; el procesamiento (LLM + FX + respuesta por Graph) corre en background task de FastAPI. Meta reintenta si no hay 2xx en ~5s y entrega at-least-once |
 | Dedupe | Tabla Postgres con `wamid` + TTL (reemplaza Redis) |
 
 ## 4. Modelo de datos (Botardo)
@@ -66,8 +69,8 @@ Catálogo global de 7 (sin `user_id`; el libro es único). Semilla al startup.
 
 ### `stops` (cache del itinerario de Andiamo)
 Snapshot local sincronizado desde Andiamo (no fuente de verdad; se refresca):
-- `slug` (unique), `order`, `name`, `country`, `country_flag`, `arrival_date`, `departure_date`, `currency_code`, `is_transit`, `is_candidate`, `is_flex_margin`, `synced_at`.
-- Uso: derivar parada activa (rango de fechas ∋ hoy), moneda default, lista de ciudades del dashboard, y resiliencia si Andiamo no responde.
+- `slug` (unique), `order`, `name`, `country`, `country_flag`, `arrival_date`, `departure_date`, `currency_code`, `timezone`, `is_transit`, `is_candidate`, `is_flex_margin`, `synced_at`.
+- Uso: derivar parada activa (rango de fechas ∋ hoy), moneda default, timezone para "hoy", lista de ciudades del dashboard, y resiliencia si Andiamo no responde.
 
 ### `fx_rates` (cache)
 - `currency`, `rate_date`, `rate_to_usd`, `fetched_at`. Unique (`currency`,`rate_date`).
@@ -75,8 +78,8 @@ Snapshot local sincronizado desde Andiamo (no fuente de verdad; se refresca):
 ### `whatsapp_dedupe`
 - `wamid` (unique), `created_at`. Limpieza por TTL. Reemplaza Redis.
 
-### `bot_pending_confirmations` / `bot_pending_actions` / `whatsapp_session_states`
-Se reciclan de Expenses (flujos multi-paso y botones). `whatsapp_session_states` puede alojar override puntual de parada activa por chat (day-trips).
+### `bot_pending_actions` / `whatsapp_session_states`
+Se reciclan de Expenses (flujos multi-paso y botones). `whatsapp_session_states` puede alojar override puntual de parada activa por chat (day-trips). (`bot_pending_confirmations` de Expenses no se porta: `bot_pending_actions` cubre todos los flujos con botones.)
 
 ### Se elimina (de Expenses)
 `scheduled_expenses`, `recurring_movements`, `user_category_examples`, `merchant_aliases`, `trip_state` (la "ciudad activa" ya no es estado propio: se deriva de `stops`).
@@ -97,9 +100,9 @@ Dos apps separadas, DBs separadas (Supabase vs Railway), se comunican por **HTTP
 
 ### 6.1 Andiamo → Botardo (itinerario)
 - **Contrato (nuevo endpoint read-only en Andiamo):** `GET /api/stops` → JSON de paradas:
-  `[{ slug, order, name, country, countryFlag, arrivalDate, departureDate, nights, datesFixed, currencyCode, isTransit, isCandidate, isFlexMargin }]`.
-  Deriva del modelo `Stop` existente; protegido por `X-Api-Key`.
-- **Botardo:** módulo de sync (`app/andiamo.py`) que llama al endpoint, upsertea la tabla `stops`, guarda `synced_at`. Se dispara: al startup, on-demand (endpoint/botón), y perezosamente si el snapshot está viejo (> N horas).
+  `[{ slug, order, name, country, countryFlag, arrivalDate, departureDate, nights, datesFixed, currencyCode, timezone, isTransit, isCandidate, isFlexMargin }]`.
+  Deriva del modelo `Stop` existente (que ya tiene `timezone`); protegido por `X-Api-Key`.
+- **Botardo:** módulo de sync (`app/andiamo.py`) que llama al endpoint, upsertea la tabla `stops`, guarda `synced_at`. Se dispara: al startup, on-demand (endpoint/botón), y **perezosamente con TTL de 6 horas**: cuando se resuelve la parada activa y el snapshot está viejo, se lanza un refresh en background (`asyncio.create_task`) sin bloquear la request — la request actual usa el snapshot existente.
 - **Uso:** parada activa = `stops` cuyo `[arrival_date, departure_date)` contiene hoy (fallback: la de mayor `arrival_date ≤ hoy`). Moneda default del parser = `currency_code` de esa parada.
 - **Resiliencia:** si el sync falla, se usa el último snapshot en `stops`. Si nunca hubo sync, un seed estático mínimo del itinerario. La carga de un gasto **nunca** se bloquea por Andiamo.
 
@@ -119,13 +122,13 @@ Dos apps separadas, DBs separadas (Supabase vs Railway), se comunican por **HTTP
 
 Reusa `app/bot/dispatcher.py` (ruteo determinista) y el parser LLM, simplificados:
 
-1. `wpp-bot` se fusiona: la ruta del webhook vive en el backend. Verify HMAC + dedupe (tabla Postgres) + lock por chat.
-2. Mensaje de texto → 1 llamada LLM que extrae: `amount`, `currency` (si el texto la trae: "45 libras", "12€"; default = moneda de la parada activa), `description`, `category` (de las 7), y señal de split.
-3. `paid_by` = usuario del wa_id que manda. `split` default `shared`. `stop_slug`/`city_name` = parada activa (de `stops`). FX → `amount_usd`.
+1. `wpp-bot` se fusiona: la ruta del webhook vive en el backend. Verify HMAC + dedupe (tabla Postgres) + lock por chat. **El webhook responde 200 inmediato tras verify+dedupe; el resto (LLM, FX, respuesta) corre en background task** (Meta exige 2xx en ~5s y reintenta; el dedupe absorbe los reintentos).
+2. Mensaje de texto → 1 llamada LLM (Claude Haiku 4.5, structured outputs) que extrae: `amount`, `currency` (si el texto la trae: "45 libras", "12€"; default = moneda de la parada activa), `description`, `category` (de las 7), y señal de split.
+3. `paid_by` = usuario del wa_id que manda. `split` default `shared`. `stop_slug`/`city_name` = parada activa (de `stops`). `movement_date` = hoy en la timezone de la parada activa. FX → `amount_usd`.
 4. Auto-registra sin confirmación salvo:
    - Categoría genuinamente ambigua → botones con candidatas (el LLM devuelve alternativas si baja confianza).
-   - Borrado → confirmación (irreversible).
-5. Override de split vía botones sobre el pending: `[Compartido ✓] [Solo mío] [Solo de ella]`.
+   - Borrado → confirmación (irreversible). Comando de texto "borrar" / "borrar último": muestra el último movimiento **creado por ese usuario** con botones `[Borrar 🗑️] [Cancelar]`.
+5. Override de split vía botones sobre el movimiento **recién creado** (el handler de captura devuelve el `movement_id`; nunca "el último movimiento global", que es una race si ambos cargan a la vez): `[Compartido ✓] [Solo mío] [Solo de ella]`.
 6. Override puntual de parada activa por bot ("estamos en París" / day-trip) → `whatsapp_session_states`. Lo normal es que la parada la derive Andiamo por fecha.
 7. Settlement por comando ("le pasé USD 100" / "saldamos 200").
 
@@ -136,8 +139,9 @@ Errores: patrón `⚠️ {Tipo}: {mensaje}`, un try/except en el borde del dispa
 ## 8. Conversión de moneda (FX)
 
 - Módulo `app/fx.py`: al registrar, si `currency != USD`, busca tasa en cache `fx_rates` para la fecha; si no, pega a **Frankfurter** (`https://api.frankfurter.dev`, ECB, gratis, sin key), guarda en cache, setea `fx_rate`/`amount_usd`/`fx_source='frankfurter'`.
+- **ARS (no soportado por Frankfurter):** se resuelve con **dólar MEP** vía dolarapi.com (`GET /v1/dolares/bolsa`, sin key) → `rate_to_usd = 1 / venta`. Cache igual que el resto; `fx_source='dolarapi'`.
 - Fallback: si la API falla, usa tabla de tasas semilla en config, marca `fx_source='fallback'` para revisar en la web.
-- Override manual desde el dashboard (editar `fx_rate` recalcula `amount_usd`).
+- Override manual desde el dashboard (editar `fx_rate` recalcula `amount_usd`; una tasa `manual` **no** se pisa al editar otros campos del movimiento).
 
 ## 9. Dashboard (web, Botardo)
 
@@ -153,23 +157,25 @@ Mismo shell React 19 + Vite reciclado. Vistas:
 ## 10. Arquitectura de deploy
 
 ```text
-WhatsApp Cloud ──> Vercel (Botardo, FastAPI serverless)
-                     ├─ /webhooks/whatsapp  (verify HMAC, dedupe Postgres, dispatch)
-                     ├─ /api/v1/*           (auth, movements, dashboard, categories)
-                     └─ /api/v1/cities/spend (X-Api-Key)  ◄── Andiamo
+WhatsApp Cloud ──> Railway (Botardo, FastAPI, proceso siempre vivo)
+                     ├─ /webhooks/whatsapp  (verify HMAC + dedupe → 200 inmediato;
+                     │                       LLM/FX/respuesta en background task)
+                     ├─ /api/v1/*           (auth, movements, dashboard, categories, users)
+                     ├─ /api/v1/cities/spend (X-Api-Key)  ◄── Andiamo
+                     └─ /  (frontend estático Vite build servido por FastAPI, mismo origen)
                           │
-                          ├─> Supabase Postgres (DATABASE_URL)
-                          ├─> OpenAI (parse) · Frankfurter (FX)
+                          ├─> Railway Postgres (mismo proyecto, red interna)
+                          ├─> Anthropic (Claude Haiku 4.5, parse) · Frankfurter (FX) · dolarapi (ARS/MEP)
                           └─> GET {ANDIAMO_URL}/api/stops (X-Api-Key)  ──► sync itinerario
 
 Andiamo (Railway, Next.js + Prisma + Postgres propio)
   ├─ GET /api/stops (X-Api-Key)                         ──► itinerario a Botardo
   └─ /stops/[slug] widget "Gastado: USD X" ── fetch ──► Botardo /api/v1/cities/spend
 
-Browser ──> Vercel (frontend Botardo estático, VITE_API_URL) ──> /api/v1/* (JWT)
+Browser ──> Railway Botardo (frontend + /api/v1/* JWT, mismo origen — sin CORS en prod)
 ```
 
-Consideraciones serverless (Botardo): sin estado en proceso (todo en Postgres); el webhook responde rápido; sin Redis; funciones Python de Vercel (límite de ejecución compatible con 1 llamada LLM + 1 FX + sync perezoso). El sync de Andiamo nunca debe estar en el camino crítico del webhook (usar snapshot).
+Consideraciones (Botardo en Railway): proceso persistente → `asyncio.Lock` por chat y background tasks funcionan de verdad; pool de conexiones normal de SQLAlchemy; seed idempotente en el lifespan de startup; el sync de Andiamo nunca está en el camino crítico del webhook (snapshot + refresh perezoso en background). Un solo vendor (Railway) para las dos apps del viaje.
 
 ## 11. Reutilización desde Expenses
 
@@ -182,12 +188,12 @@ Consideraciones serverless (Botardo): sin estado en proceso (todo en Postgres); 
 | Esquema `expenses` → `movements` | `scheduled_expenses`, `recurring_movements`, `trip_state` |
 | Endpoints movimientos/summary/timeseries/composition | Endpoints de recurrentes/pending de tarjeta |
 | `wpp-bot` webhook (verify/dispatch) → fusionado al backend | Servicio wpp-bot separado, Redis |
-| docker-compose (dev local) | backup service; ajustar a Supabase para prod |
+| docker-compose (dev local) | backup service; prod usa Railway Postgres |
 | Itinerario / ciudades / moneda por ciudad | Seed propio → viene de Andiamo (`stops`) |
 
 ## 12. Estrategia de migración de datos
 
-No hay migración: libro nuevo, arranca vacío. Alembic (o migraciones Supabase) desde cero con el esquema de la sección 4. `stops` se puebla con el primer sync a Andiamo.
+No hay migración: libro nuevo, arranca vacío. Alembic desde cero con el esquema de la sección 4 contra Railway Postgres. `stops` se puebla con el primer sync a Andiamo.
 
 ## 13. Testing
 
@@ -197,8 +203,9 @@ No hay migración: libro nuevo, arranca vacío. Alembic (o migraciones Supabase)
 
 ## 14. Preguntas abiertas / a validar en implementación
 
-- Nombre exacto del repo Botardo (`Botardo` asumido).
-- Vercel Python serverless con FastAPI: confirmar límites de ejecución y empaquetado ASGI en la fase de plan.
+- ~~Vercel Python serverless~~ → **Resuelto: Railway todo** (backend + Postgres + frontend en un servicio).
+- ~~Frecuencia de refresco del sync `stops`~~ → **Resuelto: lazy TTL 6h en background + endpoint manual**.
+- ~~LLM del parser~~ → **Resuelto: Claude Haiku 4.5 con structured outputs**.
+- ~~ARS~~ → **Resuelto: dólar MEP vía dolarapi.com**.
 - Identidad de la "otra persona" en los copies del bot (usar username configurable).
-- Frecuencia/estrategia de refresco del sync `stops` (TTL vs botón vs cron) — decidir en el plan.
-- Andiamo hoy es single-user con password; el endpoint `/api/stops` usa `X-Api-Key` aparte de la sesión de UI — confirmar que no rompe su middleware de auth.
+- Andiamo hoy es single-user con password; el endpoint `/api/stops` usa `X-Api-Key` aparte de la sesión de UI — el matcher de `src/proxy.ts` debe excluir `api/stops` (patrón `api/documents` existente, verificado en el repo).

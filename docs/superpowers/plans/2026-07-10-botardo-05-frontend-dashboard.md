@@ -265,6 +265,7 @@ git commit -m "feat(frontend): scaffold Vite + tokens Panini + skills de diseño
   - `types`: `Movement`, `Balance`, `Summary`, `CitySpend`, `CategorySpend`, `TimePoint`, `Category` (montos como `string`).
   - `api/client.ts`: axios instance con baseURL `/api/v1`, interceptor que agrega `Authorization: Bearer <localStorage.auth_token>` y en 401 limpia token + redirige a `/login`.
   - `api/auth.ts`: `login(username,password): Promise<string>` (guarda token), `logout()`, `isAuthenticated()`.
+  - `api/users.ts`: `listUsers(): Promise<User[]>` (`GET /users`, agregado en Plan 2) — alimenta los nombres del balance y el selector de pagador del settle.
   - `api/movements.ts`: `listMovements()`, `createMovement(body)`, `updateMovement(id,body)`, `deleteMovement(id)`.
   - `api/dashboard.ts`: `getBalance()`, `getSummary()`, `getByCity()`, `getByCategory()`, `getTimeseries()`.
   - `api/categories.ts`: `listCategories()`.
@@ -311,6 +312,7 @@ export type CitySpend = { stop_slug: string | null; city_name: string | null; to
 export type CategorySpend = { category_id: number | null; name: string | null; icon: string | null; total_usd: string };
 export type TimePoint = { date: string; cumulative_usd: string };
 export type Category = { id: number; name: string; icon: string | null; sort_order: number };
+export type User = { id: number; username: string };
 ```
 
 `frontend/src/api/client.ts`:
@@ -401,6 +403,14 @@ import type { Category } from "@/types";
 import { api } from "./client";
 
 export const listCategories = async (): Promise<Category[]> => (await api.get("/categories")).data;
+```
+
+`frontend/src/api/users.ts`:
+```ts
+import type { User } from "@/types";
+import { api } from "./client";
+
+export const listUsers = async (): Promise<User[]> => (await api.get("/users")).data;
 ```
 
 `frontend/src/pages/Login.tsx` (aplicar `frontend-design` — base):
@@ -744,7 +754,7 @@ export default function BalanceHero({ balance, names, onSettle }: {
 - [ ] **Step 4: Implementar charts + SettleDialog + Dashboard**
 
 - `CitySpendChart.tsx` / `CategoryDonut.tsx` / `SpendTimeline.tsx`: recharts (`ResponsiveContainer`), datos `parseMoney` sobre los strings, colores desde la paleta (skill **dataviz**), ejes legibles, tooltips. Contenedores con `overflow-x:auto` si hace falta en mobile.
-- `SettleDialog.tsx`: input monto USD + selector de quién paga → `createMovement({type:"settlement", amount, currency:"USD", paid_by})`, invalida `["balance"]` y `["dashboard"]`.
+- `SettleDialog.tsx`: input monto USD + **selector de quién paga (los 2 usuarios de `listUsers`)** → `createMovement({type:"settlement", amount, currency:"USD", paid_by})`, invalida `["balance"]` y `["dashboard"]`.
 - `frontend/src/pages/Dashboard.tsx`:
 ```tsx
 import { useQuery } from "@tanstack/react-query";
@@ -752,6 +762,7 @@ import { useState } from "react";
 
 import { getBalance, getByCategory, getByCity, getSummary, getTimeseries } from "@/api/dashboard";
 import { listCategories } from "@/api/categories";
+import { listUsers } from "@/api/users";
 import BalanceHero from "@/components/BalanceHero";
 import CategoryDonut from "@/components/CategoryDonut";
 import CitySpendChart from "@/components/CitySpendChart";
@@ -766,9 +777,11 @@ export default function Dashboard() {
   const byCity = useQuery({ queryKey: ["dashboard", "city"], queryFn: getByCity });
   const byCat = useQuery({ queryKey: ["dashboard", "cat"], queryFn: getByCategory });
   const ts = useQuery({ queryKey: ["dashboard", "ts"], queryFn: getTimeseries });
+  const users = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
 
-  // names: en un libro de 2, mapear ids→username vía /auth/me + el otro. Simplif.: usar labels genéricos si falta.
-  const names: Record<number, string> = {};
+  const names: Record<number, string> = Object.fromEntries(
+    (users.data ?? []).map((u) => [u.id, u.username]),
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -790,7 +803,7 @@ export default function Dashboard() {
 }
 ```
 
-Nota `names`: para mostrar los nombres reales en el balance, agregar en el backend (Plan 2) un `GET /api/v1/users` (id+username de los 2) — pequeña adición; o exponerlos en `/auth/me`. Añadir ese endpoint si se quiere el nombre en vez de "Alguien/el otro". Registrar como mejora al ejecutar.
+Nota `names`: el endpoint `GET /api/v1/users` ya existe (Plan 2, Task 2) — no hay deuda acá.
 
 - [ ] **Step 5: Pasada de calidad + tests + build**
 
@@ -812,5 +825,5 @@ git commit -m "feat(frontend): dashboard con balance, total, ciudad, categoría 
 
 - **Cobertura de spec §9:** balance destacado + saldar (Task 4), total (Task 4), por ciudad/categoría (Task 4), timeline (Task 4), lista de movimientos editar/borrar/FX badge (Task 3), login (Task 2). Mobile-first + Panini en todas.
 - **Placeholders:** `AddMovementDialog`, los 3 charts y `SettleDialog` se describen con interfaz precisa pero sin volcar todo el JSX — es intencional para que se construyan con las skills de diseño (`frontend-design`/`dataviz`) en vez de fijar una estética genérica. La lógica (queries, mutations, endpoints, invalidaciones) está especificada. Al ejecutar, cada uno es un sub-paso con su test/verify.
-- **Consistencia de tipos:** `types/index.ts` alinea con los schemas del Plan 2 (montos string). `createMovement`/`updateMovement` usan `Partial<Movement>`. `names` marca la dependencia del endpoint `/users` (mejora opcional anotada).
-- **Deuda:** endpoint `/api/v1/users` (nombres para el balance) — agregar en ejecución si se quiere mostrar nombres reales.
+- **Consistencia de tipos:** `types/index.ts` alinea con los schemas del Plan 2 (montos string; `updateMovement` con `Partial<Movement>` matchea el `MovementUpdate` parcial del backend). `names` y `SettleDialog` consumen `GET /users` (Plan 2).
+- **Deploy:** en prod el frontend lo sirve el propio FastAPI (mismo origen) — el `baseURL: "/api/v1"` de axios funciona en dev (proxy de Vite) y en prod sin `VITE_API_URL` (ver Plan 6).
