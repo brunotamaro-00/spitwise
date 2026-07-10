@@ -54,7 +54,7 @@
 **Interfaces:**
 - Produces: `app.config.Settings` con atributos `database_url: str`, `frankfurter_url: str`, `fx_fallback_rates: dict[str, str]`, `environment: str`. `app.config.get_settings() -> Settings` (cacheada con `functools.lru_cache`).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_config_smoke.py`:
 ```python
@@ -69,12 +69,12 @@ def test_settings_defaults():
     assert "GBP" in s.fx_fallback_rates
 ```
 
-- [ ] **Step 2: Correr el test y verificar que falla**
+- [x] **Step 2: Correr el test y verificar que falla**
 
 Run: `cd backend && pytest tests/test_config_smoke.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.config'` (o import error).
 
-- [ ] **Step 3: Crear `pyproject.toml`**
+- [x] **Step 3: Crear `pyproject.toml`**
 
 `backend/pyproject.toml`:
 ```toml
@@ -122,7 +122,7 @@ include = ["app*"]
 line-length = 100
 ```
 
-- [ ] **Step 4: Crear `.gitignore` y `.env.example`**
+- [x] **Step 4: Crear `.gitignore` y `.env.example`**
 
 `backend/.gitignore`:
 ```
@@ -144,7 +144,7 @@ DOLARAPI_URL=https://dolarapi.com/v1
 ENVIRONMENT=dev
 ```
 
-- [ ] **Step 5: Crear `app/__init__.py` (vacío) y `app/config.py`**
+- [x] **Step 5: Crear `app/__init__.py` (vacío) y `app/config.py`**
 
 `backend/app/__init__.py`: (archivo vacío)
 
@@ -189,14 +189,14 @@ def get_settings() -> Settings:
     return Settings()
 ```
 
-- [ ] **Step 6: Crear `tests/__init__.py` y correr el test**
+- [x] **Step 6: Crear `tests/__init__.py` y correr el test**
 
 `backend/tests/__init__.py`: (archivo vacío)
 
 Run: `cd backend && pip install -e ".[dev]" && pytest tests/test_config_smoke.py -v`
 Expected: PASS (2 asserts).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -221,7 +221,7 @@ git commit -m "feat(backend): scaffold repo + Settings"
   - `Movement` campos: `id, type, amount, currency, amount_usd, fx_rate, fx_source, paid_by(FK users.id), split, description, category_id(FK categories.id), stop_slug, city_name, movement_date, raw_message, created_by(FK users.id), created_at, updated_at`.
   - Test fixture `db_session` (AsyncSession sobre sqlite en memoria con tablas creadas por `Base.metadata.create_all`).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/conftest.py`:
 ```python
@@ -284,12 +284,12 @@ async def test_insert_movement_roundtrip(db_session):
     assert got.stop_slug == "londres"
 ```
 
-- [ ] **Step 2: Correr el test y verificar que falla**
+- [x] **Step 2: Correr el test y verificar que falla**
 
 Run: `cd backend && pytest tests/test_models.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.db.models'`.
 
-- [ ] **Step 3: Crear engine**
+- [x] **Step 3: Crear engine**
 
 `backend/app/db/__init__.py`: (vacío)
 
@@ -320,7 +320,7 @@ def get_sessionmaker() -> async_sessionmaker:
     return async_session_factory(get_engine())
 ```
 
-- [ ] **Step 4: Crear modelos**
+- [x] **Step 4: Crear modelos**
 
 `backend/app/db/models.py`:
 ```python
@@ -472,12 +472,12 @@ class WhatsAppSessionState(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 ```
 
-- [ ] **Step 5: Correr el test de modelos**
+- [x] **Step 5: Correr el test de modelos**
 
 Run: `cd backend && pytest tests/test_models.py -v`
 Expected: PASS.
 
-- [ ] **Step 6: Inicializar Alembic y escribir la migración inicial**
+- [x] **Step 6: Inicializar Alembic y escribir la migración inicial**
 
 Crear `backend/alembic.ini` (mínimo):
 ```ini
@@ -585,13 +585,13 @@ Generar la migración autogenerada contra una DB Postgres local:
 Run: `cd backend && docker run -d --name botardo-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16 && sleep 5 && DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/postgres alembic revision --autogenerate -m "initial" `
 Renombrar el archivo generado en `alembic/versions/` a `0001_initial.py` y fijar `revision = "0001"`, `down_revision = None`.
 
-- [ ] **Step 7: Verificar que la migración aplica**
+- [x] **Step 7: Verificar que la migración aplica**
 
 Run: `cd backend && DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/postgres alembic upgrade head && echo MIGRATION_OK`
 Expected: imprime `MIGRATION_OK` sin error.
 Cleanup: `docker rm -f botardo-pg`
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -613,7 +613,7 @@ git commit -m "feat(backend): esquema async + migración inicial"
   - `app.categories.catalog.CATEGORIES: list[tuple[str, str]]` — 7 `(name, icon)` en orden.
   - `app.categories.seed.seed_categories(session) -> None` — idempotente (upsert por `name`, setea `sort_order`).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_categories_seed.py`:
 ```python
@@ -646,12 +646,12 @@ async def test_seed_is_idempotent(db_session):
     assert rows[0].sort_order == 0
 ```
 
-- [ ] **Step 2: Correr el test y verificar que falla**
+- [x] **Step 2: Correr el test y verificar que falla**
 
 Run: `cd backend && pytest tests/test_categories_seed.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.categories.catalog'`.
 
-- [ ] **Step 3: Crear catálogo**
+- [x] **Step 3: Crear catálogo**
 
 `backend/app/categories/__init__.py`: (vacío)
 
@@ -669,7 +669,7 @@ CATEGORIES: list[tuple[str, str]] = [
 ]
 ```
 
-- [ ] **Step 4: Crear seed idempotente**
+- [x] **Step 4: Crear seed idempotente**
 
 `backend/app/categories/seed.py`:
 ```python
@@ -695,12 +695,12 @@ async def seed_categories(session: AsyncSession) -> None:
     await session.flush()
 ```
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `cd backend && pytest tests/test_categories_seed.py -v`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -722,7 +722,7 @@ git commit -m "feat(backend): catálogo y seed de 7 categorías del viaje"
   - `async app.fx.get_rate_to_usd(session, currency: str, on_date: date, *, client: httpx.AsyncClient | None = None) -> tuple[Decimal, str]` → `(rate, source)` con `source ∈ {"frankfurter","dolarapi","fallback","cache","direct"}`. Para `USD` devuelve `(Decimal("1"), "direct")`. Para `ARS` (Frankfurter no lo soporta) usa dolarapi MEP: `GET {dolarapi_url}/dolares/bolsa` → `rate = 1 / venta` (cuantizado a 6 decimales), `source="dolarapi"`.
   - `async app.fx.convert_to_usd(session, amount: Decimal, currency: str, on_date: date, *, client=None) -> tuple[Decimal, Decimal, str]` → `(amount_usd, rate, source)`. `amount_usd` redondeado a 2 decimales.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_fx.py`:
 ```python
@@ -807,12 +807,12 @@ async def test_convert_rounds_to_2dp(db_session):
     assert rate == Decimal("1.27")
 ```
 
-- [ ] **Step 2: Correr el test y verificar que falla**
+- [x] **Step 2: Correr el test y verificar que falla**
 
 Run: `cd backend && pytest tests/test_fx.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.fx'`.
 
-- [ ] **Step 3: Implementar `app/fx.py`**
+- [x] **Step 3: Implementar `app/fx.py`**
 
 `backend/app/fx.py`:
 ```python
@@ -902,12 +902,12 @@ async def convert_to_usd(
     return amount_usd, rate, source
 ```
 
-- [ ] **Step 4: Correr los tests de FX**
+- [x] **Step 4: Correr los tests de FX**
 
 Run: `cd backend && pytest tests/test_fx.py -v`
 Expected: PASS (6 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -935,7 +935,7 @@ git commit -m "feat(backend): conversión a USD vía Frankfurter con cache y fal
     - `expense`+`payer_only`: no mueve el neto.
     - `settlement`: `paid_by` le paga al otro → reduce lo que `paid_by` le debe (o le genera crédito) por `amount_usd`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_balance.py`:
 ```python
@@ -995,12 +995,12 @@ def test_mixed_nets_out():
     assert (bal.debtor_id, bal.creditor_id, bal.amount_usd) == (B, A, Decimal("40"))
 ```
 
-- [ ] **Step 2: Correr el test y verificar que falla**
+- [x] **Step 2: Correr el test y verificar que falla**
 
 Run: `cd backend && pytest tests/test_balance.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.balance'`.
 
-- [ ] **Step 3: Implementar `app/balance.py`**
+- [x] **Step 3: Implementar `app/balance.py`**
 
 `backend/app/balance.py`:
 ```python
@@ -1056,17 +1056,17 @@ def compute_balance(movements, user_a: int, user_b: int) -> Balance:
     return Balance(debtor_id=None, creditor_id=None, amount_usd=Decimal("0"))
 ```
 
-- [ ] **Step 4: Correr los tests de balance**
+- [x] **Step 4: Correr los tests de balance**
 
 Run: `cd backend && pytest tests/test_balance.py -v`
 Expected: PASS (6 tests).
 
-- [ ] **Step 5: Correr toda la suite**
+- [x] **Step 5: Correr toda la suite**
 
 Run: `cd backend && pytest -v`
 Expected: PASS (todos los tests de los 5 tasks).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -1086,7 +1086,7 @@ git commit -m "feat(backend): cálculo del neto splitwise en USD"
 - Produces: `app.trip_time.today_in_tz(tz_name: str | None, *, now: datetime | None = None) -> date` — "hoy" en la timezone dada (`zoneinfo`); si `tz_name` es `None` o inválida, usa `get_settings().trip_default_timezone` (Europe/Madrid). `now` (aware, UTC) es inyectable para tests. **Motivo:** con `date.today()` (UTC del servidor) un gasto cargado a las 00:30 en Praga cae en el día anterior y puede resolver mal la parada activa/moneda.
 - Consumers futuros: Plan 2 (default de `movement_date`), Plan 3 (dispatcher/webhook), Plan 4 (la timezone real viene de la parada activa sincronizada de Andiamo).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_trip_time.py`:
 ```python
@@ -1110,12 +1110,12 @@ def test_invalid_or_missing_tz_falls_back_to_default():
     assert today_in_tz("No/Existe", now=_NOW).isoformat() == "2026-08-06"
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_trip_time.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.trip_time'`.
 
-- [ ] **Step 3: Implementar `trip_time.py`**
+- [x] **Step 3: Implementar `trip_time.py`**
 
 `backend/app/trip_time.py`:
 ```python
@@ -1137,12 +1137,12 @@ def today_in_tz(tz_name: str | None, *, now: datetime | None = None) -> date:
     return now.astimezone(tz).date()
 ```
 
-- [ ] **Step 4: Correr los tests y toda la suite**
+- [x] **Step 4: Correr los tests y toda la suite**
 
 Run: `cd backend && pytest tests/test_trip_time.py -v && pytest -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
