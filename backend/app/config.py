@@ -26,10 +26,47 @@ class Settings(BaseSettings):
     environment: str = "dev"
     trip_default_timezone: str = "Europe/Madrid"
 
+    # Auth
+    secret_key: str = "change-me-in-production-use-a-long-random-string"
+    jwt_expire_days: int = 30
+    bot_api_key: str = "change-me-bot-key"
+    auth_users: str = ""  # "user:pass:wa_id,user2:pass2:wa_id2"
+    cors_origins: str = Field(default="", alias="CORS_ORIGINS")
+
+    # Integración Andiamo
+    trip_shared_api_key: str = "change-me-shared-key"
+    andiamo_url: str = ""  # ej. https://andiamo-production.up.railway.app
+
+    # LLM (parse, Claude Haiku 4.5) — usado en Plan 3
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-haiku-4-5"
+    anthropic_timeout_seconds: float = 20.0
+
+    # WhatsApp Cloud — usado en Plan 3
+    whatsapp_access_token: str = ""
+    whatsapp_phone_number_id: str = ""
+    whatsapp_verify_token: str = ""
+    whatsapp_app_secret: str = ""
+    whatsapp_graph_version: str = "v21.0"
+    whatsapp_auto_register: bool = False
+
     # No es env: se expone como propiedad para tests/servicios.
     @property
     def fx_fallback_rates(self) -> dict[str, str]:
         return dict(_FX_FALLBACK)
+
+
+_DEFAULT_CORS = ["http://localhost:5173", "http://localhost:3000"]
+
+
+def parse_cors(v: str) -> list[str]:
+    if not v or not v.strip():
+        return _DEFAULT_CORS
+    v = v.strip()
+    if v.startswith("["):
+        import json
+        return json.loads(v)
+    return [o.strip() for o in v.split(",") if o.strip()]
 
 
 @lru_cache

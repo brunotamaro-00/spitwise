@@ -21,3 +21,14 @@ def get_engine() -> AsyncEngine:
 @lru_cache
 def get_sessionmaker() -> async_sessionmaker:
     return async_session_factory(get_engine())
+
+
+from collections.abc import AsyncGenerator  # noqa: E402
+
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
+
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    maker = get_sessionmaker()
+    async with maker() as session:
+        yield session
