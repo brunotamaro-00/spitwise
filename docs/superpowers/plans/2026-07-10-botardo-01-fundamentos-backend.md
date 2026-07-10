@@ -1094,8 +1094,9 @@ from datetime import datetime, timezone
 
 from app.trip_time import today_in_tz
 
-# 2026-08-05 23:30 UTC == 2026-08-06 01:30 en Madrid (CEST, UTC+2)
-_NOW = datetime(2026, 8, 5, 23, 30, tzinfo=timezone.utc)
+# 2026-08-05 22:30 UTC == 2026-08-06 00:30 en Madrid (CEST, UTC+2)
+#                       == 2026-08-05 23:30 en Londres (BST, UTC+1)
+_NOW = datetime(2026, 8, 5, 22, 30, tzinfo=timezone.utc)
 
 
 def test_today_crosses_midnight_in_local_tz():
