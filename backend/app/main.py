@@ -1,8 +1,12 @@
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.andiamo import sync_stops
 from app.categories.seed import seed_categories
@@ -47,3 +51,25 @@ from app.api.webhook import router as webhook_router  # noqa: E402
 
 app.include_router(api_router)
 app.include_router(webhook_router)
+
+
+def mount_frontend(app: FastAPI, dist: Path) -> None:
+    """Sirve el build de Vite con SPA fallback. Los routers ya registrados
+    (/api/v1, /webhooks, /health) ganan porque el catch-all se agrega último."""
+    if not dist.exists():
+        logger.warning("frontend_dist_missing path=%s (solo API)", dist)
+        return
+    app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
+
+    root = dist.resolve()
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str) -> FileResponse:
+        candidate = (dist / full_path).resolve()
+        # resolve + is_relative_to: un full_path con ".." no puede escapar de dist.
+        if full_path and candidate.is_file() and candidate.is_relative_to(root):
+            return FileResponse(candidate)
+        return FileResponse(dist / "index.html")
+
+
+mount_frontend(app, Path(os.environ.get("FRONTEND_DIST", "../frontend/dist")))

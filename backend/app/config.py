@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Tasas fallback aproximadas currency -> USD (se usan solo si la API de FX falla).
@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/botardo"
+
+    @field_validator("database_url")
+    @classmethod
+    def _force_asyncpg(cls, v: str) -> str:
+        # Railway inyecta postgresql://...; SQLAlchemy async necesita el driver explícito.
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
     frankfurter_url: str = Field(default="https://api.frankfurter.dev/v1", alias="FRANKFURTER_URL")
     dolarapi_url: str = Field(default="https://dolarapi.com/v1", alias="DOLARAPI_URL")
     environment: str = "dev"
