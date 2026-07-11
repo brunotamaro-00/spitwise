@@ -104,3 +104,10 @@ class CategorySpendOut(BaseModel):
 class TimePointOut(BaseModel):
     date: date
     cumulative_usd: str
+
+
+class CitySpendPublicOut(BaseModel):
+    slug: str | None
+    name: str | None
+    total_usd: str
+    movement_count: int
