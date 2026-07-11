@@ -52,7 +52,7 @@
   - `app.main.app` (FastAPI) con `GET /health` → `{"status":"ok"}` y router en `/api/v1`.
   - Fixture `app_client` (httpx.AsyncClient sobre ASGI con DB sqlite en memoria y `get_session` overrideado).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_health.py`:
 ```python
@@ -100,12 +100,12 @@ async def app_client():
     await engine.dispose()
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_health.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.main'`.
 
-- [ ] **Step 3: Extender `config.py`**
+- [x] **Step 3: Extender `config.py`**
 
 Agregar a la clase `Settings` en `backend/app/config.py` (después de `environment`):
 ```python
@@ -149,7 +149,7 @@ def parse_cors(v: str) -> list[str]:
     return [o.strip() for o in v.split(",") if o.strip()]
 ```
 
-- [ ] **Step 4: Agregar `get_session` a `engine.py`**
+- [x] **Step 4: Agregar `get_session` a `engine.py`**
 
 Agregar al final de `backend/app/db/engine.py`:
 ```python
@@ -164,7 +164,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 ```
 
-- [ ] **Step 5: Crear router y main**
+- [x] **Step 5: Crear router y main**
 
 `backend/app/api/__init__.py`: (vacío)
 
@@ -208,12 +208,12 @@ from app.api.router import router as api_router  # noqa: E402
 app.include_router(api_router)
 ```
 
-- [ ] **Step 6: Correr el test**
+- [x] **Step 6: Correr el test**
 
 Run: `cd backend && pytest tests/test_health.py -v`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -240,7 +240,7 @@ git commit -m "feat(backend): app FastAPI + CORS + get_session + health"
   - `app.users.get_trip_users(session) -> tuple[User, User]` — los 2 usuarios del libro (por `id` asc). Lanza `HTTPException(500)` si no hay exactamente 2.
   - `app.users.seed_users_from_env(session)` — crea usuarios de `AUTH_USERS` (idempotente, vincula wa_id).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_auth.py`:
 ```python
@@ -287,12 +287,12 @@ async def test_users_endpoint(app_client):
     assert [u["username"] for u in users.json()] == ["bruno", "novia"]
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_auth.py -v`
 Expected: FAIL — import error de `app.api.auth`.
 
-- [ ] **Step 3: Crear `schemas.py`**
+- [x] **Step 3: Crear `schemas.py`**
 
 `backend/app/api/schemas.py`:
 ```python
@@ -372,7 +372,7 @@ class BalanceOut(BaseModel):
     amount_usd: str
 ```
 
-- [ ] **Step 4: Crear `auth.py`** (adaptado de Expenses `app/api/auth.py`, sin auto-registro)
+- [x] **Step 4: Crear `auth.py`** (adaptado de Expenses `app/api/auth.py`, sin auto-registro)
 
 `backend/app/api/auth.py`:
 ```python
@@ -463,7 +463,7 @@ async def list_users(
 
 (En el Step 6, incluir también `users_router` en `app/api/router.py`.)
 
-- [ ] **Step 5: Crear `users.py`**
+- [x] **Step 5: Crear `users.py`**
 
 `backend/app/users.py`:
 ```python
@@ -510,7 +510,7 @@ async def seed_users_from_env(session: AsyncSession) -> None:
     await session.commit()
 ```
 
-- [ ] **Step 6: Cablear router + lifespan seed**
+- [x] **Step 6: Cablear router + lifespan seed**
 
 En `backend/app/api/router.py`, agregar:
 ```python
@@ -542,12 +542,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Botardo Viaje", lifespan=lifespan)
 ```
 
-- [ ] **Step 7: Correr los tests**
+- [x] **Step 7: Correr los tests**
 
 Run: `cd backend && pytest tests/test_auth.py -v`
 Expected: PASS (3 tests).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -575,7 +575,7 @@ git commit -m "feat(backend): auth JWT + seed de 2 usuarios del viaje"
     - Editar solo `description`/`category`/`split`/etc. **no toca** FX (bug del diseño original: pisaba correcciones manuales).
   - `DELETE /api/v1/movements/{id}` → 204.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_movements_api.py`:
 ```python
@@ -641,7 +641,8 @@ async def test_partial_patch_keeps_manual_fx(app_client):
     body = p.json()
     assert body["description"] == "cena rica"
     assert body["fx_source"] == "manual"
-    assert body["fx_rate"] == "1.30"
+    # Comparar como Decimal: la DB devuelve la tasa con scale 6 ("1.300000").
+    assert Decimal(body["fx_rate"]) == Decimal("1.30")
     assert body["amount_usd"] == "130.00"
     # PATCH parcial sin amount no debe fallar por validación (MovementUpdate, no MovementIn).
     p2 = await app_client.patch(f"/api/v1/movements/{mid}", headers=h, json={"amount": "50.00"})
@@ -649,12 +650,12 @@ async def test_partial_patch_keeps_manual_fx(app_client):
     assert p2.json()["amount_usd"] == "65.00"  # recalcula con la tasa manual 1.30
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_movements_api.py -v`
 Expected: FAIL — import error de `app.api.movements`.
 
-- [ ] **Step 3: Implementar `movements.py`**
+- [x] **Step 3: Implementar `movements.py`**
 
 `backend/app/api/movements.py`:
 ```python
@@ -790,7 +791,7 @@ async def delete_movement(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 ```
 
-- [ ] **Step 4: Registrar router**
+- [x] **Step 4: Registrar router**
 
 En `backend/app/api/router.py`, agregar:
 ```python
@@ -799,12 +800,12 @@ from app.api.movements import router as movements_router
 router.include_router(movements_router)
 ```
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `cd backend && pytest tests/test_movements_api.py -v`
 Expected: PASS (4 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -825,7 +826,7 @@ git commit -m "feat(backend): CRUD de movimientos con conversión FX"
 - Consumes: `app.balance.compute_balance`, `app.users.get_trip_users`, `Movement`, `get_current_user`.
 - Produces: `GET /api/v1/balance` → `BalanceOut` (`amount_usd` string).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_balance_api.py`:
 ```python
@@ -849,17 +850,17 @@ async def test_balance_endpoint(app_client):
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
     b = await app_client.get("/api/v1/balance", headers=h)
     assert b.status_code == 200
-    # novia (u2) le debe 50 a bruno (u1)
+    # novia (u2) le debe 50 a bruno (u1) — Decimal conserva el exponente ideal (100.00/2 = 50.00)
     body = b.json()
-    assert body["amount_usd"] == "50"
+    assert body["amount_usd"] == "50.00"
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_balance_api.py -v`
 Expected: FAIL — import error `app.api.balance`.
 
-- [ ] **Step 3: Implementar `balance.py`**
+- [x] **Step 3: Implementar `balance.py`**
 
 `backend/app/api/balance.py`:
 ```python
@@ -899,12 +900,12 @@ from app.api.balance import router as balance_router
 router.include_router(balance_router)
 ```
 
-- [ ] **Step 4: Correr los tests**
+- [x] **Step 4: Correr los tests**
 
 Run: `cd backend && pytest tests/test_balance_api.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -930,7 +931,7 @@ git commit -m "feat(backend): endpoint de balance (neto splitwise)"
   - `GET /api/v1/dashboard/timeseries` → `[{"date","cumulative_usd"}]` acumulado por fecha.
 - Schemas nuevos: `CategoryOut`, `SummaryOut`, `CitySpendOut`, `CategorySpendOut`, `TimePointOut`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_dashboard_api.py`:
 ```python
@@ -972,26 +973,26 @@ async def test_categories_endpoint(app_client):
 async def test_summary_and_by_city(app_client):
     h = await _seed_and_auth(app_client)
     summ = await app_client.get("/api/v1/dashboard/summary", headers=h)
-    assert summ.json()["total_usd"] == "80"
+    assert summ.json()["total_usd"] == "80.00"
     by_city = await app_client.get("/api/v1/dashboard/by-city", headers=h)
     cities = {c["city_name"]: c["total_usd"] for c in by_city.json()}
-    assert cities["Londres"] == "50"
-    assert cities["París"] == "30"
+    assert cities["Londres"] == "50.00"
+    assert cities["París"] == "30.00"
 
 
 async def test_timeseries(app_client):
     h = await _seed_and_auth(app_client)
     ts = await app_client.get("/api/v1/dashboard/timeseries", headers=h)
     pts = ts.json()
-    assert pts[-1]["cumulative_usd"] == "80"
+    assert pts[-1]["cumulative_usd"] == "80.00"
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_dashboard_api.py -v`
 Expected: FAIL — import error.
 
-- [ ] **Step 3: Agregar schemas**
+- [x] **Step 3: Agregar schemas**
 
 Agregar a `backend/app/api/schemas.py`:
 ```python
@@ -1026,7 +1027,7 @@ class TimePointOut(BaseModel):
     cumulative_usd: str
 ```
 
-- [ ] **Step 4: Crear `categories.py`**
+- [x] **Step 4: Crear `categories.py`**
 
 `backend/app/api/categories.py`:
 ```python
@@ -1052,7 +1053,7 @@ async def list_categories(
     )
 ```
 
-- [ ] **Step 5: Crear `dashboard.py`**
+- [x] **Step 5: Crear `dashboard.py`**
 
 `backend/app/api/dashboard.py`:
 ```python
@@ -1142,14 +1143,14 @@ router.include_router(categories_router)
 router.include_router(dashboard_router)
 ```
 
-- [ ] **Step 6: Correr toda la suite**
+- [x] **Step 6: Correr toda la suite**
 
 Run: `cd backend && pytest -v`
 Expected: PASS (todos los tests de Plans 1 y 2).
 
-Nota: si `str(Decimal("80").normalize())` produce `"8E+1"` en algún caso, ajustar `_fmt` a `f"{value:f}"`. Verificar en el test (`"80"`); si falla, reemplazar los `str(Decimal(str(t)).normalize())` por una helper `def _money(v) -> str: return f"{Decimal(str(v)):.2f}"` y actualizar los asserts a `"80.00"`, `"50.00"`, `"30.00"`.
+Nota: los montos del dashboard se formatean con `def _money(v) -> str: return f"{Decimal(str(v)):.2f}"` (evita el `"8E+1"` de `.normalize()`); los asserts usan `"80.00"`, `"50.00"`, `"30.00"`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
