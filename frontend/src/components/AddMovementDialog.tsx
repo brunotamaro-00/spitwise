@@ -85,7 +85,7 @@ export default function AddMovementDialog({ editing, onClose }: {
         role="dialog"
         aria-modal="true"
         aria-label={editing ? "Editar movimiento" : "Agregar movimiento"}
-        className="w-full max-w-md animate-fade-in rounded-t-[8px] border-2 border-ink bg-canvas p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-[4px] sm:hard-shadow-ink"
+        className="max-h-[92dvh] w-full max-w-md animate-fade-in overflow-y-auto rounded-t-[8px] border-2 border-ink bg-canvas p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-h-[85dvh] sm:rounded-[4px] sm:hard-shadow-ink"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

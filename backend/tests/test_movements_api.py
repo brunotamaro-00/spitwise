@@ -47,6 +47,32 @@ async def test_list_and_delete(app_client):
     assert (await app_client.get("/api/v1/movements", headers=h)).json() == []
 
 
+async def test_create_derives_city_from_date(app_client):
+    # Regresión: gastos por web sin ciudad — deben derivarla de stops por fecha.
+    from datetime import date
+    from app.db.models import Stop
+    h = await _auth(app_client)
+    async with app_client._maker() as s:
+        s.add_all([
+            Stop(slug="londres", order=1, name="Londres", currency_code="GBP",
+                 arrival_date=date(2026, 8, 5), departure_date=date(2026, 8, 13)),
+            Stop(slug="paris", order=6, name="París", currency_code="EUR",
+                 arrival_date=date(2026, 8, 29), departure_date=date(2026, 9, 4)),
+        ])
+        await s.commit()
+    r = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "20", "currency": "USD", "movement_date": "2026-08-06",
+    })
+    assert r.status_code == 201
+    assert r.json()["stop_slug"] == "londres"
+    assert r.json()["city_name"] == "Londres"
+    # Cambiar la fecha re-deriva la ciudad (sin parada explícita en el PATCH).
+    mid = r.json()["id"]
+    p = await app_client.patch(f"/api/v1/movements/{mid}", headers=h,
+                               json={"movement_date": "2026-08-30"})
+    assert p.json()["stop_slug"] == "paris"
+
+
 async def test_partial_patch_keeps_manual_fx(app_client):
     # Regresión del bug de diseño: editar la descripción NO debe pisar una tasa manual.
     h = await _auth(app_client)

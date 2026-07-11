@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
 from app.api.schemas import MovementIn, MovementOut, MovementUpdate
+from app.bot.active_stop import stop_for_date
 from app.db.engine import get_session
 from app.db.models import Movement, User
 from app.fx import convert_to_usd
@@ -32,6 +33,11 @@ async def create_movement(
 ) -> Movement:
     # Plan 4 reemplaza el None por la timezone de la parada activa.
     mdate = body.movement_date or today_in_tz(None)
+    stop_slug, city_name = body.stop_slug, body.city_name
+    if stop_slug is None and city_name is None:
+        stop = await stop_for_date(session, mdate)
+        if stop is not None:
+            stop_slug, city_name = stop.slug, stop.name
     if body.fx_rate is not None:
         rate = body.fx_rate
         amount_usd = (body.amount * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
@@ -50,8 +56,8 @@ async def create_movement(
         split=body.split,
         description=body.description,
         category_id=body.category_id,
-        stop_slug=body.stop_slug,
-        city_name=body.city_name,
+        stop_slug=stop_slug,
+        city_name=city_name,
         movement_date=mdate,
         created_by=user.id,
     )
@@ -94,6 +100,12 @@ async def update_movement(
         mv.amount = body.amount
     if "currency" in sent:
         mv.currency = body.currency.upper()
+
+    # Si cambió la fecha y no vino una parada explícita, re-derivar la ciudad.
+    if "movement_date" in sent and not ({"stop_slug", "city_name"} & sent):
+        stop = await stop_for_date(session, mv.movement_date)
+        if stop is not None:
+            mv.stop_slug, mv.city_name = stop.slug, stop.name
 
     fx_inputs_changed = sent & {"amount", "currency", "movement_date"}
     if "fx_rate" in sent:

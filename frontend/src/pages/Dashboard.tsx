@@ -8,7 +8,7 @@ import CategoryDonut from "@/components/CategoryDonut";
 import CitySpendChart from "@/components/CitySpendChart";
 import SettleDialog from "@/components/SettleDialog";
 import SpendTimeline from "@/components/SpendTimeline";
-import { formatUsd } from "@/lib/format";
+import { capitalize, formatUsd } from "@/lib/format";
 
 export default function Dashboard() {
   const [settle, setSettle] = useState(false);
@@ -20,7 +20,7 @@ export default function Dashboard() {
   const users = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
 
   const names: Record<number, string> = Object.fromEntries(
-    (users.data ?? []).map((u) => [u.id, u.username]),
+    (users.data ?? []).map((u) => [u.id, capitalize(u.username)]),
   );
 
   return (

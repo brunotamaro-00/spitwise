@@ -13,6 +13,22 @@ async def _get_state(session: AsyncSession, wa_id: str) -> WhatsAppSessionState 
     ).scalar_one_or_none()
 
 
+def _pick_stop(stops, d: date):
+    """Parada vigente para una fecha: rango arrival<=d<departure, o la última arribada."""
+    for s in stops:
+        if s.arrival_date and s.departure_date and s.arrival_date <= d < s.departure_date:
+            return s
+    arrived = [s for s in stops if s.arrival_date and s.arrival_date <= d]
+    return arrived[-1] if arrived else stops[0]
+
+
+async def stop_for_date(session: AsyncSession, d: date):
+    """Stop vigente para una fecha, o None si no hay itinerario sincronizado."""
+    from app.db.models import Stop
+    stops = (await session.execute(select(Stop).order_by(Stop.arrival_date))).scalars().all()
+    return _pick_stop(stops, d) if stops else None
+
+
 async def resolve_active_stop(session: AsyncSession, wa_id: str, today: date):
     # 1) Override de sesión (day-trips).
     st = await _get_state(session, wa_id)
@@ -23,20 +39,9 @@ async def resolve_active_stop(session: AsyncSession, wa_id: str, today: date):
             return ov.get("stop_slug"), ov.get("city_name"), ov.get("currency_code", "USD")
 
     # 2/3) Derivar de stops por fecha.
-    from app.db.models import Stop
-    stops = (await session.execute(select(Stop).order_by(Stop.arrival_date))).scalars().all()
-    if not stops:
-        return None, None, "USD"
-
-    current = None
-    for s in stops:
-        if s.arrival_date and s.departure_date and s.arrival_date <= today < s.departure_date:
-            current = s
-            break
+    current = await stop_for_date(session, today)
     if current is None:
-        arrived = [s for s in stops if s.arrival_date and s.arrival_date <= today]
-        current = arrived[-1] if arrived else stops[0]
-
+        return None, None, "USD"
     return current.slug, current.name, (current.currency_code or "USD")
 
 
@@ -46,18 +51,11 @@ async def resolve_trip_timezone(session: AsyncSession) -> str | None:
     from zoneinfo import ZoneInfo
 
     from app.config import get_settings
-    from app.db.models import Stop
 
-    stops = (await session.execute(select(Stop).order_by(Stop.arrival_date))).scalars().all()
-    if not stops:
-        return None
     # Aproximación de "hoy" con la tz default para elegir la parada (el error de ±1h no cambia la parada).
     probe = datetime.now(_tz.utc).astimezone(ZoneInfo(get_settings().trip_default_timezone)).date()
-    for s in stops:
-        if s.arrival_date and s.departure_date and s.arrival_date <= probe < s.departure_date:
-            return s.timezone
-    arrived = [s for s in stops if s.arrival_date and s.arrival_date <= probe]
-    return (arrived[-1] if arrived else stops[0]).timezone
+    current = await stop_for_date(session, probe)
+    return current.timezone if current else None
 
 
 async def set_active_stop_override(session, wa_id, stop_slug, city_name, currency_code):

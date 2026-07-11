@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { createMovement } from "@/api/movements";
 import { listUsers } from "@/api/users";
+import { capitalize } from "@/lib/format";
 
 const field =
   "min-h-[44px] rounded-[4px] border-2 border-border bg-surface px-3 font-semibold focus:border-border-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-brick/40";
@@ -61,7 +62,7 @@ export default function SettleDialog({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-label="Saldar deuda"
-        className="w-full max-w-sm animate-fade-in rounded-t-[8px] border-2 border-ink bg-canvas p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-[4px] sm:hard-shadow-ink"
+        className="max-h-[92dvh] w-full max-w-sm animate-fade-in overflow-y-auto rounded-t-[8px] border-2 border-ink bg-canvas p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-h-[85dvh] sm:rounded-[4px] sm:hard-shadow-ink"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -79,7 +80,7 @@ export default function SettleDialog({ onClose }: { onClose: () => void }) {
             <span className={label}>Quién paga</span>
             <select className={`${field} cursor-pointer`} value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
               {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.username}</option>
+                <option key={u.id} value={u.id}>{capitalize(u.username)}</option>
               ))}
             </select>
           </label>
