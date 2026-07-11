@@ -26,6 +26,14 @@ async def stop_for_date(session: AsyncSession, d: date):
     """Stop vigente para una fecha, o None si no hay itinerario sincronizado."""
     from app.db.models import Stop
     stops = (await session.execute(select(Stop).order_by(Stop.arrival_date))).scalars().all()
+    if not stops:
+        # Snapshot vacío (p.ej. el sync del startup corrió antes de que Andiamo
+        # tuviera la key): intentar un sync inline; si falla, sigue sin ciudad.
+        from app.andiamo import sync_stops
+        from app.config import get_settings
+        if get_settings().andiamo_url:
+            await sync_stops(session)
+            stops = (await session.execute(select(Stop).order_by(Stop.arrival_date))).scalars().all()
     return _pick_stop(stops, d) if stops else None
 
 

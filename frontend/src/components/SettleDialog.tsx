@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { createMovement } from "@/api/movements";
 import { listUsers } from "@/api/users";
@@ -56,7 +57,8 @@ export default function SettleDialog({ onClose }: { onClose: () => void }) {
     save.mutate();
   }
 
-  return (
+  // Portal al body: evita que un ancestro con transform re-ancle el `fixed`.
+  return createPortal(
     <div className="fixed inset-0 z-20 flex items-end justify-center bg-ink/40 sm:items-center" onClick={onClose}>
       <div
         role="dialog"
@@ -98,6 +100,7 @@ export default function SettleDialog({ onClose }: { onClose: () => void }) {
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

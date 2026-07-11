@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { listCategories } from "@/api/categories";
 import { createMovement, updateMovement } from "@/api/movements";
@@ -76,7 +77,9 @@ export default function AddMovementDialog({ editing, onClose }: {
     save.mutate();
   }
 
-  return (
+  // Portal al body: un ancestro con transform (animate-fade-in de la página)
+  // convierte a `fixed` en relativo a ese ancestro y el dialog se corta.
+  return createPortal(
     <div
       className="fixed inset-0 z-20 flex items-end justify-center bg-ink/40 sm:items-center"
       onClick={onClose}
@@ -156,6 +159,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
