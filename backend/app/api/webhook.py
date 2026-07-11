@@ -6,6 +6,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.andiamo import ensure_stops_fresh
+from app.bot.active_stop import resolve_trip_timezone
 from app.bot.dispatcher import dispatch
 from app.config import get_settings
 from app.db.engine import get_session, get_sessionmaker
@@ -46,8 +48,9 @@ async def process_message(m: IncomingMessage) -> None:
     try:
         async with _lock(m.wa_id):
             async with maker() as session:
-                # Plan 4: today_in_tz(tz de la parada activa).
-                reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, today_in_tz(None))
+                await ensure_stops_fresh(session)  # lazy TTL, no bloquea
+                tz = await resolve_trip_timezone(session)
+                reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, today_in_tz(tz))
         if reply.buttons:
             await meta.send_buttons(m.wa_id, reply.text or "", reply.buttons)
         elif reply.text:

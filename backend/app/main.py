@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.andiamo import sync_stops
 from app.categories.seed import seed_categories
 from app.config import get_settings, parse_cors
 from app.db.engine import get_sessionmaker
@@ -20,6 +21,8 @@ async def lifespan(app: FastAPI):
         await seed_categories(session)
         await session.commit()
         await seed_users_from_env(session)
+        if get_settings().andiamo_url:
+            await sync_stops(session)  # primer sync; tolerante a fallo (devuelve 0)
     yield
 
 
