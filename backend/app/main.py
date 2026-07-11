@@ -1,14 +1,29 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.categories.seed import seed_categories
 from app.config import get_settings, parse_cors
+from app.db.engine import get_sessionmaker
+from app.users import seed_users_from_env
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Botardo Viaje")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    maker = get_sessionmaker()
+    async with maker() as session:
+        await seed_categories(session)
+        await session.commit()
+        await seed_users_from_env(session)
+    yield
+
+
+app = FastAPI(title="Botardo Viaje", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
