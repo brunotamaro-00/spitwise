@@ -43,7 +43,7 @@
 **Interfaces:**
 - Produces: app Vite que compila; `src/lib/format.ts` con `formatUsd(s: string): string`, `parseMoney(s: string): number`.
 
-- [ ] **Step 1: Copiar los commands de Andiamo**
+- [x] **Step 1: Copiar los commands de Andiamo**
 
 Run:
 ```bash
@@ -51,7 +51,7 @@ mkdir -p ~/Desktop/Trip/Botardo/.claude/commands
 cp ~/Desktop/Trip/andiamo/.claude/commands/{frontend-design,baseline-ui,icons-system,fixing-accessibility}.md ~/Desktop/Trip/Botardo/.claude/commands/
 ```
 
-- [ ] **Step 2: Escribir el test que falla**
+- [x] **Step 2: Escribir el test que falla**
 
 `frontend/src/lib/format.test.ts`:
 ```ts
@@ -69,7 +69,7 @@ describe("format", () => {
 });
 ```
 
-- [ ] **Step 3: Crear scaffold Vite**
+- [x] **Step 3: Crear scaffold Vite**
 
 `frontend/package.json`:
 ```json
@@ -158,7 +158,7 @@ export default defineConfig({
 export default { plugins: { "@tailwindcss/postcss": {}, autoprefixer: {} } };
 ```
 
-- [ ] **Step 4: Tokens Panini en `index.css`**
+- [x] **Step 4: Tokens Panini en `index.css`**
 
 `frontend/src/index.css` (replica el design system de Andiamo; Tailwind 4 `@theme`):
 ```css
@@ -192,7 +192,7 @@ body { background: var(--color-canvas); color: var(--color-ink); font-family: va
 
 Nota: cargar las fonts Anton / Hanken Grotesk vía `<link>` en `index.html` (Google Fonts) o self-hosted. Para prod/PWA, self-hostearlas; en dev, `<link>` alcanza.
 
-- [ ] **Step 5: `main.tsx`, `App.tsx`, `format.ts`**
+- [x] **Step 5: `main.tsx`, `App.tsx`, `format.ts`**
 
 `frontend/src/main.tsx`:
 ```tsx
@@ -236,14 +236,14 @@ export function formatUsd(s: string): string {
 }
 ```
 
-- [ ] **Step 6: Instalar y testear**
+- [x] **Step 6: Instalar y testear**
 
 Run: `cd frontend && npm install && npm run test`
 Expected: PASS (format.test).
 Run: `npm run build`
 Expected: build OK.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -271,7 +271,7 @@ git commit -m "feat(frontend): scaffold Vite + tokens Panini + skills de diseño
   - `api/categories.ts`: `listCategories()`.
   - `pages/Login.tsx`: form usuario/clave → `login` → navega a `/`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `frontend/src/api/client.test.ts`:
 ```ts
@@ -291,12 +291,12 @@ describe("authHeader", () => {
 });
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd frontend && npm run test -- client.test`
 Expected: FAIL — `./client` no existe.
 
-- [ ] **Step 3: Implementar `client.ts` + `types`**
+- [x] **Step 3: Implementar `client.ts` + `types`**
 
 `frontend/src/types/index.ts`:
 ```ts
@@ -343,12 +343,12 @@ api.interceptors.response.use(
 );
 ```
 
-- [ ] **Step 4: Correr el test**
+- [x] **Step 4: Correr el test**
 
 Run: `cd frontend && npm run test -- client.test`
 Expected: PASS.
 
-- [ ] **Step 5: Implementar auth + api layer + Login + rutas**
+- [x] **Step 5: Implementar auth + api layer + Login + rutas**
 
 `frontend/src/api/auth.ts`:
 ```ts
@@ -484,12 +484,12 @@ export default function App() {
 
 Nota: `Layout`, `Dashboard`, `Movements` se crean en Tasks 3-4; para que compile ahora, crear stubs mínimos (`export default function X(){return null}`) y completarlos en las tareas siguientes.
 
-- [ ] **Step 6: Verificar build**
+- [x] **Step 6: Verificar build**
 
 Run: `cd frontend && npm run build`
 Expected: build OK (con stubs).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -512,7 +512,7 @@ git commit -m "feat(frontend): tipos + capa API + auth/login + rutas"
 
 **Skills:** aplicar `frontend-design` al Layout y dialog; luego `baseline-ui` + `icons-system` + `fixing-accessibility`. Mobile-first.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `frontend/src/components/MovementRow.test.tsx`:
 ```tsx
@@ -538,12 +538,12 @@ describe("MovementRow", () => {
 ```
 Agregar `@testing-library/react` y `@testing-library/jest-dom` a devDependencies e instalarlos; setear `test.setupFiles` si se usa jest-dom (o usar asserts nativos como arriba, sin jest-dom).
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd frontend && npm run test -- MovementRow`
 Expected: FAIL — `./MovementRow` no existe.
 
-- [ ] **Step 3: Implementar `MovementRow.tsx`**
+- [x] **Step 3: Implementar `MovementRow.tsx`**
 
 `frontend/src/components/MovementRow.tsx`:
 ```tsx
@@ -581,7 +581,7 @@ export default function MovementRow({ mv, onEdit, onDelete }: {
 }
 ```
 
-- [ ] **Step 4: Implementar `Layout`, `AddMovementDialog`, `Movements`**
+- [x] **Step 4: Implementar `Layout`, `AddMovementDialog`, `Movements`**
 
 `frontend/src/components/Layout.tsx`:
 ```tsx
@@ -658,13 +658,13 @@ export default function Movements() {
 }
 ```
 
-- [ ] **Step 5: Pasada de calidad + tests + build**
+- [x] **Step 5: Pasada de calidad + tests + build**
 
 - Aplicar `baseline-ui`, `icons-system`, `fixing-accessibility` a Layout/Dialog/Row.
 Run: `cd frontend && npm run test -- MovementRow && npm run build`
 Expected: PASS + build OK.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -688,7 +688,7 @@ git commit -m "feat(frontend): layout mobile-first + lista de movimientos (agreg
 
 **Skills:** `frontend-design` para el dashboard (jerarquía visual, hero del balance destacado), luego pasada de calidad. Para los gráficos, aplicar la skill **dataviz** (colores accesibles, mismos tokens). Mobile-first.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `frontend/src/components/BalanceHero.test.tsx`:
 ```tsx
@@ -712,12 +712,12 @@ describe("BalanceHero", () => {
 });
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd frontend && npm run test -- BalanceHero`
 Expected: FAIL — `./BalanceHero` no existe.
 
-- [ ] **Step 3: Implementar `BalanceHero.tsx`**
+- [x] **Step 3: Implementar `BalanceHero.tsx`**
 
 `frontend/src/components/BalanceHero.tsx`:
 ```tsx
@@ -751,7 +751,7 @@ export default function BalanceHero({ balance, names, onSettle }: {
 }
 ```
 
-- [ ] **Step 4: Implementar charts + SettleDialog + Dashboard**
+- [x] **Step 4: Implementar charts + SettleDialog + Dashboard**
 
 - `CitySpendChart.tsx` / `CategoryDonut.tsx` / `SpendTimeline.tsx`: recharts (`ResponsiveContainer`), datos `parseMoney` sobre los strings, colores desde la paleta (skill **dataviz**), ejes legibles, tooltips. Contenedores con `overflow-x:auto` si hace falta en mobile.
 - `SettleDialog.tsx`: input monto USD + **selector de quién paga (los 2 usuarios de `listUsers`)** → `createMovement({type:"settlement", amount, currency:"USD", paid_by})`, invalida `["balance"]` y `["dashboard"]`.
@@ -805,13 +805,13 @@ export default function Dashboard() {
 
 Nota `names`: el endpoint `GET /api/v1/users` ya existe (Plan 2, Task 2) — no hay deuda acá.
 
-- [ ] **Step 5: Pasada de calidad + tests + build**
+- [x] **Step 5: Pasada de calidad + tests + build**
 
 - Aplicar `dataviz` a los charts; `baseline-ui` + `fixing-accessibility` al dashboard.
 Run: `cd frontend && npm run test && npm run build`
 Expected: PASS + build OK.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
