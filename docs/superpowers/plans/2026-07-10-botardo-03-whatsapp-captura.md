@@ -891,7 +891,7 @@ git commit -m "feat(bot): captura con auto-registro + pending de categoría"
 - Produces:
   - `async app.bot.interactive.handle_interactive(session, user, wa_id, interactive_id, today) -> BotReply`. Rutea por prefijo: `cat_pick:` → `apply_category_pick`; `split_shared:|split_mine:|split_theirs:{movement_id}` → actualiza `Movement.split` (mine=`payer_only`, theirs=`other_only`) y responde; `del_confirm:{id}` → borra; `del_cancel:` → cancela.
   - `async app.bot.settlement.looks_like_settlement(text) -> bool` y manejo dentro de capture (el parser ya marca `is_settlement`). (Este archivo expone `format_settlement_confirm`.)
-  - `async app.bot.dispatcher.dispatch(session, wa_id, message_type, text, interactive_id, today) -> BotReply`. Un solo try/except → `⚠️ {Tipo}: {msg}`. Resuelve usuario por `wa_id` (rechaza desconocidos salvo auto-register). Ruteo de texto: comando **"borrar"** (o "borrar último") → busca el último movimiento `created_by == user.id` y devuelve botones `[Borrar 🗑️](del_confirm:{id})` `[Cancelar](del_cancel:0)`; si no, captura. Tras auto-registrar un gasto, ofrece botones de split override `[Compartido ✓][Solo mío][Solo de ella]` usando **`reply.movement_id`** (nunca una query del "último global": race con 2 usuarios).
+  - `async app.bot.dispatcher.dispatch(session, wa_id, message_type, text, interactive_id, today) -> BotReply`. Un solo try/except → `⚠️ {Tipo}: {msg}`. Resuelve usuario por `wa_id` (rechaza desconocidos salvo auto-register). Ruteo de texto: comando **"borrar"** (o "borrar último") → busca el último movimiento `created_by == user.id` y devuelve botones `[Borrar 🗑️](del_confirm:{id})` `[Cancelar](del_cancel:0)`; si no, captura. Tras auto-registrar un gasto, ofrece botones de split override `[Compartido ✓][Solo mío][Solo del otro]` usando **`reply.movement_id`** (nunca una query del "último global": race con 2 usuarios).
 
 - [x] **Step 1: Escribir el test que falla**
 
@@ -919,7 +919,7 @@ class FakeLLM:
 
 async def _two_users(db_session):
     u1 = User(username="bruno", password_hash=hash_password("pw"), whatsapp_wa_id="549111")
-    u2 = User(username="novia", password_hash=hash_password("pw"), whatsapp_wa_id="549222")
+    u2 = User(username="katia", password_hash=hash_password("pw"), whatsapp_wa_id="549222")
     db_session.add_all([u1, u2])
     from app.categories.seed import seed_categories
     await seed_categories(db_session)
@@ -1094,7 +1094,7 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
         return buttons_reply(reply.text or "", [
             (f"split_shared:{reply.movement_id}", "Compartido ✓"),
             (f"split_mine:{reply.movement_id}", "Solo mío"),
-            (f"split_theirs:{reply.movement_id}", "Solo de ella"),
+            (f"split_theirs:{reply.movement_id}", "Solo del otro"),
         ])
     return reply
 

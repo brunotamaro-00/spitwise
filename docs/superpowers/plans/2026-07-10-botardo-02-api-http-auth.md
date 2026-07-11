@@ -278,13 +278,13 @@ async def test_users_endpoint(app_client):
     from app.db.models import User
     async with app_client._maker() as s:
         s.add_all([User(username="bruno", password_hash=hash_password("pw")),
-                   User(username="novia", password_hash=hash_password("pw"))])
+                   User(username="katia", password_hash=hash_password("pw"))])
         await s.commit()
     r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
     users = await app_client.get("/api/v1/users", headers=h)
     assert users.status_code == 200
-    assert [u["username"] for u in users.json()] == ["bruno", "novia"]
+    assert [u["username"] for u in users.json()] == ["bruno", "katia"]
 ```
 
 - [x] **Step 2: Correr y verificar fallo**
@@ -589,7 +589,7 @@ async def _auth(app_client):
     from app.db.models import User
     async with app_client._maker() as s:
         s.add_all([User(username="bruno", password_hash=hash_password("pw")),
-                   User(username="novia", password_hash=hash_password("pw"))])
+                   User(username="katia", password_hash=hash_password("pw"))])
         await s.commit()
     r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
@@ -837,7 +837,7 @@ async def test_balance_endpoint(app_client):
     from app.db.models import Movement, User
     async with app_client._maker() as s:
         u1 = User(username="bruno", password_hash=hash_password("pw"))
-        u2 = User(username="novia", password_hash=hash_password("pw"))
+        u2 = User(username="katia", password_hash=hash_password("pw"))
         s.add_all([u1, u2])
         await s.flush()
         from decimal import Decimal
@@ -850,7 +850,7 @@ async def test_balance_endpoint(app_client):
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
     b = await app_client.get("/api/v1/balance", headers=h)
     assert b.status_code == 200
-    # novia (u2) le debe 50 a bruno (u1) — Decimal conserva el exponente ideal (100.00/2 = 50.00)
+    # katia (u2) le debe 50 a bruno (u1) — Decimal conserva el exponente ideal (100.00/2 = 50.00)
     body = b.json()
     assert body["amount_usd"] == "50.00"
 ```
@@ -945,7 +945,7 @@ async def _seed_and_auth(app_client):
     from app.db.models import Category, Movement, User
     async with app_client._maker() as s:
         u1 = User(username="bruno", password_hash=hash_password("pw"))
-        u2 = User(username="novia", password_hash=hash_password("pw"))
+        u2 = User(username="katia", password_hash=hash_password("pw"))
         s.add_all([u1, u2])
         await s.flush()
         cat = (await s.execute(__import__("sqlalchemy").select(Category))).scalars().first()

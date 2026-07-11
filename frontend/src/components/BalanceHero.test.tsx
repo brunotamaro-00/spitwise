@@ -6,8 +6,8 @@ import BalanceHero from "./BalanceHero";
 describe("BalanceHero", () => {
   it("muestra deuda", () => {
     render(<BalanceHero balance={{ debtor_id: 2, creditor_id: 1, amount_usd: "320.00" }}
-      names={{ 1: "Bruno", 2: "Novia" }} onSettle={() => {}} />);
-    expect(screen.getByText(/Novia/)).toBeTruthy();
+      names={{ 1: "Bruno", 2: "Katia" }} onSettle={() => {}} />);
+    expect(screen.getByText(/Katia/)).toBeTruthy();
     expect(screen.getByText(/320\.00/)).toBeTruthy();
   });
   it("a mano cuando 0", () => {

@@ -30,10 +30,10 @@ async def test_users_endpoint(app_client):
     from app.db.models import User
     async with app_client._maker() as s:
         s.add_all([User(username="bruno", password_hash=hash_password("pw")),
-                   User(username="novia", password_hash=hash_password("pw"))])
+                   User(username="katia", password_hash=hash_password("pw"))])
         await s.commit()
     r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
     users = await app_client.get("/api/v1/users", headers=h)
     assert users.status_code == 200
-    assert [u["username"] for u in users.json()] == ["bruno", "novia"]
+    assert [u["username"] for u in users.json()] == ["bruno", "katia"]

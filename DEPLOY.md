@@ -18,7 +18,7 @@ Un solo servicio web (FastAPI: API + webhook de WhatsApp + frontend estático) +
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (reference a la DB del proyecto) |
 | `ENVIRONMENT` | `prod` |
 | `SECRET_KEY` | random largo (`openssl rand -hex 32`) |
-| `AUTH_USERS` | `bruno:<pwd>:<wa_id_bruno>,novia:<pwd>:<wa_id_novia>` |
+| `AUTH_USERS` | `bruno:<pwd>:<wa_id_bruno>,katia:<pwd>:<wa_id_katia>` |
 | `ANTHROPIC_API_KEY` | key personal de Anthropic |
 | `ANTHROPIC_MODEL` | `claude-haiku-4-5` |
 | `WHATSAPP_ACCESS_TOKEN` | token permanente de la app de Meta |

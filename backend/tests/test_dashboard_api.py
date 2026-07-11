@@ -10,7 +10,7 @@ async def _seed_and_auth(app_client):
     from app.db.models import Category, Movement, User
     async with app_client._maker() as s:
         u1 = User(username="bruno", password_hash=hash_password("pw"))
-        u2 = User(username="novia", password_hash=hash_password("pw"))
+        u2 = User(username="katia", password_hash=hash_password("pw"))
         s.add_all([u1, u2])
         await s.flush()
         cat = (await s.execute(select(Category))).scalars().first()

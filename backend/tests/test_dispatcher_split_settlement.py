@@ -20,7 +20,7 @@ class FakeLLM:
 
 async def _two_users(db_session):
     u1 = User(username="bruno", password_hash=hash_password("pw"), whatsapp_wa_id="549111")
-    u2 = User(username="novia", password_hash=hash_password("pw"), whatsapp_wa_id="549222")
+    u2 = User(username="katia", password_hash=hash_password("pw"), whatsapp_wa_id="549222")
     db_session.add_all([u1, u2])
     from app.categories.seed import seed_categories
     await seed_categories(db_session)

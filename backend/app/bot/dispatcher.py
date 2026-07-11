@@ -55,7 +55,7 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
         return buttons_reply(reply.text or "", [
             (f"split_shared:{reply.movement_id}", "Compartido ✓"),
             (f"split_mine:{reply.movement_id}", "Solo mío"),
-            (f"split_theirs:{reply.movement_id}", "Solo de ella"),
+            (f"split_theirs:{reply.movement_id}", "Solo del otro"),
         ])
     return reply
 

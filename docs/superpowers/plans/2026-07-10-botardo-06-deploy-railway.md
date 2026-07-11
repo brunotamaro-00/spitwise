@@ -169,7 +169,7 @@ git commit -m "chore(deploy): Dockerfile multi-stage + config Railway"
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (reference) convertida a `+asyncpg` |
 | `ENVIRONMENT` | `prod` |
 | `SECRET_KEY` | random largo |
-| `AUTH_USERS` | `bruno:<pwd>:<wa_id_bruno>,novia:<pwd>:<wa_id_novia>` |
+| `AUTH_USERS` | `bruno:<pwd>:<wa_id_bruno>,katia:<pwd>:<wa_id_katia>` |
 | `ANTHROPIC_API_KEY` | key personal |
 | `ANTHROPIC_MODEL` | `claude-haiku-4-5` |
 | `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_VERIFY_TOKEN` / `WHATSAPP_APP_SECRET` | de Meta |

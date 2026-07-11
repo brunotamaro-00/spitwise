@@ -7,7 +7,7 @@ async def _auth(app_client):
     from app.db.models import User
     async with app_client._maker() as s:
         s.add_all([User(username="bruno", password_hash=hash_password("pw")),
-                   User(username="novia", password_hash=hash_password("pw"))])
+                   User(username="katia", password_hash=hash_password("pw"))])
         await s.commit()
     r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
     return {"Authorization": f"Bearer {r.json()['access_token']}"}

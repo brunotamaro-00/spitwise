@@ -254,7 +254,7 @@ from app.db.models import Category, Movement, User
 
 async def test_insert_movement_roundtrip(db_session):
     u1 = User(username="bruno")
-    u2 = User(username="novia")
+    u2 = User(username="katia")
     cat = Category(name="Comida", icon="🍽️")
     db_session.add_all([u1, u2, cat])
     await db_session.flush()

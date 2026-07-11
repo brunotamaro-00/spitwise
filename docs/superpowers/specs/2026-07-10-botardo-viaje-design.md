@@ -6,7 +6,7 @@
 
 ## 1. Propósito
 
-Tracker de gastos de un viaje (Europa 2026, 108 noches / 26 paradas) usado por **2 personas** (Bruno y novia) como un **Splitwise simple**: ambos cargan gastos por WhatsApp o web, se imputan a quién corresponda, y la app calcula **cuánto le debe uno al otro en USD**, más allá de que se gaste en muchas divisas. Dashboard para ver gasto **por ciudad** y **por categoría**.
+Tracker de gastos de un viaje (Europa 2026, 108 noches / 26 paradas) usado por **2 personas** (Bruno y Katia) como un **Splitwise simple**: ambos cargan gastos por WhatsApp o web, se imputan a quién corresponda, y la app calcula **cuánto le debe uno al otro en USD**, más allá de que se gaste en muchas divisas. Dashboard para ver gasto **por ciudad** y **por categoría**.
 
 Cambio de paradigma respecto de Expenses: aquél era aislado por `owner` (cada quien ve solo lo suyo). Éste es un **libro único compartido**: ambos ven todo.
 
@@ -128,7 +128,7 @@ Reusa `app/bot/dispatcher.py` (ruteo determinista) y el parser LLM, simplificado
 4. Auto-registra sin confirmación salvo:
    - Categoría genuinamente ambigua → botones con candidatas (el LLM devuelve alternativas si baja confianza).
    - Borrado → confirmación (irreversible). Comando de texto "borrar" / "borrar último": muestra el último movimiento **creado por ese usuario** con botones `[Borrar 🗑️] [Cancelar]`.
-5. Override de split vía botones sobre el movimiento **recién creado** (el handler de captura devuelve el `movement_id`; nunca "el último movimiento global", que es una race si ambos cargan a la vez): `[Compartido ✓] [Solo mío] [Solo de ella]`.
+5. Override de split vía botones sobre el movimiento **recién creado** (el handler de captura devuelve el `movement_id`; nunca "el último movimiento global", que es una race si ambos cargan a la vez): `[Compartido ✓] [Solo mío] [Solo del otro]`.
 6. Override puntual de parada activa por bot ("estamos en París" / day-trip) → `whatsapp_session_states`. Lo normal es que la parada la derive Andiamo por fecha.
 7. Settlement por comando ("le pasé USD 100" / "saldamos 200").
 
@@ -146,7 +146,7 @@ Errores: patrón `⚠️ {Tipo}: {mensaje}`, un try/except en el borde del dispa
 ## 9. Dashboard (web, Botardo)
 
 Mismo shell React 19 + Vite reciclado. Vistas:
-- **Balance destacado arriba**: "Bruno le debe USD 320 a [novia]" + botón **Saldar** (crea `settlement`).
+- **Balance destacado arriba**: "Bruno le debe USD 320 a Katia" + botón **Saldar** (crea `settlement`).
 - **Total del viaje en USD**.
 - **Gasto por ciudad** (bar/composición) — ciudades ordenadas por `stops.order`.
 - **Gasto por categoría** (composición).

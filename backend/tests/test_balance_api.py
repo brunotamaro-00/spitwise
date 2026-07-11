@@ -5,7 +5,7 @@ async def test_balance_endpoint(app_client):
     from app.db.models import Movement, User
     async with app_client._maker() as s:
         u1 = User(username="bruno", password_hash=hash_password("pw"))
-        u2 = User(username="novia", password_hash=hash_password("pw"))
+        u2 = User(username="katia", password_hash=hash_password("pw"))
         s.add_all([u1, u2])
         await s.flush()
         from decimal import Decimal
@@ -18,7 +18,7 @@ async def test_balance_endpoint(app_client):
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
     b = await app_client.get("/api/v1/balance", headers=h)
     assert b.status_code == 200
-    # novia (u2) le debe 50 a bruno (u1)
+    # katia (u2) le debe 50 a bruno (u1)
     body = b.json()
     assert body["amount_usd"] == "50.00"
     assert body["debtor_id"] == u2.id
