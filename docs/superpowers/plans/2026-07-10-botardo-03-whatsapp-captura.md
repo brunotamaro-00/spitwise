@@ -48,7 +48,7 @@
   - `@dataclass app.llm.parser.ParsedMovement`: `amount: Decimal | None`, `currency: str | None`, `description: str | None`, `category_name: str | None`, `split: str` (`shared` default), `is_settlement: bool`, `confidence: float`, `category_candidates: list[str]`.
   - `async app.llm.parser.parse_movement(text: str, *, default_currency: str, category_names: list[str], client=None) -> ParsedMovement`. `client` es un objeto con `.parse(text, default_currency, category_names) -> dict` (inyectable; default = OpenAI). Normaliza moneda (símbolos/nombres → ISO), valida categoría contra la lista.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_llm_parser.py`:
 ```python
@@ -107,12 +107,12 @@ async def test_low_confidence_keeps_candidates():
     assert got.category_candidates == ["Comida", "Compras"]
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_llm_parser.py -v`
 Expected: FAIL — import error.
 
-- [ ] **Step 3: Crear `client.py` (Anthropic, Claude Haiku 4.5 + structured outputs)**
+- [x] **Step 3: Crear `client.py` (Anthropic, Claude Haiku 4.5 + structured outputs)**
 
 `backend/app/llm/__init__.py`: (vacío)
 
@@ -177,7 +177,7 @@ class AnthropicLLM:
 
 Nota: structured outputs garantiza JSON válido contra el schema (sin `json.loads` frágil). `parsed_output` puede ser `None` solo ante refusal/max_tokens — el `{}` cae en el manejo de "monto no leído" del parser.
 
-- [ ] **Step 4: Crear `parser.py`**
+- [x] **Step 4: Crear `parser.py`**
 
 `backend/app/llm/parser.py`:
 ```python
@@ -255,12 +255,12 @@ async def parse_movement(text, *, default_currency, category_names, client=None)
     )
 ```
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `cd backend && pytest tests/test_llm_parser.py -v`
 Expected: PASS (4 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -283,7 +283,7 @@ git commit -m "feat(bot): parser LLM de movimientos (monto/moneda/categoría/spl
   - `app.whatsapp.verify.iter_incoming_messages(payload: dict) -> list[IncomingMessage]`.
   - `app.whatsapp.meta_client.MetaClient(access_token, phone_number_id, graph_version)` con `async send_text(wa_id, text)`, `async send_buttons(wa_id, text, buttons: list[tuple[str,str]])` (id, label), `async aclose()`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_whatsapp_verify.py`:
 ```python
@@ -333,12 +333,12 @@ def test_iter_interactive_button():
     assert msgs[0].interactive_id == "split_mine:tok123"
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_whatsapp_verify.py -v`
 Expected: FAIL — import error.
 
-- [ ] **Step 3: Crear `verify.py`** (adaptado de `wpp-bot/wpp_bot/webhook.py`)
+- [x] **Step 3: Crear `verify.py`** (adaptado de `wpp-bot/wpp_bot/webhook.py`)
 
 `backend/app/whatsapp/__init__.py`: (vacío)
 
@@ -385,7 +385,7 @@ def iter_incoming_messages(payload: dict) -> list[IncomingMessage]:
     return out
 ```
 
-- [ ] **Step 4: Crear `meta_client.py`** (adaptado de `wpp-bot/wpp_bot/meta_client.py`)
+- [x] **Step 4: Crear `meta_client.py`** (adaptado de `wpp-bot/wpp_bot/meta_client.py`)
 
 `backend/app/whatsapp/meta_client.py`:
 ```python
@@ -426,12 +426,12 @@ class MetaClient:
         await self._client.aclose()
 ```
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `cd backend && pytest tests/test_whatsapp_verify.py -v`
 Expected: PASS (3 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -451,7 +451,7 @@ git commit -m "feat(bot): verify HMAC + parse payload + Meta Graph client"
 - Consumes: `app.db.models.WhatsAppDedupe`.
 - Produces: `async app.whatsapp.dedupe.claim_wamid(session, wamid: str) -> bool` — `True` si es la primera vez (lo inserta), `False` si ya existía. `async app.whatsapp.dedupe.purge_old(session, older_than_hours: int = 48) -> int`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_dedupe.py`:
 ```python
@@ -464,12 +464,12 @@ async def test_claim_is_idempotent(db_session):
     assert await claim_wamid(db_session, "wamid.2") is True
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_dedupe.py -v`
 Expected: FAIL — import error.
 
-- [ ] **Step 3: Implementar `dedupe.py`**
+- [x] **Step 3: Implementar `dedupe.py`**
 
 `backend/app/whatsapp/dedupe.py`:
 ```python
@@ -501,12 +501,12 @@ async def purge_old(session: AsyncSession, older_than_hours: int = 48) -> int:
     return res.rowcount or 0
 ```
 
-- [ ] **Step 4: Correr los tests**
+- [x] **Step 4: Correr los tests**
 
 Run: `cd backend && pytest tests/test_dedupe.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -529,7 +529,7 @@ git commit -m "feat(bot): dedupe de wamid en Postgres"
   - `async app.bot.active_stop.set_active_stop_override(session, wa_id, stop_slug, city_name, currency_code)`.
   - `async app.bot.resolve_user_by_wa_id(session, wa_id) -> User | None` (en `app/bot/__init__.py`).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_active_stop.py`:
 ```python
@@ -549,12 +549,12 @@ async def test_override_used(db_session):
     assert (slug, city, cur) == ("paris", "París", "EUR")
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_active_stop.py -v`
 Expected: FAIL — import error.
 
-- [ ] **Step 3: Crear `render.py`, `active_stop.py`, `__init__.py`**
+- [x] **Step 3: Crear `render.py`, `active_stop.py`, `__init__.py`**
 
 `backend/app/bot/render.py`:
 ```python
@@ -627,12 +627,12 @@ async def resolve_user_by_wa_id(session: AsyncSession, wa_id: str) -> User | Non
     ).scalar_one_or_none()
 ```
 
-- [ ] **Step 4: Correr los tests**
+- [x] **Step 4: Correr los tests**
 
 Run: `cd backend && pytest tests/test_active_stop.py -v`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -655,7 +655,7 @@ git commit -m "feat(bot): render + parada activa (override de sesión) + resoluc
   - `async app.bot.capture.handle_capture(session, user, wa_id, text, today, *, llm_client=None) -> BotReply`. Parsea, resuelve parada activa, convierte a USD, crea `Movement`. Si `confidence < 0.6` y hay ≥2 candidatas → NO crea, guarda pending y devuelve botones `cat_pick:{token}|{cat_id}`. Al auto-registrar un gasto devuelve la confirmación **con `BotReply.movement_id` seteado** (el dispatcher lo usa para los botones de split).
   - `async app.bot.capture.apply_category_pick(session, user, token, category_id) -> BotReply` — materializa el movimiento pendiente con la categoría elegida (`paid_by`/`created_by` = `user.id`).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_dispatcher_capture.py`:
 ```python
@@ -706,12 +706,12 @@ async def test_ambiguous_category_asks_buttons(db_session):
     assert (await db_session.execute(__import__("sqlalchemy").select(Movement))).scalars().all() == []
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_dispatcher_capture.py -v`
 Expected: FAIL — import error.
 
-- [ ] **Step 3: Implementar `pending.py`**
+- [x] **Step 3: Implementar `pending.py`**
 
 `backend/app/bot/pending.py`:
 ```python
@@ -756,7 +756,7 @@ async def close_pending(session: AsyncSession, token: str) -> None:
         await session.commit()
 ```
 
-- [ ] **Step 4: Implementar `capture.py`**
+- [x] **Step 4: Implementar `capture.py`**
 
 `backend/app/bot/capture.py`:
 ```python
@@ -866,12 +866,12 @@ async def apply_category_pick(session, user: User, token: str, category_id: int)
     reply.movement_id = mv.id
     return reply
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `cd backend && pytest tests/test_dispatcher_capture.py -v`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -893,7 +893,7 @@ git commit -m "feat(bot): captura con auto-registro + pending de categoría"
   - `async app.bot.settlement.looks_like_settlement(text) -> bool` y manejo dentro de capture (el parser ya marca `is_settlement`). (Este archivo expone `format_settlement_confirm`.)
   - `async app.bot.dispatcher.dispatch(session, wa_id, message_type, text, interactive_id, today) -> BotReply`. Un solo try/except → `⚠️ {Tipo}: {msg}`. Resuelve usuario por `wa_id` (rechaza desconocidos salvo auto-register). Ruteo de texto: comando **"borrar"** (o "borrar último") → busca el último movimiento `created_by == user.id` y devuelve botones `[Borrar 🗑️](del_confirm:{id})` `[Cancelar](del_cancel:0)`; si no, captura. Tras auto-registrar un gasto, ofrece botones de split override `[Compartido ✓][Solo mío][Solo de ella]` usando **`reply.movement_id`** (nunca una query del "último global": race con 2 usuarios).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_dispatcher_split_settlement.py`:
 ```python
@@ -973,12 +973,12 @@ async def test_settlement_capture(db_session):
     assert bal.amount_usd == Decimal("0")  # saldado
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_dispatcher_split_settlement.py -v`
 Expected: FAIL — import error.
 
-- [ ] **Step 3: Implementar `interactive.py`**
+- [x] **Step 3: Implementar `interactive.py`**
 
 `backend/app/bot/interactive.py`:
 ```python
@@ -1025,7 +1025,7 @@ async def handle_interactive(session: AsyncSession, user: User, wa_id: str, inte
     return text_reply("⚠️ Botón desconocido.")
 ```
 
-- [ ] **Step 4: Implementar `settlement.py`**
+- [x] **Step 4: Implementar `settlement.py`**
 
 `backend/app/bot/settlement.py`:
 ```python
@@ -1033,7 +1033,7 @@ def format_settlement_confirm(currency: str, amount, amount_usd) -> str:
     return f"🤝 Pago registrado: {currency} {amount} (USD {amount_usd}). Neto actualizado."
 ```
 
-- [ ] **Step 5: Implementar `dispatcher.py`**
+- [x] **Step 5: Implementar `dispatcher.py`**
 
 `backend/app/bot/dispatcher.py`:
 ```python
@@ -1107,12 +1107,12 @@ async def dispatch(session: AsyncSession, wa_id, message_type, text, interactive
         return text_reply(f"⚠️ {type(exc).__name__}: {exc}")
 ```
 
-- [ ] **Step 6: Correr los tests**
+- [x] **Step 6: Correr los tests**
 
 Run: `cd backend && pytest tests/test_dispatcher_split_settlement.py -v`
 Expected: PASS (3 tests).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -1136,7 +1136,7 @@ git commit -m "feat(bot): interactive (split/borrado) + settlement + dispatcher"
   - `async process_message(m: IncomingMessage)` — helper background: abre su propia sesión (`get_sessionmaker()`), toma el lock del chat, despacha con `today_in_tz(None)` (Plan 4 lo cambia por la tz de la parada activa) y envía la respuesta por Graph. Errores → log, nunca rompen el request original (ya respondido).
 - Consumes: `verify_signature`, `iter_incoming_messages`, `claim_wamid`, `dispatch`, `MetaClient`, `today_in_tz`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_webhook_route.py`:
 ```python
@@ -1169,12 +1169,12 @@ async def test_post_ignores_bad_signature(app_client, monkeypatch):
     get_settings.cache_clear()
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_webhook_route.py -v`
 Expected: FAIL — 404 (ruta no existe).
 
-- [ ] **Step 3: Implementar `webhook.py`**
+- [x] **Step 3: Implementar `webhook.py`**
 
 `backend/app/api/webhook.py`:
 ```python
@@ -1261,7 +1261,7 @@ async def receive(
     return Response(content='{"status":"ok"}', media_type="application/json")
 ```
 
-- [ ] **Step 4: Montar el webhook en `main.py`**
+- [x] **Step 4: Montar el webhook en `main.py`**
 
 En `backend/app/main.py`, después de `app.include_router(api_router)`:
 ```python
@@ -1270,17 +1270,17 @@ from app.api.webhook import router as webhook_router  # noqa: E402
 app.include_router(webhook_router)
 ```
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `cd backend && pytest tests/test_webhook_route.py -v`
 Expected: PASS (2 tests). (Si `get_settings.cache_clear()` no aplica los env por orden de import, setear los envs con `monkeypatch.setenv` antes del primer `get_settings()` — el test ya limpia la cache.)
 
-- [ ] **Step 6: Correr toda la suite**
+- [x] **Step 6: Correr toda la suite**
 
 Run: `cd backend && pytest -v`
 Expected: PASS (todos los tests de Plans 1-3).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
