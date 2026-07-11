@@ -38,7 +38,7 @@
 **Interfaces:**
 - `GET /` y cualquier ruta no-API → `index.html` (SPA fallback); assets desde `frontend/dist/assets`. Las rutas `/api/v1/*`, `/webhooks/*`, `/health` tienen prioridad (los routers se montan antes que el estático).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_static_spa.py`:
 ```python
@@ -55,7 +55,7 @@ async def test_spa_fallback_serves_index(app_client, tmp_path, monkeypatch):
 ```
 (Si montar el estático condicionalmente complica el fixture, alcanza con un helper `mount_frontend(app, dist_path)` unit-testeado: registra `StaticFiles` + catch-all que devuelve `index.html` para rutas sin extensión que no empiecen con `/api`, `/webhooks`, `/health`.)
 
-- [ ] **Step 2: Implementar en `main.py`**
+- [x] **Step 2: Implementar en `main.py`**
 
 Al final de `backend/app/main.py` (después de incluir todos los routers):
 ```python
@@ -84,12 +84,12 @@ mount_frontend(app, Path(os.environ.get("FRONTEND_DIST", "../frontend/dist")))
 ```
 Nota: el catch-all se registra último, así que `/api/v1/*`, `/webhooks/*` y `/health` (registrados antes) ganan. En dev el `dist` no existe → solo API + proxy de Vite, igual que siempre.
 
-- [ ] **Step 3: Verificar local**
+- [x] **Step 3: Verificar local**
 
 Run: `cd frontend && npm run build && cd ../backend && FRONTEND_DIST=../frontend/dist uvicorn app.main:app --port 8000`
 Verify: `curl -s localhost:8000/ | grep -qi html && curl -s localhost:8000/health` → index.html y `{"status":"ok"}`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -104,7 +104,7 @@ git commit -m "feat(deploy): FastAPI sirve el frontend estático con SPA fallbac
 **Files:**
 - Create: `Dockerfile`, `.dockerignore`, `railway.json`
 
-- [ ] **Step 1: Crear `Dockerfile`**
+- [x] **Step 1: Crear `Dockerfile`**
 
 ```dockerfile
 # --- Stage 1: frontend ---
@@ -140,12 +140,12 @@ CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8
 
 `.dockerignore`: `node_modules`, `.venv`, `__pycache__`, `.git`, `frontend/dist`, `*.env`.
 
-- [ ] **Step 2: Verificar build local**
+- [x] **Step 2: Verificar build local**
 
 Run: `docker build -t botardo . && docker run --rm -e DATABASE_URL=... -p 8000:8000 botardo` (contra el Postgres local del docker-compose).
 Expected: migra y sirve `/health` + `/`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Dockerfile .dockerignore railway.json
@@ -223,11 +223,11 @@ Checklist (en el número real):
 - [ ] En Andiamo, `/stops/<ciudad-activa>` → chip "Gastado: USD X" visible.
 - [ ] Corregir un `fx_rate` en la web → `amount_usd` recalculado, `fx_source=manual`; editar luego la descripción NO pisa la tasa.
 
-- [ ] **Step 5: Escribir `DEPLOY.md`**
+- [x] **Step 5: Escribir `DEPLOY.md`**
 
 `DEPLOY.md` con: matriz de envs (Botardo Railway / Andiamo Railway), URLs, runbook de "resync itinerario", cómo rotar `TRIP_SHARED_API_KEY` y el token de WhatsApp, y cómo ver logs (`railway logs`). Documentar los nombres de envs, nunca los secretos.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
