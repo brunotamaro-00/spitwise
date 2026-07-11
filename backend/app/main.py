@@ -40,5 +40,7 @@ async def health() -> dict:
 
 
 from app.api.router import router as api_router  # noqa: E402
+from app.api.webhook import router as webhook_router  # noqa: E402
 
 app.include_router(api_router)
+app.include_router(webhook_router)
