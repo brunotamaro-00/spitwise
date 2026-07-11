@@ -53,7 +53,7 @@
   - `async app.andiamo.ensure_stops_fresh(session) -> None` — si `max(stops.synced_at)` es más viejo que **6 horas** (o no hay stops), dispara `sync_stops` en background (`asyncio.create_task` con su propia sesión) y retorna al instante. **Nunca bloquea el camino crítico**: la request actual usa el snapshot existente. Se llama desde el webhook/dispatcher antes de resolver la parada activa.
   - Mapea camelCase de Andiamo → snake_case de `Stop`: `arrivalDate→arrival_date`, `departureDate→departure_date`, `currencyCode→currency_code`, `countryFlag→country_flag`, `timezone→timezone`, `isTransit→is_transit`, etc. Fechas `YYYY-MM-DD`→`date`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_andiamo_sync.py`:
 ```python
@@ -112,12 +112,12 @@ async def test_sync_returns_zero_on_error(db_session, monkeypatch):
     get_settings.cache_clear()
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_andiamo_sync.py -v`
 Expected: FAIL — import error.
 
-- [ ] **Step 3: Implementar `andiamo.py`**
+- [x] **Step 3: Implementar `andiamo.py`**
 
 `backend/app/andiamo.py`:
 ```python
@@ -218,12 +218,12 @@ async def ensure_stops_fresh(session: AsyncSession) -> None:
 
 (Agregar `from datetime import date, timedelta` arriba.)
 
-- [ ] **Step 4: Correr los tests**
+- [x] **Step 4: Correr los tests**
 
 Run: `cd backend && pytest tests/test_andiamo_sync.py -v`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -259,7 +259,7 @@ git commit -m "feat(andiamo): sync de stops (itinerario) desde Andiamo"
   ```
   Y en el lifespan de `app/main.py`: `await sync_stops(session)` (tolerante a fallo) tras el seed — primer sync al startup.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_active_stop_by_date.py`:
 ```python
@@ -299,12 +299,12 @@ async def test_override_beats_date(db_session):
     assert slug == "paris"
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_active_stop_by_date.py -v`
 Expected: FAIL — el cuerpo actual no consulta `stops` (test_between_stops falla).
 
-- [ ] **Step 3: Reemplazar el cuerpo de `resolve_active_stop`**
+- [x] **Step 3: Reemplazar el cuerpo de `resolve_active_stop`**
 
 En `backend/app/bot/active_stop.py`, reemplazar la función `resolve_active_stop` por:
 ```python
@@ -354,12 +354,12 @@ async def resolve_trip_timezone(session: AsyncSession) -> str | None:
 ```
 Asegurar el import de `Stop` (ya está dentro de la función) y que `select` esté importado arriba (lo está). Test extra en `test_active_stop_by_date.py`: con los stops sembrados y fecha dentro de Londres, `resolve_trip_timezone` devuelve `"Europe/London"` (usar `freezegun` o inyectar; alternativa simple: probar solo el caso "sin stops → None").
 
-- [ ] **Step 4: Correr los tests (nuevos + los del Plan 3)**
+- [x] **Step 4: Correr los tests (nuevos + los del Plan 3)**
 
 Run: `cd backend && pytest tests/test_active_stop_by_date.py tests/test_active_stop.py -v`
 Expected: PASS. (El `test_default_no_stop` del Plan 3 sigue pasando: sin stops y sin override → `(None,None,"USD")`.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -383,7 +383,7 @@ git commit -m "feat(andiamo): parada activa derivada por fecha desde stops sincr
   - `POST /api/v1/andiamo/sync` (JWT) → `{"synced": n}` (dispara `sync_stops`).
 - Schema `CitySpendPublicOut` (`slug`, `name`, `total_usd`, `movement_count`).
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `backend/tests/test_cities_spend.py`:
 ```python
@@ -429,12 +429,12 @@ async def test_cities_spend_ok(app_client, monkeypatch):
     get_settings.cache_clear()
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd backend && pytest tests/test_cities_spend.py -v`
 Expected: FAIL — import error / 404.
 
-- [ ] **Step 3: Agregar schema**
+- [x] **Step 3: Agregar schema**
 
 Agregar a `backend/app/api/schemas.py`:
 ```python
@@ -445,7 +445,7 @@ class CitySpendPublicOut(BaseModel):
     movement_count: int
 ```
 
-- [ ] **Step 4: Implementar `integration.py`**
+- [x] **Step 4: Implementar `integration.py`**
 
 `backend/app/api/integration.py`:
 ```python
@@ -507,12 +507,12 @@ from app.api.integration import router as integration_router
 router.include_router(integration_router)
 ```
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `cd backend && pytest tests/test_cities_spend.py -v`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/Desktop/Trip/Botardo
@@ -533,12 +533,12 @@ git commit -m "feat(andiamo): endpoint cities/spend (X-Api-Key) + sync manual"
 - `GET /api/stops` con header `X-Api-Key` == `TRIP_SHARED_API_KEY` → JSON `[{ slug, order, name, country, countryFlag, arrivalDate, departureDate, nights, datesFixed, currencyCode, timezone, isTransit, isCandidate, isFlexMargin }]`. Sin key válida → 401. Fechas serializadas `YYYY-MM-DD`. (`timezone` ya existe en el modelo `Stop` de Andiamo.)
 - Nuevo env `TRIP_SHARED_API_KEY` en Andiamo.
 
-- [ ] **Step 0: Verificar identidad git del repo Andiamo**
+- [x] **Step 0: Verificar identidad git del repo Andiamo**
 
 Run: `cd ~/Desktop/Trip/andiamo && git config user.email`
 Si no es `brunotamaro@hotmail.com`: `git config user.name "brunotamaro-00" && git config user.email "brunotamaro@hotmail.com"`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `src/app/api/stops/route.test.ts`:
 ```ts
@@ -588,12 +588,12 @@ describe("GET /api/stops", () => {
 });
 ```
 
-- [ ] **Step 2: Correr y verificar fallo**
+- [x] **Step 2: Correr y verificar fallo**
 
 Run: `cd ~/Desktop/Trip/andiamo && npx vitest run src/app/api/stops/route.test.ts`
 Expected: FAIL — `./route` no existe.
 
-- [ ] **Step 3: Implementar el route**
+- [x] **Step 3: Implementar el route**
 
 `src/app/api/stops/route.ts`:
 ```ts
@@ -629,16 +629,16 @@ export async function GET(request: Request): Promise<Response> {
 }
 ```
 
-- [ ] **Step 4: Excluir `api/stops` del proxy auth**
+- [x] **Step 4: Excluir `api/stops` del proxy auth**
 
 Leer `src/proxy.ts`. Su `config.matcher` (o la lógica de exclusión, como `api/documents`) debe **excluir** `api/stops` para que valide su propia `X-Api-Key` (igual que `api/documents`). Agregar `api/stops` a la lista de exclusiones del matcher/condición, siguiendo el patrón existente de `api/documents`. (No cambiar la firma del `proxy`.)
 
-- [ ] **Step 5: Correr el test**
+- [x] **Step 5: Correr el test**
 
 Run: `cd ~/Desktop/Trip/andiamo && npx vitest run src/app/api/stops/route.test.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Commit (repo andiamo)**
+- [x] **Step 6: Commit (repo andiamo)**
 
 ```bash
 cd ~/Desktop/Trip/andiamo
@@ -662,7 +662,7 @@ git commit -m "feat(api): GET /api/stops for Botardo integration (X-Api-Key)"
 
 **Skills:** antes de escribir el componente, aplicar el command `~/Desktop/Trip/andiamo/.claude/commands/frontend-design.md` y luego `baseline-ui.md` + `icons-system.md` + `fixing-accessibility.md` como pasada de calidad. Mobile-first.
 
-- [ ] **Step 1: Crear `src/lib/botardo.ts`**
+- [x] **Step 1: Crear `src/lib/botardo.ts`**
 
 ```ts
 export async function fetchStopSpend(slug: string): Promise<{ total_usd: string } | null> {
@@ -684,7 +684,7 @@ export async function fetchStopSpend(slug: string): Promise<{ total_usd: string 
 }
 ```
 
-- [ ] **Step 2: Crear `src/components/StopSpendChip.tsx`**
+- [x] **Step 2: Crear `src/components/StopSpendChip.tsx`**
 
 Aplicá primero `frontend-design.md`. Implementación base (tokens Panini + Lucide, mobile-first):
 ```tsx
@@ -707,18 +707,18 @@ export default async function StopSpendChip({ slug }: { slug: string }) {
 }
 ```
 
-- [ ] **Step 3: Montar el chip en la página de parada**
+- [x] **Step 3: Montar el chip en la página de parada**
 
 En la página de detalle de parada (`src/app/stops/[slug]/page.tsx` o su header component), importar y renderizar `<StopSpendChip slug={slug} />` cerca del bloque de moneda/precio. Como es Server Component async, se puede envolver en `<Suspense fallback={null}>` para no bloquear el render de la página.
 
-- [ ] **Step 4: Pasada de calidad + verificación visual**
+- [x] **Step 4: Pasada de calidad + verificación visual**
 
 - Aplicar `baseline-ui.md`, `icons-system.md`, `fixing-accessibility.md` al chip.
 - Run: `cd ~/Desktop/Trip/andiamo && npm run build`
 Expected: build OK.
 - Verificación manual (con `BOTARDO_URL` apuntando a un Botardo local con datos): abrir `/stops/londres` en viewport mobile y confirmar el chip.
 
-- [ ] **Step 5: Commit (repo andiamo)**
+- [x] **Step 5: Commit (repo andiamo)**
 
 ```bash
 cd ~/Desktop/Trip/andiamo
