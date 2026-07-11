@@ -1,7 +1,8 @@
 import { Pencil, Trash2 } from "lucide-react";
 
-import { formatUsd } from "@/lib/format";
-import type { Movement } from "@/types";
+import { formatAmount, formatUsd } from "@/lib/format";
+import { myShare } from "@/lib/share";
+import type { Category, Movement } from "@/types";
 
 const SPLIT_LABEL: Record<string, string> = {
   shared: "Compartido",
@@ -9,15 +10,20 @@ const SPLIT_LABEL: Record<string, string> = {
   other_only: "Solo del otro",
 };
 
-export default function MovementRow({ mv, onEdit, onDelete }: {
-  mv: Movement; onEdit: (m: Movement) => void; onDelete: (m: Movement) => void;
+export default function MovementRow({ mv, myId, category, onEdit, onDelete }: {
+  mv: Movement;
+  myId?: number;
+  category?: Category;
+  onEdit: (m: Movement) => void;
+  onDelete: (m: Movement) => void;
 }) {
   const isSettlement = mv.type === "settlement";
+  const share = myId != null ? myShare(mv, myId) : 0;
   return (
     <div className="flex items-center gap-2 border-b-2 border-border py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold text-ink">
-          {isSettlement ? "🤝 " : ""}
+          {isSettlement ? "🤝 " : category?.icon ? `${category.icon} ` : ""}
           {mv.description || (isSettlement ? "Pago (saldo)" : "—")}
         </p>
         <p className="mt-0.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-3">
@@ -29,11 +35,16 @@ export default function MovementRow({ mv, onEdit, onDelete }: {
       <div className="shrink-0 text-right">
         <p className="font-tabular font-bold text-ink">{formatUsd(mv.amount_usd)}</p>
         <p className="font-tabular text-xs text-ink-2">
-          {mv.currency} {mv.amount}
+          {mv.currency} {formatAmount(mv.amount)}
           {mv.fx_source === "fallback" && (
             <span className="ml-1 font-bold text-danger" title="Tasa aproximada (fallback)">≈</span>
           )}
         </p>
+        {!isSettlement && myId != null && (
+          <p className="font-tabular text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-3">
+            tu parte {formatUsd(String(share))}
+          </p>
+        )}
       </div>
       <button
         aria-label={`Editar ${mv.description || "movimiento"}`}

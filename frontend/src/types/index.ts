@@ -11,3 +11,4 @@ export type CategorySpend = { category_id: number | null; name: string | null; i
 export type TimePoint = { date: string; cumulative_usd: string };
 export type Category = { id: number; name: string; icon: string | null; sort_order: number };
 export type User = { id: number; username: string };
+export type Stop = { slug: string; name: string; country_flag: string | null; currency_code: string | null };

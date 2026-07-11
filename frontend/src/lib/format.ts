@@ -6,7 +6,36 @@ export function capitalize(s: string): string {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
+/** Número con formato argentino: punto de miles, coma decimal. Enteros sin decimales. */
+function formatNumber(n: number): string {
+  const decimals = Number.isInteger(n) ? 0 : 2;
+  return n.toLocaleString("es-AR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
 export function formatUsd(s: string): string {
-  const n = parseMoney(s);
-  return `USD ${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `USD ${formatNumber(parseMoney(s))}`;
+}
+
+/** Monto en moneda original para las filas: "20", "20,50", "1.234,56". */
+export function formatAmount(s: string): string {
+  return formatNumber(parseMoney(s));
+}
+
+/** Valor inicial del input al editar: entero => "20"; decimal => "20,50". */
+export function toInputValue(s: string | null | undefined): string {
+  if (s == null || s === "") return "";
+  const n = Number(s);
+  if (Number.isNaN(n)) return String(s);
+  return Number.isInteger(n) ? String(n) : String(n).replace(".", ",");
+}
+
+/** Normaliza lo tipeado por el usuario a decimal con punto para el backend.
+ *  Acepta coma decimal ("20,50") y miles con punto ("1.234,50"). */
+export function normalizeAmountInput(s: string): string {
+  const t = s.trim();
+  if (t.includes(",")) return t.replace(/\./g, "").replace(",", ".");
+  return t;
 }

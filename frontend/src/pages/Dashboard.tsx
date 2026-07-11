@@ -31,7 +31,7 @@ export default function Dashboard() {
       {summary.data && (
         <section className="rounded-[4px] border-2 border-border bg-surface p-5 card-shadow">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-3">
-            Total del viaje
+            Mis gastos
           </p>
           <p className="mt-1 font-display text-4xl uppercase leading-none text-ink font-tabular">
             {formatUsd(summary.data.total_usd)}

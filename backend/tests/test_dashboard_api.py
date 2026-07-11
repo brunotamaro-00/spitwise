@@ -36,25 +36,60 @@ async def test_categories_endpoint(app_client):
 
 
 async def test_summary_and_by_city(app_client):
+    # bruno logueado; ambos gastos son shared => su parte es la mitad de cada uno.
     h = await _seed_and_auth(app_client)
     summ = await app_client.get("/api/v1/dashboard/summary", headers=h)
-    assert summ.json()["total_usd"] == "80.00"
+    assert summ.json()["total_usd"] == "40.00"
     assert summ.json()["movement_count"] == 2
     by_city = await app_client.get("/api/v1/dashboard/by-city", headers=h)
     cities = {c["city_name"]: c["total_usd"] for c in by_city.json()}
-    assert cities["Londres"] == "50.00"
-    assert cities["París"] == "30.00"
+    assert cities["Londres"] == "25.00"
+    assert cities["París"] == "15.00"
 
 
 async def test_by_category(app_client):
     h = await _seed_and_auth(app_client)
     by_cat = await app_client.get("/api/v1/dashboard/by-category", headers=h)
     rows = by_cat.json()
-    assert rows[0]["total_usd"] == "80.00"
+    assert rows[0]["total_usd"] == "40.00"
 
 
 async def test_timeseries(app_client):
     h = await _seed_and_auth(app_client)
     ts = await app_client.get("/api/v1/dashboard/timeseries", headers=h)
     pts = ts.json()
-    assert pts[-1]["cumulative_usd"] == "80.00"
+    assert pts[-1]["cumulative_usd"] == "40.00"
+
+
+async def test_summary_excludes_other_only_paid_by_other(app_client):
+    # Un gasto other_only pagado por bruno => consumo del otro, no cuenta para bruno.
+    from app.db.models import Movement, User
+    from sqlalchemy import select
+
+    h = await _seed_and_auth(app_client)
+    async with app_client._maker() as s:
+        bruno = (await s.execute(select(User).where(User.username == "bruno"))).scalar_one()
+        s.add(
+            Movement(type="expense", amount=Decimal("10"), currency="USD", amount_usd=Decimal("10"),
+                     fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=bruno.id, split="other_only",
+                     stop_slug="paris", city_name="París",
+                     movement_date=date(2026, 8, 30), created_by=bruno.id),
+        )
+        await s.commit()
+    summ = await app_client.get("/api/v1/dashboard/summary", headers=h)
+    # Sigue siendo 40: el other_only pagado por bruno no suma a su consumo.
+    assert summ.json()["total_usd"] == "40.00"
+
+
+async def test_list_stops(app_client):
+    from app.db.models import Stop
+
+    h = await _seed_and_auth(app_client)
+    async with app_client._maker() as s:
+        s.add_all([
+            Stop(slug="paris", order=2, name="París", currency_code="EUR", country_flag="🇫🇷"),
+            Stop(slug="londres", order=1, name="Londres", currency_code="GBP", country_flag="🇬🇧"),
+        ])
+        await s.commit()
+    r = await app_client.get("/api/v1/stops", headers=h)
+    assert [x["slug"] for x in r.json()] == ["londres", "paris"]

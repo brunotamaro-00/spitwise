@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 
 import { listCategories } from "@/api/categories";
 import { createMovement, updateMovement } from "@/api/movements";
+import { getMe, listStops, listUsers } from "@/api/users";
+import { capitalize, normalizeAmountInput, toInputValue } from "@/lib/format";
 import type { Movement } from "@/types";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "CHF", "CZK", "PLN", "HUF", "ARS"];
@@ -26,15 +28,24 @@ export default function AddMovementDialog({ editing, onClose }: {
   const qc = useQueryClient();
   const firstRef = useRef<HTMLInputElement>(null);
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
+  const { data: stops = [] } = useQuery({ queryKey: ["stops"], queryFn: listStops, staleTime: Infinity });
+  const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
+  const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
 
-  const [amount, setAmount] = useState(editing?.amount ?? "");
+  const [amount, setAmount] = useState(toInputValue(editing?.amount));
   const [currency, setCurrency] = useState(editing?.currency ?? "USD");
   const [description, setDescription] = useState(editing?.description ?? "");
   const [categoryId, setCategoryId] = useState<string>(editing?.category_id?.toString() ?? "");
   const [split, setSplit] = useState(editing?.split ?? "shared");
   const [date, setDate] = useState(editing?.movement_date ?? new Date().toISOString().slice(0, 10));
-  const [fxRate, setFxRate] = useState("");
+  const [stopSlug, setStopSlug] = useState<string>(editing?.stop_slug ?? "");
+  const [paidBy, setPaidBy] = useState<string>(editing?.paid_by?.toString() ?? "");
   const [err, setErr] = useState<string | null>(null);
+
+  // Nuevo movimiento: default de pagador = usuario logueado, cuando llega `me`.
+  useEffect(() => {
+    if (!editing && me && !paidBy) setPaidBy(String(me.id));
+  }, [editing, me, paidBy]);
 
   useEffect(() => {
     firstRef.current?.focus();
@@ -47,15 +58,19 @@ export default function AddMovementDialog({ editing, onClose }: {
 
   const save = useMutation({
     mutationFn: async () => {
+      const stop = stops.find((s) => s.slug === stopSlug);
       const body: Partial<Movement> = {
-        amount,
+        amount: normalizeAmountInput(amount),
         currency,
         description: description || null,
         category_id: categoryId ? Number(categoryId) : null,
         split,
         movement_date: date,
+        // Ciudad vacía => el backend deriva por fecha.
+        stop_slug: stop ? stop.slug : null,
+        city_name: stop ? stop.name : null,
       };
-      if (fxRate) body.fx_rate = fxRate;
+      if (paidBy) body.paid_by = Number(paidBy);
       return editing ? updateMovement(editing.id, body) : createMovement(body);
     },
     onSuccess: () => {
@@ -70,7 +85,7 @@ export default function AddMovementDialog({ editing, onClose }: {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    if (!amount || Number.isNaN(Number(amount))) {
+    if (!amount || Number.isNaN(Number(normalizeAmountInput(amount)))) {
       setErr("Ingresá un monto válido.");
       return;
     }
@@ -107,7 +122,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           <div className="grid grid-cols-[1fr_auto] gap-3">
             <label className="flex flex-col gap-1">
               <span className={label}>Monto</span>
-              <input ref={firstRef} className={field} inputMode="decimal" placeholder="20.00"
+              <input ref={firstRef} className={field} inputMode="decimal" placeholder="20,00"
                      value={amount} onChange={(e) => setAmount(e.target.value)} />
             </label>
             <label className="flex flex-col gap-1">
@@ -133,23 +148,35 @@ export default function AddMovementDialog({ editing, onClose }: {
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className={label}>División</span>
-              <select className={`${field} cursor-pointer`} value={split} onChange={(e) => setSplit(e.target.value)}>
-                {SPLITS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              <span className={label}>Ciudad</span>
+              <select className={`${field} cursor-pointer`} value={stopSlug} onChange={(e) => setStopSlug(e.target.value)}>
+                <option value="">Auto (por fecha)</option>
+                {stops.map((s) => (
+                  <option key={s.slug} value={s.slug}>{s.country_flag ? `${s.country_flag} ` : ""}{s.name}</option>
+                ))}
               </select>
             </label>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1">
-              <span className={label}>Fecha</span>
-              <input className={field} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <span className={label}>División</span>
+              <select className={`${field} cursor-pointer`} value={split} onChange={(e) => setSplit(e.target.value)}>
+                {SPLITS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className={label}>Tasa FX (opcional)</span>
-              <input className={field} inputMode="decimal" placeholder="auto"
-                     value={fxRate} onChange={(e) => setFxRate(e.target.value)} />
+              <span className={label}>Pagó</span>
+              <select className={`${field} cursor-pointer`} value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{capitalize(u.username)}</option>
+                ))}
+              </select>
             </label>
           </div>
+          <label className="flex flex-col gap-1">
+            <span className={label}>Fecha</span>
+            <input className={field} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </label>
           {err && <p role="alert" className="text-sm font-semibold text-danger">{err}</p>}
           <button
             disabled={save.isPending}

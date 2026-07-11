@@ -111,3 +111,11 @@ class CitySpendPublicOut(BaseModel):
     name: str | None
     total_usd: str
     movement_count: int
+
+
+class StopOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    slug: str
+    name: str
+    country_flag: str | None
+    currency_code: str | None

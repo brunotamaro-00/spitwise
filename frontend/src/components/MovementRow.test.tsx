@@ -11,9 +11,15 @@ const mv = {
 };
 
 describe("MovementRow", () => {
-  it("muestra USD y moneda original", () => {
+  it("muestra USD y moneda original con coma decimal", () => {
     render(<MovementRow mv={mv} onEdit={() => {}} onDelete={() => {}} />);
-    expect(screen.getByText(/57\.15/)).toBeTruthy();
-    expect(screen.getByText(/GBP 45\.00/)).toBeTruthy();
+    expect(screen.getByText(/57,15/)).toBeTruthy();
+    expect(screen.getByText(/GBP 45/)).toBeTruthy();
+  });
+
+  it("muestra la parte del usuario logueado", () => {
+    render(<MovementRow mv={mv} myId={1} onEdit={() => {}} onDelete={() => {}} />);
+    // shared: mitad de 57,15 = 28,575 -> "USD 28,58"
+    expect(screen.getByText(/tu parte/i)).toBeTruthy();
   });
 });
