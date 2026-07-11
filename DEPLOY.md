@@ -19,8 +19,11 @@ Un solo servicio web (FastAPI: API + webhook de WhatsApp + frontend estático) +
 | `ENVIRONMENT` | `prod` |
 | `SECRET_KEY` | random largo (`openssl rand -hex 32`) |
 | `AUTH_USERS` | `bruno:<pwd>:<wa_id_bruno>,katia:<pwd>:<wa_id_katia>` |
-| `ANTHROPIC_API_KEY` | key personal de Anthropic |
+| `ANTHROPIC_API_KEY` | key de Anthropic (parser por defecto) |
 | `ANTHROPIC_MODEL` | `claude-haiku-4-5` |
+| `OPENAI_API_KEY` | *(alternativa)* key de OpenAI — si es la única cargada, el parser usa OpenAI solo |
+| `OPENAI_MODEL` | `gpt-4o-mini` |
+| `LLM_PROVIDER` | *(opcional)* `anthropic` \| `openai` — fuerza el proveedor si hay ambas keys |
 | `WHATSAPP_ACCESS_TOKEN` | token permanente de la app de Meta |
 | `WHATSAPP_PHONE_NUMBER_ID` | id del número en WhatsApp Cloud |
 | `WHATSAPP_VERIFY_TOKEN` | string random propio (se repite en la config de Meta) |

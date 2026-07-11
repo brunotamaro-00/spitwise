@@ -48,8 +48,8 @@ def _to_decimal(v):
 
 async def parse_movement(text, *, default_currency, category_names, client=None):
     if client is None:
-        from app.llm.client import AnthropicLLM
-        client = AnthropicLLM()
+        from app.llm.client import make_llm
+        client = make_llm()
     raw = await client.parse(text, default_currency, category_names)
 
     category = raw.get("category")

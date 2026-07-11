@@ -45,10 +45,14 @@ class Settings(BaseSettings):
     trip_shared_api_key: str = "change-me-shared-key"
     andiamo_url: str = ""  # ej. https://andiamo-production.up.railway.app
 
-    # LLM (parse, Claude Haiku 4.5) — usado en Plan 3
+    # LLM (parser de gastos). Proveedor: "anthropic" | "openai" | "" (auto:
+    # anthropic salvo que SOLO haya OPENAI_API_KEY configurada).
+    llm_provider: str = ""
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-haiku-4-5"
     anthropic_timeout_seconds: float = 20.0
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
 
     # WhatsApp Cloud — usado en Plan 3
     whatsapp_access_token: str = ""

@@ -29,6 +29,18 @@ class ParsedMovementSchema(BaseModel):
     candidates: list[str]
 
 
+def make_llm():
+    """Elige el proveedor del parser: LLM_PROVIDER explícito, o auto
+    (anthropic por defecto; openai solo si es la única key configurada)."""
+    s = get_settings()
+    provider = s.llm_provider.lower() or (
+        "openai" if (s.openai_api_key and not s.anthropic_api_key) else "anthropic"
+    )
+    if provider == "openai":
+        return OpenAILLM()
+    return AnthropicLLM()
+
+
 class AnthropicLLM:
     def __init__(self) -> None:
         s = get_settings()
@@ -52,4 +64,35 @@ class AnthropicLLM:
         )
         parsed = resp.parsed_output
         # parsed_output es None solo ante refusal/max_tokens; {} cae en "monto no leído".
+        return parsed.model_dump() if parsed is not None else {}
+
+
+class OpenAILLM:
+    """Misma interfaz .parse() que AnthropicLLM, contra OpenAI structured outputs."""
+
+    def __init__(self) -> None:
+        from openai import AsyncOpenAI
+
+        s = get_settings()
+        self._client = AsyncOpenAI(
+            api_key=s.openai_api_key, timeout=s.anthropic_timeout_seconds
+        )
+        self._model = s.openai_model
+
+    async def parse(self, text: str, default_currency: str, category_names: list[str]) -> dict:
+        user = (
+            f"Categorías válidas: {', '.join(category_names)}.\n"
+            f"Moneda por defecto (ciudad actual): {default_currency}.\n"
+            f"Mensaje: {text}"
+        )
+        resp = await self._client.chat.completions.parse(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user", "content": user},
+            ],
+            response_format=ParsedMovementSchema,
+        )
+        parsed = resp.choices[0].message.parsed
+        # parsed es None solo ante refusal; {} cae en "monto no leído".
         return parsed.model_dump() if parsed is not None else {}
