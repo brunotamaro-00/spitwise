@@ -14,17 +14,17 @@ export const CATEGORY_COLORS: Record<string, string> = {
 export const FALLBACK_SERIES = "#8A7F6A"; // ink-3: sin categoría
 
 export const ACCENT = "#C44428"; // brick: serie única (barras, línea)
-export const GRID = "#D8CFB4"; // border token: grilla recesiva
-export const TICK = { fill: "#6B6452", fontSize: 11 } as const;
+export const GRID = "#EEF0F3"; // surface-2: grilla muy tenue
+export const TICK = { fill: "#868B93", fontSize: 11 } as const; // ink-3
 
 export const TOOLTIP_STYLE = {
   background: "#FFFFFF",
-  border: "2px solid #1B1A17",
-  borderRadius: 4,
-  boxShadow: "3px 3px 0 #D8CFB4",
+  border: "1px solid #E3E6EA",
+  borderRadius: 10,
+  boxShadow: "0 4px 16px rgb(23 24 26 / 0.10), 0 2px 6px rgb(23 24 26 / 0.06)",
   fontSize: 12,
   fontWeight: 600,
-  color: "#1B1A17",
+  color: "#191A1C",
 } as const;
 
 export function categoryColor(name: string | null): string {

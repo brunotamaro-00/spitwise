@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, SlidersHorizontal, X } from "lucide-react";
+import { Receipt, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { listCategories } from "@/api/categories";
@@ -7,20 +7,22 @@ import { deleteMovement, listMovements } from "@/api/movements";
 import { getMe } from "@/api/users";
 import AddMovementDialog from "@/components/AddMovementDialog";
 import MovementRow from "@/components/MovementRow";
-import { formatUsd } from "@/lib/format";
+import Card from "@/components/ui/Card";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import EmptyState from "@/components/ui/EmptyState";
+import { Field, Input, Select } from "@/components/ui/Field";
+import Skeleton from "@/components/ui/Skeleton";
+import { formatDayHeader, formatUsd } from "@/lib/format";
 import { involvesMe, myShare } from "@/lib/share";
 import type { Category, Movement } from "@/types";
-
-const field =
-  "min-h-[40px] rounded-[4px] border-2 border-border bg-surface px-2 text-sm font-semibold focus:border-border-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-brick/40";
-const flabel = "text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-3";
 
 const EMPTY = { onlyMine: false, city: "", categoryId: "", from: "", to: "", q: "" };
 
 export default function Movements() {
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Movement | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<Movement | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [f, setF] = useState(EMPTY);
 
@@ -50,12 +52,6 @@ export default function Movements() {
     },
   });
 
-  function onDelete(m: Movement) {
-    if (window.confirm(`¿Borrar "${m.description || m.type}" (${m.currency} ${m.amount})?`)) {
-      del.mutate(m);
-    }
-  }
-
   const filtered = useMemo(() => {
     const q = f.q.trim().toLowerCase();
     return data.filter((m) => {
@@ -68,6 +64,17 @@ export default function Movements() {
       return true;
     });
   }, [data, f, me]);
+
+  // Agrupar por fecha preservando el orden (backend ya ordena por fecha desc).
+  const groups = useMemo(() => {
+    const out: { date: string; items: Movement[] }[] = [];
+    for (const m of filtered) {
+      const last = out[out.length - 1];
+      if (last && last.date === m.movement_date) last.items.push(m);
+      else out.push({ date: m.movement_date, items: [m] });
+    }
+    return out;
+  }, [filtered]);
 
   const totals = useMemo(() => {
     let visible = 0;
@@ -87,109 +94,130 @@ export default function Movements() {
   return (
     <div className="animate-fade-in">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h1 className="font-display text-3xl uppercase leading-none text-ink">Movimientos</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowFilters((v) => !v)}
-            aria-expanded={showFilters}
-            className={`relative flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-[4px] border-2 border-border transition-colors hover:bg-surface-2 ${showFilters ? "text-brick" : "text-ink-3"}`}
-            aria-label="Filtros"
-          >
-            <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
-            {activeCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick px-1 text-[10px] font-extrabold text-surface">
-                {activeCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => { setEditing(null); setOpen(true); }}
-            className="flex min-h-[44px] cursor-pointer items-center gap-1 rounded-[2px] bg-brick px-3 font-display uppercase text-surface hard-shadow-ink transition-transform hover:brightness-105 active:translate-x-[3px] active:translate-y-[3px] active:shadow-none"
-          >
-            <Plus size={16} strokeWidth={2} aria-hidden="true" /> Agregar
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold text-ink">Movimientos</h1>
+        <button
+          onClick={() => setShowFilters((v) => !v)}
+          aria-expanded={showFilters}
+          aria-label="Filtros"
+          className={`relative flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-lg border border-border bg-surface transition-colors hover:bg-surface-2 ${showFilters ? "text-brick" : "text-ink-3"}`}
+        >
+          <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
+          {activeCount > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick px-1 text-[10px] font-bold text-white">
+              {activeCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {showFilters && (
-        <div className="mb-3 rounded-[4px] border-2 border-border bg-surface p-4 card-shadow">
-          <label className="mb-3 flex cursor-pointer items-center gap-2">
+        <Card className="mb-3 p-4">
+          <label className="mb-3 flex cursor-pointer items-center gap-2.5">
             <input
               type="checkbox"
               className="h-5 w-5 accent-brick"
               checked={f.onlyMine}
               onChange={(e) => setF({ ...f, onlyMine: e.target.checked })}
             />
-            <span className="text-sm font-bold text-ink">Solo movimientos míos</span>
+            <span className="text-sm font-semibold text-ink">Solo movimientos míos</span>
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1">
-              <span className={flabel}>Ciudad</span>
-              <select className={`${field} cursor-pointer`} value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })}>
+            <Field label="Ciudad">
+              <Select value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })}>
                 <option value="">Todas</option>
                 {cities.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className={flabel}>Categoría</span>
-              <select className={`${field} cursor-pointer`} value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}>
+              </Select>
+            </Field>
+            <Field label="Categoría">
+              <Select value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}>
                 <option value="">Todas</option>
                 {categories.filter((c) => usedCategoryIds.has(c.id)).map((c) => (
-                  <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className={flabel}>Desde</span>
-              <input type="date" className={field} value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className={flabel}>Hasta</span>
-              <input type="date" className={field} value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} />
-            </label>
+              </Select>
+            </Field>
+            <Field label="Desde">
+              <Input type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
+            </Field>
+            <Field label="Hasta">
+              <Input type="date" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} />
+            </Field>
           </div>
-          <label className="mt-3 flex flex-col gap-1">
-            <span className={flabel}>Buscar</span>
-            <input className={field} placeholder="descripción o ciudad…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
-          </label>
+          <div className="mt-3">
+            <Field label="Buscar">
+              <Input placeholder="descripción o ciudad…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
+            </Field>
+          </div>
           {activeCount > 0 && (
             <button
               onClick={() => setF(EMPTY)}
-              className="mt-3 flex cursor-pointer items-center gap-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-3 hover:text-ink"
+              className="mt-3 flex cursor-pointer items-center gap-1 text-xs font-medium text-ink-3 hover:text-ink"
             >
               <X size={14} strokeWidth={2} aria-hidden="true" /> Limpiar filtros
             </button>
           )}
-        </div>
+        </Card>
       )}
 
       {!isLoading && data.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-[4px] border-2 border-border bg-surface-2 px-4 py-2">
-          <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-3">
-            {filtered.length} de {data.length} · gasto visible{" "}
-            <span className="font-tabular text-ink">{formatUsd(String(totals.visible))}</span>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-xl border border-border bg-surface-2 px-4 py-2.5">
+          <span className="text-xs text-ink-3">
+            {filtered.length} de {data.length} · visible{" "}
+            <span className="font-tabular font-semibold text-ink">{formatUsd(String(totals.visible))}</span>
           </span>
-          <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-3">
-            tu parte <span className="font-tabular text-brick">{formatUsd(String(totals.mine))}</span>
+          <span className="text-xs text-ink-3">
+            tu parte <span className="font-tabular font-semibold text-brick">{formatUsd(String(totals.mine))}</span>
           </span>
         </div>
       )}
 
-      <div className="rounded-[4px] border-2 border-border bg-surface px-4 card-shadow">
-        {filtered.map((m) => (
-          <MovementRow key={m.id} mv={m} myId={me?.id}
-            category={m.category_id != null ? catMap[m.category_id] : undefined}
-            onEdit={(mv) => { setEditing(mv); setOpen(true); }}
-            onDelete={onDelete} />
-        ))}
-        {!isLoading && data.length === 0 && (
-          <p className="py-10 text-center text-ink-3">Sin movimientos todavía.</p>
-        )}
-        {!isLoading && data.length > 0 && filtered.length === 0 && (
-          <p className="py-10 text-center text-ink-3">Ningún movimiento coincide con los filtros.</p>
-        )}
-      </div>
-      {open && <AddMovementDialog editing={editing} onClose={() => setOpen(false)} />}
+      {isLoading && (
+        <div className="flex flex-col gap-2">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16" />)}
+        </div>
+      )}
+
+      {!isLoading && data.length === 0 && (
+        <Card>
+          <EmptyState icon={Receipt} title="Sin movimientos todavía"
+            description="Tocá el botón + para cargar el primer gasto del viaje." />
+        </Card>
+      )}
+
+      {!isLoading && data.length > 0 && filtered.length === 0 && (
+        <Card>
+          <EmptyState icon={SearchX} title="Nada coincide"
+            description="Ningún movimiento coincide con los filtros aplicados." />
+        </Card>
+      )}
+
+      {groups.length > 0 && (
+        <div className="flex flex-col gap-4">
+          {groups.map((g) => (
+            <section key={g.date}>
+              <h2 className="mb-1 px-1 text-xs font-medium capitalize text-ink-3">{formatDayHeader(g.date)}</h2>
+              <Card className="px-4">
+                {g.items.map((m) => (
+                  <MovementRow key={m.id} mv={m} myId={me?.id}
+                    category={m.category_id != null ? catMap[m.category_id] : undefined}
+                    onEdit={(mv) => { setEditing(mv); setEditOpen(true); }}
+                    onDelete={(mv) => setToDelete(mv)} />
+                ))}
+              </Card>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {editOpen && <AddMovementDialog editing={editing} onClose={() => setEditOpen(false)} />}
+      {toDelete && (
+        <ConfirmDialog
+          title="Borrar movimiento"
+          message={`¿Borrar "${toDelete.description || toDelete.type}" (${toDelete.currency} ${toDelete.amount})?`}
+          onConfirm={() => del.mutate(toDelete)}
+          onClose={() => setToDelete(null)}
+        />
+      )}
     </div>
   );
 }

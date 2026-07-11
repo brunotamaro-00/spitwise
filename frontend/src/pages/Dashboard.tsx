@@ -8,6 +8,9 @@ import CategoryDonut from "@/components/CategoryDonut";
 import CitySpendChart from "@/components/CitySpendChart";
 import SettleDialog from "@/components/SettleDialog";
 import SpendTimeline from "@/components/SpendTimeline";
+import Card from "@/components/ui/Card";
+import { Label } from "@/components/ui/Field";
+import Skeleton from "@/components/ui/Skeleton";
 import { capitalize, formatUsd } from "@/lib/format";
 
 export default function Dashboard() {
@@ -25,27 +28,33 @@ export default function Dashboard() {
 
   return (
     <div className="flex animate-fade-in flex-col gap-4">
-      {balance.data && (
+      {balance.data ? (
         <BalanceHero balance={balance.data} names={names} onSettle={() => setSettle(true)} />
+      ) : (
+        <Skeleton className="h-32" />
       )}
-      {summary.data && (
-        <section className="rounded-[4px] border-2 border-border bg-surface p-5 card-shadow">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-3">
-            Mis gastos
-          </p>
-          <p className="mt-1 font-display text-4xl uppercase leading-none text-ink font-tabular">
+
+      {summary.data ? (
+        <Card className="p-5">
+          <Label>Mis gastos</Label>
+          <p className="mt-1 font-display text-4xl leading-none text-ink font-tabular">
             {formatUsd(summary.data.total_usd)}
           </p>
-          <p className="mt-1 text-sm text-ink-2">
-            {summary.data.movement_count} movimiento{summary.data.movement_count === 1 ? "" : "s"}
+          <p className="mt-1.5 text-sm text-ink-3">
+            {summary.data.movement_count} movimiento{summary.data.movement_count === 1 ? "" : "s"} tuyo
+            {summary.data.movement_count === 1 ? "" : "s"}
           </p>
-        </section>
+        </Card>
+      ) : (
+        <Skeleton className="h-28" />
       )}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {byCity.data && <CitySpendChart data={byCity.data} />}
-        {byCat.data && <CategoryDonut data={byCat.data} />}
+        {byCity.data ? <CitySpendChart data={byCity.data} /> : <Skeleton className="h-64" />}
+        {byCat.data ? <CategoryDonut data={byCat.data} /> : <Skeleton className="h-64" />}
       </div>
-      {ts.data && <SpendTimeline data={ts.data} />}
+      {ts.data ? <SpendTimeline data={ts.data} /> : <Skeleton className="h-60" />}
+
       {settle && <SettleDialog onClose={() => setSettle(false)} />}
     </div>
   );

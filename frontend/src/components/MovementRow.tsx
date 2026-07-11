@@ -1,5 +1,6 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Handshake, Pencil, Trash2 } from "lucide-react";
 
+import { categoryIcon } from "@/lib/categoryIcons";
 import { formatAmount, formatUsd } from "@/lib/format";
 import { myShare } from "@/lib/share";
 import type { Category, Movement } from "@/types";
@@ -19,47 +20,56 @@ export default function MovementRow({ mv, myId, category, onEdit, onDelete }: {
 }) {
   const isSettlement = mv.type === "settlement";
   const share = myId != null ? myShare(mv, myId) : 0;
+  const Icon = isSettlement ? Handshake : categoryIcon(category?.name);
+
   return (
-    <div className="flex items-center gap-2 border-b-2 border-border py-3 last:border-b-0">
+    <div className="flex items-center gap-3 border-b border-border py-3 last:border-b-0">
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-2"
+        aria-hidden="true"
+      >
+        <Icon size={17} strokeWidth={1.75} />
+      </span>
+
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold text-ink">
-          {isSettlement ? "🤝 " : category?.icon ? `${category.icon} ` : ""}
-          {mv.description || (isSettlement ? "Pago (saldo)" : "—")}
+          {mv.description || (isSettlement ? "Pago (saldo)" : "Sin descripción")}
         </p>
-        <p className="mt-0.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-3">
-          {mv.movement_date}
-          {mv.city_name ? ` · ${mv.city_name}` : ""}
-          {!isSettlement ? ` · ${SPLIT_LABEL[mv.split] ?? mv.split}` : ""}
+        <p className="mt-0.5 truncate text-xs text-ink-3">
+          {mv.city_name ? `${mv.city_name} · ` : ""}
+          {isSettlement ? "Saldo" : SPLIT_LABEL[mv.split] ?? mv.split}
         </p>
       </div>
+
       <div className="shrink-0 text-right">
         <p className="font-tabular font-bold text-ink">{formatUsd(mv.amount_usd)}</p>
-        <p className="font-tabular text-xs text-ink-2">
+        <p className="font-tabular text-xs text-ink-3">
           {mv.currency} {formatAmount(mv.amount)}
           {mv.fx_source === "fallback" && (
             <span className="ml-1 font-bold text-danger" title="Tasa aproximada (fallback)">≈</span>
           )}
         </p>
         {!isSettlement && myId != null && (
-          <p className="font-tabular text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-3">
-            tu parte {formatUsd(String(share))}
-          </p>
+          <p className="font-tabular text-[11px] text-ink-faint">tu parte {formatUsd(String(share))}</p>
         )}
       </div>
-      <button
-        aria-label={`Editar ${mv.description || "movimiento"}`}
-        className="flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-[4px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
-        onClick={() => onEdit(mv)}
-      >
-        <Pencil size={18} strokeWidth={1.5} aria-hidden="true" />
-      </button>
-      <button
-        aria-label={`Borrar ${mv.description || "movimiento"}`}
-        className="flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-[4px] text-danger transition-colors hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
-        onClick={() => onDelete(mv)}
-      >
-        <Trash2 size={18} strokeWidth={1.5} aria-hidden="true" />
-      </button>
+
+      <div className="flex shrink-0 items-center">
+        <button
+          aria-label={`Editar ${mv.description || "movimiento"}`}
+          className="flex min-h-[40px] min-w-[40px] cursor-pointer items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+          onClick={() => onEdit(mv)}
+        >
+          <Pencil size={17} strokeWidth={1.75} aria-hidden="true" />
+        </button>
+        <button
+          aria-label={`Borrar ${mv.description || "movimiento"}`}
+          className="flex min-h-[40px] min-w-[40px] cursor-pointer items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-danger-bg hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
+          onClick={() => onDelete(mv)}
+        >
+          <Trash2 size={17} strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      </div>
     </div>
   );
 }
