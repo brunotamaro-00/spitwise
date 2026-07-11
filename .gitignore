@@ -1,0 +1,5 @@
+# Secretos: nunca commitear (los valores viven en Railway)
+.env
+.env.*
+!.env.example
+.playwright-mcp/
