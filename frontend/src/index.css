@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #F3ECD8;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #EAE2CB;
+  --color-border: #D8CFB4;
+  --color-border-strong: #C2B08A;
+  --color-ink: #1B1A17;
+  --color-ink-2: #6B6452;
+  --color-ink-3: #8A7F6A;
+  --color-ink-faint: #ABA090;
+  --color-brick: #C44428;
+  --color-gold: #C8A24B;
+  --color-gold-bg: #F8F0DC;
+  --color-success: #2F7D4F;
+  --color-danger: #B23A2E;
+  --font-display: "Anton", sans-serif;
+  --font-sans: "Hanken Grotesk", system-ui, sans-serif;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+}
+
+@layer utilities {
+  .card-shadow { box-shadow: 3px 3px 0 var(--color-border); }
+  .hard-shadow-ink { box-shadow: 3px 3px 0 var(--color-ink); }
+  .font-tabular { font-variant-numeric: tabular-nums; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@layer utilities {
+  .animate-fade-in { animation: fade-in 0.25s ease-out both; }
+}
