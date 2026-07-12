@@ -34,7 +34,8 @@ async def create_movement(
     # Plan 4 reemplaza el None por la timezone de la parada activa.
     mdate = body.movement_date or today_in_tz(None)
     stop_slug, city_name = body.stop_slug, body.city_name
-    if stop_slug is None and city_name is None:
+    # `general` => gasto sin ciudad; no derivar la parada activa por fecha.
+    if not body.general and stop_slug is None and city_name is None:
         stop = await stop_for_date(session, mdate)
         if stop is not None:
             stop_slug, city_name = stop.slug, stop.name
@@ -69,13 +70,17 @@ async def create_movement(
 
 @router.get("", response_model=list[MovementOut])
 async def list_movements(
+    sort: str = "date",  # "date" = fecha imputada; "created" = fecha de carga
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[Movement]:
+    order = (
+        (Movement.created_at.desc(), Movement.id.desc())
+        if sort == "created"
+        else (Movement.movement_date.desc(), Movement.id.desc())
+    )
     rows = (
-        await session.execute(
-            select(Movement).order_by(Movement.movement_date.desc(), Movement.id.desc())
-        )
+        await session.execute(select(Movement).order_by(*order))
     ).scalars().all()
     return list(rows)
 

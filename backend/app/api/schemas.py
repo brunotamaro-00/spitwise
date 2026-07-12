@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, field_serializer
@@ -25,6 +25,7 @@ class MovementIn(BaseModel):
     category_id: int | None = None
     stop_slug: str | None = None
     city_name: str | None = None
+    general: bool = False  # gasto general sin ciudad: no derivar la parada por fecha
     movement_date: date | None = None
     fx_rate: Decimal | None = None  # override manual
 
@@ -63,6 +64,7 @@ class MovementOut(BaseModel):
     stop_slug: str | None
     city_name: str | None
     movement_date: date
+    created_at: datetime
 
     @field_serializer("amount", "amount_usd", "fx_rate")
     def _ser_decimal(self, v: Decimal) -> str:

@@ -7,9 +7,10 @@ import { getMe, listStops, listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
-import { capitalize, normalizeAmountInput, toInputValue } from "@/lib/format";
+import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue } from "@/lib/format";
 import type { Movement } from "@/types";
 
+const GENERAL = "__general__"; // gasto sin ciudad
 const CURRENCIES = ["USD", "EUR", "GBP", "CHF", "CZK", "PLN", "HUF", "ARS"];
 const SPLITS = [
   { value: "shared", label: "Compartido" },
@@ -35,7 +36,10 @@ export default function AddMovementDialog({ editing, onClose }: {
   const [categoryId, setCategoryId] = useState<string>(editing?.category_id?.toString() ?? "");
   const [split, setSplit] = useState(editing?.split ?? "shared");
   const [date, setDate] = useState(editing?.movement_date ?? new Date().toISOString().slice(0, 10));
-  const [stopSlug, setStopSlug] = useState<string>(editing?.stop_slug ?? "");
+  // Sin ciudad al editar (y sin parada) => se asume gasto general.
+  const [stopSlug, setStopSlug] = useState<string>(
+    editing?.stop_slug ?? (editing && !editing.city_name ? GENERAL : ""),
+  );
   const [paidBy, setPaidBy] = useState<string>(editing?.paid_by?.toString() ?? "");
   const [err, setErr] = useState<string | null>(null);
 
@@ -49,16 +53,17 @@ export default function AddMovementDialog({ editing, onClose }: {
   const save = useMutation({
     mutationFn: async () => {
       const stop = stops.find((s) => s.slug === stopSlug);
-      const body: Partial<Movement> = {
+      const body: Partial<Movement> & { general?: boolean } = {
         amount: normalizeAmountInput(amount),
         currency,
         description: description || null,
         category_id: categoryId ? Number(categoryId) : null,
         split,
         movement_date: date,
-        // Ciudad vacía => el backend deriva por fecha.
+        // Ciudad vacía => el backend deriva por fecha. "General" => sin ciudad.
         stop_slug: stop ? stop.slug : null,
         city_name: stop ? stop.name : null,
+        general: stopSlug === GENERAL,
       };
       if (paidBy) body.paid_by = Number(paidBy);
       return editing ? updateMovement(editing.id, body) : createMovement(body);
@@ -88,7 +93,7 @@ export default function AddMovementDialog({ editing, onClose }: {
         <div className="grid grid-cols-[1fr_auto] gap-3">
           <Field label="Monto">
             <Input ref={firstRef} inputMode="decimal" placeholder="20,00"
-                   value={amount} onChange={(e) => setAmount(e.target.value)} />
+                   value={amount} onChange={(e) => setAmount(sanitizeAmountInput(e.target.value))} />
           </Field>
           <Field label="Moneda">
             <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
@@ -110,6 +115,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           <Field label="Ciudad">
             <Select value={stopSlug} onChange={(e) => setStopSlug(e.target.value)}>
               <option value="">Auto (por fecha)</option>
+              <option value={GENERAL}>General (sin ciudad)</option>
               {stops.map((s) => (
                 <option key={s.slug} value={s.slug}>{s.country_flag ? `${s.country_flag} ` : ""}{s.name}</option>
               ))}
