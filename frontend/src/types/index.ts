@@ -12,4 +12,31 @@ export type CategorySpend = { category_id: number | null; name: string | null; i
 export type TimePoint = { date: string; cumulative_usd: string };
 export type Category = { id: number; name: string; icon: string | null; sort_order: number };
 export type User = { id: number; username: string };
-export type Stop = { slug: string; name: string; country_flag: string | null; currency_code: string | null };
+export type Stop = {
+  slug: string;
+  name: string;
+  country: string | null;
+  country_flag: string | null;
+  currency_code: string | null;
+  arrival_date: string | null;
+  departure_date: string | null;
+  order: number;
+};
+
+export type CityDaily = { date: string; total_usd: string };
+export type CityBreakdown = {
+  stop_slug: string | null;
+  city_name: string | null;
+  country_flag: string | null;
+  total_usd: string;
+  movement_count: number;
+  days: number;
+};
+export type CitySummary = {
+  total_usd: string;
+  movement_count: number;
+  days: number;
+  avg_per_day_usd: string;
+  arrival_date: string | null;
+  departure_date: string | null;
+};
