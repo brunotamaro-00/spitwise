@@ -41,7 +41,7 @@ export default function SettleDialog({ balance, onClose }: {
     onError: () => setErr("No se pudo registrar el pago."),
   });
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setErr(null);
     const normalized = normalizeAmountInput(amount);

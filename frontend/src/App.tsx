@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { isAuthenticated } from "@/api/auth";
 import Layout from "@/components/Layout";
+import Cities from "@/pages/Cities";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import Movements from "@/pages/Movements";
@@ -16,6 +17,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route element={<Guard><Layout /></Guard>}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/ciudades" element={<Cities />} />
         <Route path="/movimientos" element={<Movements />} />
       </Route>
     </Routes>

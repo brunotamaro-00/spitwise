@@ -1,38 +1,61 @@
 @import "tailwindcss";
 
 @theme {
-  /* Neutros — base off-white fría/neutra */
-  --color-canvas: #F6F7F9;
+  /* Neutros — base off-white apenas cálida (menos "banco", más viaje) */
+  --color-canvas: #F7F5F1;
   --color-surface: #FFFFFF;
-  --color-surface-2: #EEF0F3;
-  --color-border: #E3E6EA;
-  --color-border-strong: #CBD0D7;
-  --color-ink: #191A1C;
-  --color-ink-2: #55595F;
-  --color-ink-3: #868B93;
-  --color-ink-faint: #AEB3BB;
+  --color-surface-2: #F0EDE7;
+  --color-border: #E6E1D8;
+  --color-border-strong: #CFC8BB;
+  --color-ink: #1B1A17;
+  --color-ink-2: #56534C;
+  --color-ink-3: #857F74;
+  --color-ink-faint: #ABA598;
 
-  /* Acento — ladrillo (se mantiene) */
+  /* Acento de marca — ladrillo/terracota (ancla, se mantiene) */
   --color-brick: #C44428;
   --color-brick-hover: #B03C22;
   --color-brick-press: #9A341D;
-  --color-brick-bg: #FBECE8;
+  --color-brick-bg: #FBEAE4;
   --color-brick-border: #E9C4B9;
+
+  /* Familia de acentos de viaje — derivada de la paleta categórica validada
+     (dataviz). UI y charts comparten estos tokens: una sola verdad de color. */
+  --color-accent-blue: #2E6FBF;   /* Comida */
+  --color-accent-blue-bg: #E7EFF9;
+  --color-accent-amber: #A67F2A;  /* Transporte */
+  --color-accent-amber-bg: #F5EDD6;
+  --color-accent-teal: #0B8F80;   /* Actividades */
+  --color-accent-teal-bg: #DEF1EE;
+  --color-accent-plum: #8E3D88;   /* Compras */
+  --color-accent-plum-bg: #F3E6F2;
+  --color-accent-green: #55902F;  /* Bebidas/Salidas */
+  --color-accent-green-bg: #EAF2DF;
+  --color-accent-indigo: #7A5AC4; /* Otros */
+  --color-accent-indigo-bg: #ECE7F8;
 
   /* Secundarios / semánticos */
   --color-gold: #C8A24B;
   --color-gold-bg: #F8F0DC;
   --color-success: #2F7D4F;
-  --color-success-bg: #E7F1EC;
+  --color-success-bg: #E4F0E9;
   --color-danger: #C13515;
-  --color-danger-bg: #FBECE8;
+  --color-danger-bg: #FBEAE4;
 
   --font-display: "Anton", sans-serif;
   --font-sans: "Hanken Grotesk", system-ui, sans-serif;
 
-  /* Sombras suaves difusas */
-  --shadow-sm: 0 1px 2px rgb(23 24 26 / 0.05), 0 2px 6px rgb(23 24 26 / 0.06);
-  --shadow-md: 0 4px 16px rgb(23 24 26 / 0.10), 0 2px 6px rgb(23 24 26 / 0.06);
+  /* Sombras suaves difusas + una con tinte cálido para las heros */
+  --shadow-sm: 0 1px 2px rgb(27 26 23 / 0.05), 0 2px 6px rgb(27 26 23 / 0.06);
+  --shadow-md: 0 4px 16px rgb(27 26 23 / 0.10), 0 2px 6px rgb(27 26 23 / 0.06);
+  --shadow-hero: 0 10px 30px -8px rgb(196 68 40 / 0.35), 0 4px 12px -4px rgb(27 26 23 / 0.12);
+}
+
+/* Gradientes de marca (no son tokens de color de Tailwind: se usan por clase). */
+:root {
+  --gradient-hero: linear-gradient(135deg, #C44428 0%, #B0491F 45%, #A67F2A 100%);
+  --gradient-brick: linear-gradient(135deg, #C44428 0%, #9A341D 100%);
+  --gradient-plum: linear-gradient(135deg, #8E3D88 0%, #5C2A70 100%);
 }
 
 body {
@@ -47,11 +70,27 @@ body {
 @layer utilities {
   .soft-card { box-shadow: var(--shadow-sm); }
   .soft-pop { box-shadow: var(--shadow-md); }
+  .soft-hero { box-shadow: var(--shadow-hero); }
   .font-tabular { font-variant-numeric: tabular-nums; }
+
+  .hero-gradient { background-image: var(--gradient-hero); }
+  .brick-gradient { background-image: var(--gradient-brick); }
+  .plum-gradient { background-image: var(--gradient-plum); }
+
+  /* Textura sutil de "mapa/pasaporte" para las heros: puntos muy tenues. */
+  .hero-texture {
+    background-image: radial-gradient(rgb(255 255 255 / 0.10) 1px, transparent 1px);
+    background-size: 14px 14px;
+  }
 }
 
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -62,10 +101,12 @@ body {
 
 @layer utilities {
   .animate-fade-in { animation: fade-in 0.2s ease-out both; }
+  .animate-rise-in { animation: rise-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-skeleton { animation: skeleton 1.3s ease-in-out infinite; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in,
+  .animate-rise-in,
   .animate-skeleton { animation: none; }
 }

@@ -13,6 +13,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { Field, Input, Select } from "@/components/ui/Field";
 import Skeleton from "@/components/ui/Skeleton";
 import { formatDayHeader, formatUsd } from "@/lib/format";
+import { groupByDay } from "@/lib/groupByDay";
 import { involvesMe, myShare } from "@/lib/share";
 import type { Category, Movement } from "@/types";
 
@@ -71,18 +72,13 @@ export default function Movements() {
 
   // Agrupar preservando el orden del backend, por la fecha del criterio activo:
   // "date" = fecha imputada; "created" = fecha de carga (created_at).
-  const groups = useMemo(() => {
-    const keyOf = (m: Movement) =>
-      sort === "created" ? m.created_at.slice(0, 10) : m.movement_date;
-    const out: { date: string; items: Movement[] }[] = [];
-    for (const m of filtered) {
-      const key = keyOf(m);
-      const last = out[out.length - 1];
-      if (last && last.date === key) last.items.push(m);
-      else out.push({ date: key, items: [m] });
-    }
-    return out;
-  }, [filtered, sort]);
+  const groups = useMemo(
+    () =>
+      groupByDay(filtered, (m) =>
+        sort === "created" ? m.created_at.slice(0, 10) : m.movement_date,
+      ),
+    [filtered, sort],
+  );
 
   const totals = useMemo(() => {
     let visible = 0;
