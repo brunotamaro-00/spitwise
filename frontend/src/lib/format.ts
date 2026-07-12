@@ -43,6 +43,12 @@ export function formatDayHeader(iso: string): string {
   });
 }
 
+/** Filtra la entrada de un campo de monto: solo dígitos, coma y punto.
+ *  Impide tipear letras u otros símbolos en campos numéricos. */
+export function sanitizeAmountInput(s: string): string {
+  return s.replace(/[^\d.,]/g, "");
+}
+
 /** Normaliza lo tipeado por el usuario a decimal con punto para el backend.
  *  Acepta coma decimal ("20,50") y miles con punto ("1.234,50"). */
 export function normalizeAmountInput(s: string): string {
