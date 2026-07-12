@@ -1,8 +1,8 @@
 import type { Movement } from "@/types";
 import { api } from "./client";
 
-export async function listMovements(): Promise<Movement[]> {
-  return (await api.get("/movements")).data;
+export async function listMovements(sort: "date" | "created" = "date"): Promise<Movement[]> {
+  return (await api.get("/movements", { params: { sort } })).data;
 }
 export async function createMovement(body: Partial<Movement>): Promise<Movement> {
   return (await api.post("/movements", body)).data;

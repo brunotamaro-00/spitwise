@@ -24,9 +24,13 @@ export default function Movements() {
   const [editOpen, setEditOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Movement | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [sort, setSort] = useState<"date" | "created">("date");
   const [f, setF] = useState(EMPTY);
 
-  const { data = [], isLoading } = useQuery({ queryKey: ["movements"], queryFn: listMovements });
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["movements", sort],
+    queryFn: () => listMovements(sort),
+  });
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
 
@@ -65,16 +69,20 @@ export default function Movements() {
     });
   }, [data, f, me]);
 
-  // Agrupar por fecha preservando el orden (backend ya ordena por fecha desc).
+  // Agrupar preservando el orden del backend, por la fecha del criterio activo:
+  // "date" = fecha imputada; "created" = fecha de carga (created_at).
   const groups = useMemo(() => {
+    const keyOf = (m: Movement) =>
+      sort === "created" ? m.created_at.slice(0, 10) : m.movement_date;
     const out: { date: string; items: Movement[] }[] = [];
     for (const m of filtered) {
+      const key = keyOf(m);
       const last = out[out.length - 1];
-      if (last && last.date === m.movement_date) last.items.push(m);
-      else out.push({ date: m.movement_date, items: [m] });
+      if (last && last.date === key) last.items.push(m);
+      else out.push({ date: key, items: [m] });
     }
     return out;
-  }, [filtered]);
+  }, [filtered, sort]);
 
   const totals = useMemo(() => {
     let visible = 0;
@@ -112,6 +120,24 @@ export default function Movements() {
 
       {showFilters && (
         <Card className="mb-3 p-4">
+          <div className="mb-3">
+            <span className="mb-1.5 block text-xs font-semibold text-ink-3">Ordenar por</span>
+            <div className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5">
+              {([["date", "Fecha imputada"], ["created", "Fecha de carga"]] as const).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setSort(v)}
+                  aria-pressed={sort === v}
+                  className={`min-h-[36px] cursor-pointer rounded-md px-3 text-xs font-semibold transition-colors ${
+                    sort === v ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <label className="mb-3 flex cursor-pointer items-center gap-2.5">
             <input
               type="checkbox"
