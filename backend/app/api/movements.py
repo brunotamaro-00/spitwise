@@ -34,8 +34,9 @@ async def create_movement(
     # Plan 4 reemplaza el None por la timezone de la parada activa.
     mdate = body.movement_date or today_in_tz(None)
     stop_slug, city_name = body.stop_slug, body.city_name
-    # `general` => gasto sin ciudad; no derivar la parada activa por fecha.
-    if not body.general and stop_slug is None and city_name is None:
+    # `general` (o un saldo) => sin ciudad; no derivar la parada activa por fecha.
+    is_general = body.general or body.type == "settlement"
+    if not is_general and stop_slug is None and city_name is None:
         stop = await stop_for_date(session, mdate)
         if stop is not None:
             stop_slug, city_name = stop.slug, stop.name

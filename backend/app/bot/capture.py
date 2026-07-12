@@ -54,6 +54,10 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
     if parsed.amount is None:
         return text_reply("⚠️ Monto: no pude leer el monto. Probá 'cena 20 euros'.")
 
+    # Un saldo nunca lleva ciudad: siempre queda como gasto general.
+    if parsed.is_settlement:
+        stop_slug, city_name = None, None
+
     amount_usd, rate, src = await convert_to_usd(session, parsed.amount, parsed.currency, today)
 
     # Categoría ambigua → pending con botones (solo gastos, no settlement).
