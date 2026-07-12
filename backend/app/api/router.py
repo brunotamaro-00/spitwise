@@ -5,6 +5,7 @@ router = APIRouter(prefix="/api/v1")
 from app.api.auth import router as auth_router, users_router  # noqa: E402
 from app.api.balance import router as balance_router  # noqa: E402
 from app.api.categories import router as categories_router  # noqa: E402
+from app.api.city_analytics import router as city_analytics_router  # noqa: E402
 from app.api.dashboard import router as dashboard_router  # noqa: E402
 from app.api.integration import router as integration_router  # noqa: E402
 from app.api.movements import router as movements_router  # noqa: E402
@@ -16,5 +17,6 @@ router.include_router(movements_router)
 router.include_router(balance_router)
 router.include_router(categories_router)
 router.include_router(dashboard_router)
+router.include_router(city_analytics_router)
 router.include_router(integration_router)
 router.include_router(stops_router)

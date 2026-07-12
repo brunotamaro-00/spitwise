@@ -115,9 +115,37 @@ class CitySpendPublicOut(BaseModel):
     movement_count: int
 
 
+class CityDailyOut(BaseModel):
+    date: date
+    total_usd: str
+
+
+class CityBreakdownOut(BaseModel):
+    stop_slug: str | None
+    city_name: str | None
+    country_flag: str | None
+    total_usd: str
+    movement_count: int
+    days: int
+
+
+class CitySummaryOut(BaseModel):
+    total_usd: str
+    movement_count: int
+    days: int
+    avg_per_day_usd: str
+    # Solo cuando hay exactamente una ciudad seleccionada:
+    arrival_date: date | None = None
+    departure_date: date | None = None
+
+
 class StopOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     slug: str
     name: str
+    country: str | None
     country_flag: str | None
     currency_code: str | None
+    arrival_date: date | None
+    departure_date: date | None
+    order: int
