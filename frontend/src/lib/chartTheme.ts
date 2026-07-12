@@ -47,3 +47,12 @@ export const TOOLTIP_STYLE = {
 export function categoryColor(name: string | null): string {
   return (name && CATEGORY_COLORS[name]) || FALLBACK_SERIES;
 }
+
+/** Etiqueta compacta para ejes: 1400 -> "1,4k", 900 -> "900". */
+export function compactUsd(v: number): string {
+  if (v >= 1000) {
+    const k = v / 1000;
+    return `${(Number.isInteger(k) ? k : k.toFixed(1)).toString().replace(".", ",")}k`;
+  }
+  return String(Math.round(v));
+}

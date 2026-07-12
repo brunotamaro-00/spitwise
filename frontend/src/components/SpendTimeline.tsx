@@ -3,7 +3,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import Card from "@/components/ui/Card";
 import { Label } from "@/components/ui/Field";
 import { formatDayHeader, formatUsd, parseMoney } from "@/lib/format";
-import { ACCENT, GRID, TICK } from "@/lib/chartTheme";
+import { ACCENT, GRID, TICK, compactUsd } from "@/lib/chartTheme";
 import type { TimePoint } from "@/types";
 
 type Row = { iso: string; date: string; usd: number; total: string };
@@ -48,7 +48,7 @@ export default function SpendTimeline({
             </defs>
             <CartesianGrid vertical={false} stroke={GRID} />
             <XAxis dataKey="date" tick={TICK} tickLine={false} axisLine={false} minTickGap={28} />
-            <YAxis tick={TICK} tickLine={false} axisLine={false} width={44} />
+            <YAxis tick={TICK} tickLine={false} axisLine={false} width={40} tickFormatter={compactUsd} />
             <Tooltip cursor={{ stroke: GRID, strokeWidth: 1 }} content={<AreaTooltip />} />
             <Area
               type="monotone"

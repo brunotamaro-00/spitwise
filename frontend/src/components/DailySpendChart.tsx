@@ -3,7 +3,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import Card from "@/components/ui/Card";
 import { Label } from "@/components/ui/Field";
 import { formatDayHeader, formatUsd, parseMoney } from "@/lib/format";
-import { ACCENT, GRID, TICK } from "@/lib/chartTheme";
+import { ACCENT, GRID, TICK, compactUsd } from "@/lib/chartTheme";
 import type { CityDaily } from "@/types";
 
 type Row = { iso: string; date: string; usd: number; total: string };
@@ -42,7 +42,7 @@ export default function DailySpendChart({
           <BarChart data={rows} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
             <CartesianGrid vertical={false} stroke={GRID} />
             <XAxis dataKey="date" tick={TICK} tickLine={false} axisLine={false} minTickGap={16} />
-            <YAxis tick={TICK} tickLine={false} axisLine={false} width={44} />
+            <YAxis tick={TICK} tickLine={false} axisLine={false} width={40} tickFormatter={compactUsd} />
             <Tooltip cursor={{ fill: "var(--color-surface-2)", opacity: 0.5 }} content={<DailyTooltip />} />
             <Bar dataKey="usd" fill={ACCENT} radius={[5, 5, 0, 0]} maxBarSize={34} animationDuration={600} />
           </BarChart>

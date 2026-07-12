@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Wallet } from "lucide-react";
 import { useState } from "react";
 
 import { listUsers } from "@/api/users";
@@ -27,29 +28,36 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="flex animate-fade-in flex-col gap-4">
-      {balance.data ? (
-        <BalanceHero balance={balance.data} names={names} onSettle={() => setSettle(true)} />
-      ) : (
-        <Skeleton className="h-32" />
-      )}
+    <div className="flex animate-fade-in flex-col gap-5">
+      <div className="grid gap-5 lg:grid-cols-2">
+        {balance.data ? (
+          <BalanceHero balance={balance.data} names={names} onSettle={() => setSettle(true)} />
+        ) : (
+          <Skeleton className="h-32" />
+        )}
 
-      {summary.data ? (
-        <Card className="p-5">
-          <Label>Mis gastos</Label>
-          <p className="mt-1 font-display text-4xl leading-none text-ink font-tabular">
-            {formatUsd(summary.data.total_usd)}
-          </p>
-          <p className="mt-1.5 text-sm text-ink-3">
-            {summary.data.movement_count} movimiento{summary.data.movement_count === 1 ? "" : "s"} tuyo
-            {summary.data.movement_count === 1 ? "" : "s"}
-          </p>
-        </Card>
-      ) : (
-        <Skeleton className="h-28" />
-      )}
+        {summary.data ? (
+          <Card className="flex flex-col justify-center p-5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brick-bg text-brick">
+                <Wallet size={16} strokeWidth={2} aria-hidden="true" />
+              </span>
+              <Label>Mis gastos</Label>
+            </div>
+            <p className="mt-2 font-display text-4xl leading-none text-ink font-tabular">
+              {formatUsd(summary.data.total_usd)}
+            </p>
+            <p className="mt-1.5 text-sm text-ink-3">
+              {summary.data.movement_count} movimiento{summary.data.movement_count === 1 ? "" : "s"} tuyo
+              {summary.data.movement_count === 1 ? "" : "s"}
+            </p>
+          </Card>
+        ) : (
+          <Skeleton className="h-28" />
+        )}
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         {byCity.data ? <CitySpendChart data={byCity.data} /> : <Skeleton className="h-64" />}
         {byCat.data ? <CategoryDonut data={byCat.data} /> : <Skeleton className="h-64" />}
       </div>

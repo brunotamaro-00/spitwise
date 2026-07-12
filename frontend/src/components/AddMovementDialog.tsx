@@ -77,7 +77,7 @@ export default function AddMovementDialog({ editing, onClose }: {
     onError: () => setErr("No se pudo guardar. Revisá el monto."),
   });
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setErr(null);
     if (!amount || Number.isNaN(Number(normalizeAmountInput(amount)))) {
