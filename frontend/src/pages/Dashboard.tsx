@@ -55,7 +55,7 @@ export default function Dashboard() {
       </div>
       {ts.data ? <SpendTimeline data={ts.data} /> : <Skeleton className="h-60" />}
 
-      {settle && <SettleDialog onClose={() => setSettle(false)} />}
+      {settle && <SettleDialog balance={balance.data} onClose={() => setSettle(false)} />}
     </div>
   );
 }

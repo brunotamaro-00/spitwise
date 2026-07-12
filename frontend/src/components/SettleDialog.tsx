@@ -6,15 +6,19 @@ import { listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
-import { capitalize, normalizeAmountInput } from "@/lib/format";
+import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue } from "@/lib/format";
+import type { Balance } from "@/types";
 
-/** Registra un settlement: quién paga le transfiere USD X al otro. */
-export default function SettleDialog({ onClose }: { onClose: () => void }) {
+/** Registra un settlement: quién paga le transfiere USD X al otro.
+ *  Prefill: monto = total de la deuda; paga = el deudor. */
+export default function SettleDialog({ balance, onClose }: {
+  balance?: Balance; onClose: () => void;
+}) {
   const qc = useQueryClient();
   const firstRef = useRef<HTMLSelectElement>(null);
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
-  const [amount, setAmount] = useState("");
-  const [paidBy, setPaidBy] = useState<string>("");
+  const [amount, setAmount] = useState(balance ? toInputValue(balance.amount_usd) : "");
+  const [paidBy, setPaidBy] = useState<string>(balance?.debtor_id ? String(balance.debtor_id) : "");
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => { firstRef.current?.focus(); }, []);
@@ -58,7 +62,7 @@ export default function SettleDialog({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Monto (USD)">
           <Input inputMode="decimal" placeholder="100,00"
-                 value={amount} onChange={(e) => setAmount(e.target.value)} />
+                 value={amount} onChange={(e) => setAmount(sanitizeAmountInput(e.target.value))} />
         </Field>
         {err && <p role="alert" className="text-sm font-semibold text-danger">{err}</p>}
         <Button type="submit" disabled={save.isPending} className="mt-1">
