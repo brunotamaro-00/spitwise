@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { PlusCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { listCategories } from "@/api/categories";
@@ -72,6 +73,10 @@ export default function AddMovementDialog({ editing, onClose }: {
   );
   const [paidBy, setPaidBy] = useState<string>(editing?.paid_by?.toString() ?? "");
   const [err, setErr] = useState<string | null>(null);
+  // `completing`: partimos de un gasto existente y cargamos SOLO la parte que
+  // falta como un movimiento nuevo. El original no se toca.
+  const [completing, setCompleting] = useState(false);
+  const isExpense = (editing?.type ?? "expense") === "expense";
 
   // Nuevo movimiento: default de pagador = usuario logueado, cuando llega `me`.
   useEffect(() => {
@@ -79,6 +84,18 @@ export default function AddMovementDialog({ editing, onClose }: {
   }, [editing, me, paidBy]);
 
   useEffect(() => { firstRef.current?.focus(); }, []);
+
+  // Pasa a modo "completar": clona ciudad/categoría/fecha/moneda del gasto y
+  // deja el monto vacío + pagador en mí, listo para cargar el resto.
+  function enterComplete() {
+    setCompleting(true);
+    setAmount("");
+    setErr(null);
+    if (me) setPaidBy(String(me.id));
+    requestAnimationFrame(() => firstRef.current?.focus());
+  }
+
+  const origPayer = editing && users.find((u) => u.id === editing.paid_by);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -96,7 +113,8 @@ export default function AddMovementDialog({ editing, onClose }: {
         general: stopSlug === GENERAL,
       };
       if (paidBy) body.paid_by = Number(paidBy);
-      return editing ? updateMovement(editing.id, body) : createMovement(body);
+      // Completar => alta de un movimiento nuevo (el original queda intacto).
+      return editing && !completing ? updateMovement(editing.id, body) : createMovement(body);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["movements"] });
@@ -118,9 +136,20 @@ export default function AddMovementDialog({ editing, onClose }: {
     save.mutate();
   }
 
+  const title = completing ? "Completar el resto" : editing ? "Editar movimiento" : "Agregar movimiento";
+
   return (
-    <Modal title={editing ? "Editar movimiento" : "Agregar movimiento"} onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-4">
+        {completing && (
+          <p className="rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-[13px] leading-snug text-ink-2">
+            Se carga un <span className="font-semibold text-ink">movimiento nuevo</span> por la parte que falta.
+            {editing && (
+              <> El original ({editing.currency} {editing.amount}
+                {origPayer ? `, pagó ${capitalize(origPayer.username)}` : ""}) queda intacto.</>
+            )}
+          </p>
+        )}
         {/* El monto manda: input display grande + moneda al lado. */}
         <div className="rounded-xl border border-border bg-surface-2/50 p-4">
           <Label>Monto</Label>
@@ -209,8 +238,17 @@ export default function AddMovementDialog({ editing, onClose }: {
 
         {err && <p role="alert" className="text-sm font-semibold text-danger">{err}</p>}
         <Button type="submit" disabled={save.isPending} className="mt-1">
-          {save.isPending ? "Guardando…" : "Guardar"}
+          {save.isPending ? "Guardando…" : completing ? "Agregar el resto" : "Guardar"}
         </Button>
+
+        {/* Solo en edición de un gasto: atajo para cargar la parte faltante
+            sin tocar lo ya cargado. */}
+        {editing && isExpense && !completing && (
+          <Button type="button" variant="secondary" size="sm" onClick={enterComplete}>
+            <PlusCircle size={16} strokeWidth={2} aria-hidden="true" />
+            Completar el resto
+          </Button>
+        )}
       </form>
     </Modal>
   );
