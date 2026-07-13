@@ -120,8 +120,9 @@ async def apply_changes(session, wa_id: str, mv: Movement, changes: dict, today:
         diffs.append(("💱", mv.currency, changes["currency"]))
         mv.currency = changes["currency"]
         money_changed = True
-    if money_changed or new_date is not None:
-        amount_usd, rate, src = await convert_to_usd(session, mv.amount, mv.currency, mv.movement_date)
+    if money_changed:
+        # Regla: el TC es siempre el de la fecha de CARGA/edición, no la del gasto.
+        amount_usd, rate, src = await convert_to_usd(session, mv.amount, mv.currency, today)
         mv.amount_usd, mv.fx_rate, mv.fx_source = amount_usd, rate, _map_source(src, mv.currency)
 
     await session.commit()

@@ -130,7 +130,8 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
         payer = (await user_by_username(session, parsed.paid_by)) or user
     other = await other_user(session, payer)
 
-    amount_usd, rate, src = await convert_to_usd(session, parsed.amount, parsed.currency, movement_date)
+    # Regla: el TC es siempre el de la fecha de CARGA, no la del gasto.
+    amount_usd, rate, src = await convert_to_usd(session, parsed.amount, parsed.currency, today)
 
     # Categoría ambigua → pending con botones (solo gastos, no settlement).
     if not parsed.is_settlement and parsed.confidence < _CONF_THRESHOLD and len(parsed.category_candidates) >= 2:

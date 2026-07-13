@@ -45,7 +45,8 @@ async def create_movement(
         amount_usd = (body.amount * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         fx_source = "manual"
     else:
-        amount_usd, rate, src = await convert_to_usd(session, body.amount, body.currency, mdate)
+        # Regla: el TC es siempre el de la fecha de CARGA, no la del gasto.
+        amount_usd, rate, src = await convert_to_usd(session, body.amount, body.currency, today_in_tz(None))
         fx_source = _map_source(src, body.currency)
     mv = Movement(
         type=body.type,
@@ -113,7 +114,7 @@ async def update_movement(
         if stop is not None:
             mv.stop_slug, mv.city_name = stop.slug, stop.name
 
-    fx_inputs_changed = sent & {"amount", "currency", "movement_date"}
+    fx_inputs_changed = sent & {"amount", "currency"}
     if "fx_rate" in sent:
         # Override explícito -> manual.
         mv.fx_rate = body.fx_rate
@@ -124,7 +125,8 @@ async def update_movement(
             # Respetar la tasa manual vigente; solo recalcular el monto.
             mv.amount_usd = (mv.amount * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         else:
-            amount_usd, rate, src = await convert_to_usd(session, mv.amount, mv.currency, mv.movement_date)
+            # Regla: el TC es siempre el de la fecha de CARGA/edición, no la del gasto.
+            amount_usd, rate, src = await convert_to_usd(session, mv.amount, mv.currency, today_in_tz(None))
             mv.amount_usd = amount_usd
             mv.fx_rate = rate
             mv.fx_source = _map_source(src, mv.currency)

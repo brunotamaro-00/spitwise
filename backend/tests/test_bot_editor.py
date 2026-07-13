@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.api.auth import hash_password
 from app.bot.dispatcher import dispatch
 from app.bot.interactive import handle_interactive
-from app.db.models import FxRate, Movement, Stop, User
+from app.db.models import Movement, Stop, User
 
 TODAY = date(2026, 8, 6)
 
@@ -69,10 +69,9 @@ async def test_edit_amount_by_reference(db_session):
     assert cena.amount_usd == Decimal("25.00")  # USD recalculado
 
 
-async def test_edit_date_recalculates_city_and_fx(db_session):
+async def test_edit_date_recalculates_city(db_session):
     u1, _ = await _setup(db_session)
     db_session.add(_mv(u1, "cena", "10", date(2026, 8, 5), "Londres", "londres"))
-    db_session.add(FxRate(currency="USD", rate_date=date(2026, 9, 23), rate_to_usd=Decimal("1")))
     await db_session.commit()
     fake = FakeLLM(_payload(ref_last=True, new_date="2026-09-23"))
     reply = await dispatch(db_session, "549111", "text", "la fecha era el 23/9", None, TODAY, llm_client=fake)

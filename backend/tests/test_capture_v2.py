@@ -59,8 +59,9 @@ async def test_explicit_date_resolves_city_from_itinerary(db_session):
 
 async def test_default_currency_follows_movement_date_city(db_session):
     u1, _ = await _setup(db_session)
-    # Cachear FX para no ir a la red (EUR el 23/9).
-    db_session.add(FxRate(currency="EUR", rate_date=date(2026, 9, 23), rate_to_usd=Decimal("1.10")))
+    # Cachear FX para no ir a la red. El TC es el de la fecha de CARGA (hoy),
+    # aunque el gasto sea de otra fecha.
+    db_session.add(FxRate(currency="EUR", rate_date=TODAY, rate_to_usd=Decimal("1.10")))
     await db_session.commit()
     fake = FakeLLM(_payload(amount="10", description="cena", category="Comida", date="2026-09-23"))
     await handle_capture(db_session, u1, "549111", "cena 10 el 23 de septiembre", TODAY, llm_client=fake)
