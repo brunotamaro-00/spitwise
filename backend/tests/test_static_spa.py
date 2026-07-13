@@ -7,7 +7,7 @@ from app.main import mount_frontend
 def _app_with_dist(tmp_path):
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
-    (dist / "index.html").write_text("<html>botardo</html>")
+    (dist / "index.html").write_text("<html>spitwise</html>")
     (dist / "assets" / "app.js").write_text("console.log('x')")
     app = FastAPI()
 
@@ -25,9 +25,9 @@ async def test_spa_fallback_serves_index(tmp_path):
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
         # raíz y ruta de SPA sin extensión → index.html
         r = await c.get("/")
-        assert r.status_code == 200 and "botardo" in r.text
+        assert r.status_code == 200 and "spitwise" in r.text
         r = await c.get("/movimientos")
-        assert r.status_code == 200 and "botardo" in r.text
+        assert r.status_code == 200 and "spitwise" in r.text
         # asset real → contenido del archivo
         r = await c.get("/assets/app.js")
         assert r.status_code == 200 and "console" in r.text
@@ -36,7 +36,7 @@ async def test_spa_fallback_serves_index(tmp_path):
         assert r.json() == {"status": "ok"}
         # path traversal no escapa de dist: cae al index
         r = await c.get("/..%2f..%2fetc%2fpasswd")
-        assert r.status_code == 200 and "botardo" in r.text
+        assert r.status_code == 200 and "spitwise" in r.text
 
 
 async def test_mount_skips_missing_dist(tmp_path):

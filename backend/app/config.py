@@ -20,7 +20,7 @@ _FX_FALLBACK: dict[str, str] = {
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/botardo"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/spitwise"
 
     @field_validator("database_url")
     @classmethod

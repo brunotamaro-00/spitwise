@@ -6,7 +6,6 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { logout } from "@/api/auth";
 import { getMe } from "@/api/users";
 import AddMovementDialog from "@/components/AddMovementDialog";
-import BotardoMark from "@/components/BotardoMark";
 import { capitalize } from "@/lib/format";
 
 const TABS = [
@@ -40,9 +39,9 @@ export default function Layout() {
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-border bg-surface px-4 py-6 lg:flex">
         <div className="flex items-center gap-2.5 px-2">
-          <BotardoMark size={34} />
+          <img src="/logo.png" alt="" width={34} height={34} className="rounded-full" />
           <div>
-            <span className="block font-display text-2xl leading-none text-brick">Botardo</span>
+            <span className="block font-display text-2xl leading-none text-brick">Spitwise</span>
             <p className="mt-0.5 text-xs text-ink-3">Europa 2026</p>
           </div>
         </div>
@@ -79,8 +78,8 @@ export default function Layout() {
       {/* Header (mobile) */}
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-md lg:hidden">
         <span className="flex items-center gap-2">
-          <BotardoMark size={26} />
-          <span className="font-display text-xl leading-none text-brick">Botardo</span>
+          <img src="/logo.png" alt="" width={26} height={26} className="rounded-full" />
+          <span className="font-display text-xl leading-none text-brick">Spitwise</span>
         </span>
         <div className="flex items-center gap-2">
           {avatar}
