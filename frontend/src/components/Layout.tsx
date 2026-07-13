@@ -6,6 +6,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { logout } from "@/api/auth";
 import { getMe } from "@/api/users";
 import AddMovementDialog from "@/components/AddMovementDialog";
+import BotardoMark from "@/components/BotardoMark";
 import { capitalize } from "@/lib/format";
 
 const TABS = [
@@ -38,8 +39,13 @@ export default function Layout() {
     <div className="min-h-dvh lg:flex">
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-border bg-surface px-4 py-6 lg:flex">
-        <span className="px-2 font-display text-2xl leading-none text-brick">Botardo</span>
-        <p className="mt-1 px-2 text-xs text-ink-3">Europa 2026</p>
+        <div className="flex items-center gap-2.5 px-2">
+          <BotardoMark size={34} />
+          <div>
+            <span className="block font-display text-2xl leading-none text-brick">Botardo</span>
+            <p className="mt-0.5 text-xs text-ink-3">Europa 2026</p>
+          </div>
+        </div>
         <nav aria-label="Navegación principal" className="mt-8 flex flex-col gap-1">
           {TABS.map(({ to, label, Icon }) => (
             <NavLink
@@ -72,7 +78,10 @@ export default function Layout() {
 
       {/* Header (mobile) */}
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-md lg:hidden">
-        <span className="font-display text-xl leading-none text-brick">Botardo</span>
+        <span className="flex items-center gap-2">
+          <BotardoMark size={26} />
+          <span className="font-display text-xl leading-none text-brick">Botardo</span>
+        </span>
         <div className="flex items-center gap-2">
           {avatar}
           {logoutBtn}
@@ -90,7 +99,7 @@ export default function Layout() {
       <button
         onClick={() => setAdding(true)}
         aria-label="Agregar movimiento"
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brick text-white soft-pop transition-transform hover:bg-brick-hover active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:bottom-8 lg:right-8"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brick text-white soft-pop transition-[background-color,transform] hover:bg-brick-hover active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:bottom-8 lg:right-8"
       >
         <Plus size={26} strokeWidth={2} aria-hidden="true" />
       </button>

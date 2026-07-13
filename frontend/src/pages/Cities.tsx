@@ -90,7 +90,7 @@ export default function Cities() {
           <button
             onClick={() => setParams(new URLSearchParams(), { replace: true })}
             aria-pressed={selected.length === 0}
-            className={`shrink-0 cursor-pointer rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+            className={`shrink-0 cursor-pointer rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
               selected.length === 0
                 ? "border-brick bg-brick text-white"
                 : "border-border bg-surface text-ink-2 hover:bg-surface-2"
@@ -106,7 +106,7 @@ export default function Cities() {
                 key={slug ?? b.city_name}
                 onClick={() => toggle(slug)}
                 aria-pressed={active}
-                className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+                className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
                   active ? "border-brick bg-brick-bg text-brick" : "border-border bg-surface text-ink-2 hover:bg-surface-2"
                 }`}
               >

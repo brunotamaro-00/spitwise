@@ -109,7 +109,7 @@ export default function Movements() {
           onClick={() => setShowFilters((v) => !v)}
           aria-expanded={showFilters}
           aria-label="Filtros"
-          className={`relative flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-lg border border-border bg-surface transition-colors hover:bg-surface-2 ${showFilters ? "text-brick" : "text-ink-3"}`}
+          className={`relative flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-lg border border-border bg-surface transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${showFilters ? "text-brick" : "text-ink-3"}`}
         >
           <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
           {activeCount > 0 && (
@@ -121,7 +121,7 @@ export default function Movements() {
       </div>
 
       {showFilters && (
-        <Card className="mb-3 p-4">
+        <Card className="mb-3 animate-fade-in p-4">
           <div className="mb-3">
             <span className="mb-1.5 block text-xs font-semibold text-ink-3">Ordenar por</span>
             <div className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5">
@@ -131,7 +131,7 @@ export default function Movements() {
                   type="button"
                   onClick={() => setSort(v)}
                   aria-pressed={sort === v}
-                  className={`min-h-[36px] cursor-pointer rounded-md px-3 text-xs font-semibold transition-colors ${
+                  className={`min-h-[36px] cursor-pointer rounded-md px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
                     sort === v ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink"
                   }`}
                 >
@@ -179,7 +179,7 @@ export default function Movements() {
           {activeCount > 0 && (
             <button
               onClick={() => setF(EMPTY)}
-              className="mt-3 flex cursor-pointer items-center gap-1 text-xs font-medium text-ink-3 hover:text-ink"
+              className="mt-3 flex cursor-pointer items-center gap-1 rounded text-xs font-medium text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
             >
               <X size={14} strokeWidth={2} aria-hidden="true" /> Limpiar filtros
             </button>

@@ -33,6 +33,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex animate-fade-in flex-col gap-5">
+      <h1 className="text-2xl font-bold text-ink">Dashboard</h1>
       <div className="grid gap-5 lg:grid-cols-2">
         {balance.data ? (
           <BalanceHero balance={balance.data} names={names} onSettle={() => setSettle(true)} />
@@ -57,7 +58,7 @@ export default function Dashboard() {
             </p>
           </Card>
         ) : (
-          <Skeleton className="h-28" />
+          <Skeleton className="h-32" />
         )}
       </div>
 
