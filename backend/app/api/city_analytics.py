@@ -33,11 +33,14 @@ def _money(v) -> str:
 
 
 async def _expenses_for(
-    session: AsyncSession, slugs: list[str] | None
+    session: AsyncSession, slugs: list[str] | None, *, only_cities: bool = False
 ) -> list[Movement]:
     stmt = select(Movement).where(_EXPENSE)
     if slugs:
         stmt = stmt.where(Movement.stop_slug.in_(slugs))
+    elif only_cities:
+        # Sin filtro explícito, excluir los gastos generales (sin ciudad).
+        stmt = stmt.where(Movement.stop_slug.is_not(None))
     return list((await session.execute(stmt)).scalars().all())
 
 
@@ -126,9 +129,13 @@ async def city_daily(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[CityDailyOut]:
-    """Gasto por día (no acumulado) para las ciudades filtradas."""
+    """Gasto por día (no acumulado) para las ciudades filtradas.
+
+    Excluye siempre los gastos generales (sin ciudad): suman al total del viaje
+    pero no son gasto "diario en destino", que es lo que muestra este gráfico.
+    """
     by_date: dict[date, Decimal] = {}
-    for m in await _expenses_for(session, slugs):
+    for m in await _expenses_for(session, slugs, only_cities=True):
         share = user_share(m, user.id)
         if share <= 0:
             continue
