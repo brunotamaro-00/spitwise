@@ -1,3 +1,4 @@
+from app.llm.chat import AnthropicChat, OpenAIChat, make_chat_llm
 from app.llm.client import AnthropicLLM, OpenAILLM, make_llm
 
 
@@ -35,4 +36,22 @@ def test_explicit_provider_wins(monkeypatch):
     from app.config import get_settings
     get_settings.cache_clear()
     assert isinstance(make_llm(), OpenAILLM)
+    get_settings.cache_clear()
+
+
+def test_chat_factory_follows_same_provider_logic(monkeypatch):
+    _clear(monkeypatch)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-x")
+    from app.config import get_settings
+    get_settings.cache_clear()
+    chat = make_chat_llm()
+    assert isinstance(chat, OpenAIChat)
+    assert chat._model == "gpt-5-mini"  # modelo Q&A separado del parser
+    get_settings.cache_clear()
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
+    get_settings.cache_clear()
+    chat = make_chat_llm()
+    assert isinstance(chat, AnthropicChat)
+    assert chat._model == "claude-sonnet-4-6"
     get_settings.cache_clear()

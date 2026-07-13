@@ -20,6 +20,15 @@ def _cat_names() -> list[str]:
     return [c[0] for c in CATEGORIES]
 
 
+async def load_categories(session: AsyncSession) -> list[tuple[str, str | None]]:
+    """(name, description) desde la DB, en orden estable — para el prompt del parser."""
+    rows = (await session.execute(
+        select(Category.name, Category.description).order_by(Category.sort_order)
+    )).all()
+    # Sin seed todavía (tests con FakeLLM): caer al catálogo.
+    return [(n, d) for n, d in rows] or [(n, d) for n, _, d in CATEGORIES]
+
+
 async def _category_id(session: AsyncSession, name: str | None) -> int | None:
     if not name:
         return None

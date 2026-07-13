@@ -66,11 +66,26 @@ async def resolve_trip_timezone(session: AsyncSession) -> str | None:
     return current.timezone if current else None
 
 
-async def set_active_stop_override(session, wa_id, stop_slug, city_name, currency_code):
+async def get_state_payload(session: AsyncSession, wa_id: str) -> dict:
     st = await _get_state(session, wa_id)
-    payload = {"active_stop": {"stop_slug": stop_slug, "city_name": city_name, "currency_code": currency_code}}
+    return json.loads(st.payload_json or "{}") if st else {}
+
+
+async def update_state_payload(session: AsyncSession, wa_id: str, **keys) -> None:
+    """Mergea claves en el payload de sesión sin pisar las demás (active_stop,
+    qa_history, etc. conviven)."""
+    st = await _get_state(session, wa_id)
     if st is None:
-        session.add(WhatsAppSessionState(wa_id=wa_id, owner=wa_id, payload_json=json.dumps(payload)))
+        session.add(WhatsAppSessionState(wa_id=wa_id, owner=wa_id, payload_json=json.dumps(keys)))
     else:
-        st.payload_json = json.dumps(payload)
+        data = json.loads(st.payload_json or "{}")
+        data.update(keys)
+        st.payload_json = json.dumps(data)
     await session.commit()
+
+
+async def set_active_stop_override(session, wa_id, stop_slug, city_name, currency_code):
+    await update_state_payload(
+        session, wa_id,
+        active_stop={"stop_slug": stop_slug, "city_name": city_name, "currency_code": currency_code},
+    )

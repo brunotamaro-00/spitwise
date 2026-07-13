@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
 
+    # Agente Q&A conversacional (modelo más capaz, separado del parser).
+    openai_chat_model: str = "gpt-5-mini"
+    anthropic_chat_model: str = "claude-sonnet-4-6"
+    chat_timeout_seconds: float = 30.0  # por request; el loop hace hasta qa_max_iterations
+    qa_max_iterations: int = 8
+    qa_history_max_turns: int = 8  # turnos (pregunta+respuesta) que se recuerdan
+    qa_history_ttl_minutes: int = 60
+
     # WhatsApp Cloud — usado en Plan 3
     whatsapp_access_token: str = ""
     whatsapp_phone_number_id: str = ""

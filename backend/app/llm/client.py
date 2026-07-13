@@ -14,6 +14,10 @@ _SYSTEM = (
     "- 'edit': corrige un movimiento ya guardado ('la cena de ayer fue 25', "
     "'cambiá la categoría del último a transporte').\n"
     "- 'delete': pide borrar un movimiento ('borrá el museo de ayer').\n"
+    "- 'question': pregunta sobre gastos/saldos/itinerario ('¿cuánto gastamos en Roma?', "
+    "'dame el detalle', '¿quién debe plata?'), o un saludo/charla ('hola', 'gracias', "
+    "'¿cómo te uso?'). REGLA: si el mensaje CARGA un gasto (tiene monto y algo "
+    "comprado/pagado), es 'expense', nunca 'question'.\n"
     "- 'unknown': nada de lo anterior.\n\n"
     "Para expense/settlement extraé:\n"
     "- amount: string decimal, o null si no hay monto.\n"
@@ -73,11 +77,24 @@ def _render_system(usernames: list[str], sender: str) -> str:
     return _SYSTEM.format(users=" y ".join(usernames), sender=sender, other=other)
 
 
-def _render_user(text: str, today: date, category_names: list[str], usernames: list[str], sender: str) -> str:
+def _render_categories(category_names: list[str], categories) -> str:
+    """Bloque de categorías del prompt; con descripciones si están disponibles."""
+    if categories and any(d for _, d in categories):
+        lines = "\n".join(f"- {n}: {d}" for n, d in categories)
+        return (
+            "Categorías válidas (elegí exactamente una por la NATURALEZA del gasto):\n"
+            f"{lines}\n"
+            "Usá 'Otros' SOLO si el gasto de verdad no encaja en ninguna otra categoría."
+        )
+    return f"Categorías válidas: {', '.join(category_names)}."
+
+
+def _render_user(text: str, today: date, category_names: list[str], usernames: list[str],
+                 sender: str, categories=None) -> str:
     other = next((u for u in usernames if u != sender), sender)
     return (
         f"Hoy es {today.isoformat()}.\n"
-        f"Categorías válidas: {', '.join(category_names)}.\n"
+        f"{_render_categories(category_names, categories)}\n"
         f"Escribe: {sender}. La otra persona es {other} "
         f"('yo'→{sender}; 'él'→bruno, 'ella'→katia si existen esos usuarios).\n"
         f"Mensaje: {text}"
@@ -104,12 +121,14 @@ class AnthropicLLM:
         )
         self._model = s.anthropic_model  # claude-haiku-4-5
 
-    async def parse(self, text, *, today, category_names, usernames, sender) -> dict:
+    async def parse(self, text, *, today, category_names, usernames, sender, categories=None) -> dict:
         resp = await self._client.messages.parse(
             model=self._model,
             max_tokens=1024,
             system=_render_system(usernames, sender),
-            messages=[{"role": "user", "content": _render_user(text, today, category_names, usernames, sender)}],
+            messages=[{"role": "user", "content": _render_user(
+                text, today, category_names, usernames, sender, categories
+            )}],
             output_format=ParsedMessageSchema,
         )
         parsed = resp.parsed_output
@@ -129,12 +148,14 @@ class OpenAILLM:
         )
         self._model = s.openai_model
 
-    async def parse(self, text, *, today, category_names, usernames, sender) -> dict:
+    async def parse(self, text, *, today, category_names, usernames, sender, categories=None) -> dict:
         resp = await self._client.chat.completions.parse(
             model=self._model,
             messages=[
                 {"role": "system", "content": _render_system(usernames, sender)},
-                {"role": "user", "content": _render_user(text, today, category_names, usernames, sender)},
+                {"role": "user", "content": _render_user(
+                    text, today, category_names, usernames, sender, categories
+                )},
             ],
             response_format=ParsedMessageSchema,
         )

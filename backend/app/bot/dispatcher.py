@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import resolve_user_by_wa_id
-from app.bot.capture import _cat_names, all_users, handle_capture
+from app.bot.capture import all_users, handle_capture, load_categories
 from app.bot.editor import handle_delete, handle_edit
 from app.bot.interactive import handle_interactive
 from app.bot.render import BotReply, buttons_reply, text_reply, unknown_reply
@@ -31,7 +31,8 @@ async def _handle_delete_command(session, user: User) -> BotReply:
     )
 
 
-async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, today, *, llm_client) -> BotReply:
+async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, today,
+                          *, llm_client, chat_client) -> BotReply:
     user = await resolve_user_by_wa_id(session, wa_id)
     if user is None:
         if not get_settings().whatsapp_auto_register:
@@ -53,7 +54,7 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
     from app.llm.parser import parse_message
     users = await all_users(session)
     parsed = await parse_message(
-        stripped, today=today, category_names=_cat_names(),
+        stripped, today=today, categories=await load_categories(session),
         usernames=[u.username for u in users], sender=user.username, client=llm_client,
     )
 
@@ -61,14 +62,19 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
         return await handle_edit(session, user, wa_id, parsed, today)
     if parsed.intent == "delete":
         return await handle_delete(session, user, wa_id, parsed, today)
+    if parsed.intent == "question":
+        from app.bot.qa import handle_question
+        return await handle_question(session, user, wa_id, stripped, today, chat_client=chat_client)
     if parsed.intent == "unknown":
         return unknown_reply()
     return await handle_capture(session, user, wa_id, text, today, parsed=parsed)
 
 
-async def dispatch(session: AsyncSession, wa_id, message_type, text, interactive_id, today: date, *, llm_client=None) -> BotReply:
+async def dispatch(session: AsyncSession, wa_id, message_type, text, interactive_id, today: date,
+                   *, llm_client=None, chat_client=None) -> BotReply:
     try:
-        return await _dispatch_inner(session, wa_id, message_type, text, interactive_id, today, llm_client=llm_client)
+        return await _dispatch_inner(session, wa_id, message_type, text, interactive_id, today,
+                                     llm_client=llm_client, chat_client=chat_client)
     except Exception:  # borde único de errores
         logger.exception("dispatch_error wa_id=%s", wa_id)
         return text_reply("⚠️ Algo falló procesando el mensaje. Probá de nuevo en un ratito.")

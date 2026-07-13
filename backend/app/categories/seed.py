@@ -10,11 +10,12 @@ async def seed_categories(session: AsyncSession) -> None:
         c.name: c
         for c in (await session.execute(select(Category))).scalars().all()
     }
-    for order, (name, icon) in enumerate(CATEGORIES):
+    for order, (name, icon, description) in enumerate(CATEGORIES):
         cat = existing.get(name)
         if cat is None:
-            session.add(Category(name=name, icon=icon, sort_order=order))
+            session.add(Category(name=name, icon=icon, sort_order=order, description=description))
         else:
             cat.icon = icon
             cat.sort_order = order
+            cat.description = description
     await session.flush()

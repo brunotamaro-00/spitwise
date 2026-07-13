@@ -14,7 +14,7 @@ _CURRENCY_ALIASES = {
     "ars": "ARS", "peso": "ARS", "pesos": "ARS",
 }
 _VALID_SPLIT = {"shared", "payer_only", "other_only"}
-_VALID_INTENTS = {"expense", "settlement", "edit", "delete", "unknown"}
+_VALID_INTENTS = {"expense", "settlement", "edit", "delete", "question", "unknown"}
 
 # Campos editables que el LLM devuelve como new_<campo>.
 EDIT_FIELDS = ("amount", "currency", "date", "city", "category", "description", "split", "paid_by")
@@ -96,13 +96,21 @@ def _norm_changes(raw: dict, category_names, usernames) -> dict:
 
 
 async def parse_message(
-    text, *, today: date, category_names: list[str], usernames: list[str], sender: str, client=None
+    text, *, today: date, category_names: list[str] | None = None, usernames: list[str],
+    sender: str, client=None, categories: list[tuple[str, str | None]] | None = None,
 ) -> ParsedMessage:
+    """`categories` = [(nombre, descripción)] para enriquecer el prompt; si no viene,
+    alcanza con `category_names` (API vieja, usada en tests)."""
+    if categories is not None:
+        category_names = [n for n, _ in categories]
+    if category_names is None:
+        category_names = []
     if client is None:
         from app.llm.client import make_llm
         client = make_llm()
     raw = await client.parse(
-        text, today=today, category_names=category_names, usernames=usernames, sender=sender
+        text, today=today, category_names=category_names, usernames=usernames,
+        sender=sender, categories=categories,
     )
 
     intent = raw.get("intent")

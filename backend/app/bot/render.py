@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from app.categories.catalog import CATEGORIES
 
-_CAT_EMOJI = {name: emoji for name, emoji in CATEGORIES}
+_CAT_EMOJI = {name: emoji for name, emoji, _ in CATEGORIES}
 _MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 
 
@@ -92,5 +92,6 @@ def unknown_reply() -> BotReply:
         "· _cena 20 euros_\n"
         "· _pagó katia 15gbp el museo, solo de ella_\n"
         "· _la cena de ayer fue 25, no 20_\n"
-        "· _borrá el último_"
+        "· _borrá el último_\n"
+        "· _¿cuánto gastamos en Roma?_"
     )

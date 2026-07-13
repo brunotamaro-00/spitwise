@@ -25,3 +25,18 @@ async def test_seed_is_idempotent(db_session):
     assert len(rows) == 7
     assert rows[0].name == "Alojamiento"
     assert rows[0].sort_order == 0
+
+
+async def test_seed_backfills_descriptions(db_session):
+    await seed_categories(db_session)
+    rows = (await db_session.execute(select(Category).order_by(Category.sort_order))).scalars().all()
+    by_name = {c.name: c.description for c in rows}
+    assert "teleférico" in by_name["Transporte"]
+    assert all(by_name.values())
+    # Re-seed actualiza descripciones existentes (no solo crea).
+    rows[0].description = "vieja"
+    await db_session.flush()
+    await seed_categories(db_session)
+    updated = (await db_session.execute(
+        select(Category).where(Category.name == rows[0].name))).scalar_one()
+    assert updated.description != "vieja"

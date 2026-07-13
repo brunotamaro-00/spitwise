@@ -94,3 +94,23 @@ async def test_legacy_payload_without_intent_maps_settlement():
     got = await _parse({"amount": "50", "is_settlement": True, "confidence": 0.9})
     assert got.intent == "settlement"
     assert got.is_settlement is True
+
+
+def test_render_user_includes_category_descriptions():
+    from app.llm.client import _render_user
+    cats = [("Transporte", "tren, bus, ferry, teleférico"), ("Otros", "lo que no encaja")]
+    out = _render_user("x", TODAY, ["Transporte", "Otros"], USERS, "bruno", categories=cats)
+    assert "- Transporte: tren, bus, ferry, teleférico" in out
+    assert "NATURALEZA" in out
+    assert "SOLO si el gasto de verdad no encaja" in out
+
+
+def test_render_user_without_descriptions_falls_back_to_flat_list():
+    from app.llm.client import _render_user
+    out = _render_user("x", TODAY, CATS, USERS, "bruno")
+    assert "Categorías válidas: Alojamiento, Comida" in out
+
+
+async def test_question_intent_is_valid():
+    got = await _parse(_payload(intent="question"))
+    assert got.intent == "question"
