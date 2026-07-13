@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     trip_shared_api_key: str = "change-me-shared-key"
     andiamo_url: str = ""  # ej. https://andiamo-production.up.railway.app
 
+    # Dominio público de esta app (para deep-links del bot hacia el frontend).
+    # ej. https://<spitwise>.up.railway.app ; vacío => el bot omite el link.
+    spitwise_url: str = Field(default="", alias="SPITWISE_URL")
+
     # LLM (parser de gastos). Proveedor: "anthropic" | "openai" | "" (auto:
     # anthropic salvo que SOLO haya OPENAI_API_KEY configurada).
     llm_provider: str = ""
@@ -58,7 +62,7 @@ class Settings(BaseSettings):
     openai_chat_model: str = "gpt-5-mini"
     anthropic_chat_model: str = "claude-sonnet-4-6"
     chat_timeout_seconds: float = 30.0  # por request; el loop hace hasta qa_max_iterations
-    qa_max_iterations: int = 8
+    qa_max_iterations: int = 5  # la mayoría de consultas se resuelven en 1-2 tool-calls
     qa_history_max_turns: int = 8  # turnos (pregunta+respuesta) que se recuerdan
     qa_history_ttl_minutes: int = 60
 

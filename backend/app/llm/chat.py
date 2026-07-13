@@ -67,10 +67,15 @@ class AnthropicChat:
             for t in tools
         ]
         messages = [*history, {"role": "user", "content": user_text}]
+        # Bot de charla corta: effort bajo + thinking adaptivo para minimizar latencia.
+        # El system se cachea (estable dentro del día por remitente).
+        system_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
         for _ in range(max_iterations):
             resp = await self._client.messages.create(
-                model=self._model, max_tokens=2048, system=system,
+                model=self._model, max_tokens=2048, system=system_blocks,
                 messages=messages, tools=api_tools,
+                thinking={"type": "adaptive"},
+                output_config={"effort": "low"},
             )
             if resp.stop_reason != "tool_use":
                 text = "".join(b.text for b in resp.content if b.type == "text").strip()

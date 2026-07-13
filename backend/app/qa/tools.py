@@ -159,14 +159,27 @@ async def aggregate_expenses(session: AsyncSession, users: list[User], asker: Us
     }
 
 
+def _app_link(cats: dict, *, date_from, date_to, cities, categories):
+    """Deep-link best-effort a /movimientos desde los filtros de la consulta.
+    Mapea 1 ciudad / 1 categoría (nombre→id) + rango de fechas; el resto se omite."""
+    from app.bot import copy
+    cat_id = None
+    if categories and len(categories) == 1:
+        inv = {(name or "").casefold(): cid for cid, name in cats.items()}
+        cat_id = inv.get(str(categories[0]).strip().casefold())
+    one_city = cities[0] if cities and len(cities) == 1 else None
+    return copy.link_movements(city=one_city, category_id=cat_id,
+                               date_from=date_from, date_to=date_to)
+
+
 async def list_movements(session: AsyncSession, users: list[User], *, date_from=None, date_to=None,
                          cities=None, countries=None, categories=None, currency=None,
-                         limit=20) -> dict:
+                         limit=10) -> dict:
     movements, stops, cats = await _load_context(session)
     rows_src = _filter(movements, stops, cats, date_from=date_from, date_to=date_to,
                        cities=cities, countries=countries, categories=categories, currency=currency)
     usernames = {u.id: u.username for u in users}
-    limit = max(1, min(int(limit or 20), 50))
+    limit = max(1, min(int(limit or 10), 50))
     newest_first = list(reversed(rows_src))
     rows = []
     for m in newest_first[:limit]:
@@ -184,7 +197,15 @@ async def list_movements(session: AsyncSession, users: list[User], *, date_from=
             "paid_by": usernames.get(m.paid_by),
             "split": m.split,
         })
-    return {"rows": rows, "truncated": len(rows_src) > limit, "total_matches": len(rows_src)}
+    truncated = len(rows_src) > limit
+    out = {"rows": rows, "truncated": truncated, "total_matches": len(rows_src)}
+    # Si hay más de las que mostramos, ofrecé el link a la app en vez de volcar todo.
+    if truncated:
+        link = _app_link(cats, date_from=date_from, date_to=date_to,
+                         cities=cities, categories=categories)
+        if link:
+            out["app_link"] = link
+    return out
 
 
 async def get_balance(session: AsyncSession, users: list[User]) -> dict:
@@ -360,12 +381,14 @@ def build_tools(session: AsyncSession, users: list[User], asker: User, *,
         ToolSpec(
             name="list_movements",
             description=("Lista el detalle de gastos (más recientes primero) con los mismos filtros "
-                         "que aggregate_expenses. Para 'dame el detalle', 'qué gastos hubo en...'."),
+                         "que aggregate_expenses. Para 'dame el detalle', 'qué gastos hubo en...'. "
+                         "Mostrá como máximo 10; si 'truncated' es true, cerrá con el 'app_link' que "
+                         "devuelve (link a la app) en vez de listar todo."),
             input_schema={
                 "type": "object",
                 "properties": {
                     **_FILTER_PROPS,
-                    "limit": {"type": "integer", "description": "Máximo de filas (default 20, tope 50)."},
+                    "limit": {"type": "integer", "description": "Máximo de filas (default 10, tope 50)."},
                 },
                 "additionalProperties": False,
             },

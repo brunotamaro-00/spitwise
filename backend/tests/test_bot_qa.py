@@ -273,7 +273,7 @@ async def test_unknown_with_fresh_history_goes_to_agent(db_session):
     # Sin conversación previa: enlatado.
     reply = await dispatch(db_session, "549111", "text", "Si", None, TODAY,
                            llm_client=FakeLLM(unknown), chat_client=FakeChat("con contexto"))
-    assert "No te entendí" in (reply.text or "")
+    assert "No te seguí" in (reply.text or "")
     # Con conversación fresca: va al agente.
     await dispatch(db_session, "549111", "text", "cuánto gastamos?", None, TODAY,
                    llm_client=FakeLLM(_question_payload()), chat_client=FakeChat("USD 90"))

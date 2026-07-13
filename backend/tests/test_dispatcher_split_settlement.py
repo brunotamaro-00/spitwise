@@ -57,7 +57,7 @@ async def test_split_edit_via_natural_language(db_session):
     fake_edit = FakeLLM(_payload(intent="edit", ref_last=True, new_split="payer_only"))
     reply = await dispatch(db_session, "549111", "text", "el hotel fue solo mío", None,
                            date(2026, 8, 6), llm_client=fake_edit)
-    assert "editado" in (reply.text or "")
+    assert "Editado" in (reply.text or "")
     mv = (await db_session.execute(select(Movement))).scalar_one()
     assert mv.split == "payer_only"
     bal = compute_balance((await db_session.execute(select(Movement))).scalars().all(), u1.id, u2.id)
@@ -109,5 +109,5 @@ async def test_unknown_intent_gives_examples(db_session):
     await _two_users(db_session)
     fake = FakeLLM(_payload(intent="unknown"))
     reply = await dispatch(db_session, "549111", "text", "hola como va", None, date(2026, 8, 6), llm_client=fake)
-    assert "No te entendí" in (reply.text or "")
+    assert "No te seguí" in (reply.text or "")
     assert not (await db_session.execute(select(Movement))).scalars().all()
