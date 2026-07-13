@@ -43,6 +43,23 @@ async def handle_interactive(session: AsyncSession, user: User, wa_id: str, inte
             await session.commit()
             return text_reply(f"✅ División actualizada: {_SPLIT_LABEL[split_val]}.")
 
+    if interactive_id.startswith("qa_del:"):
+        from app.bot.pending import close_pending, load_pending
+        token = interactive_id[len("qa_del:"):]
+        data = await load_pending(session, token)
+        if data is None:
+            return text_reply("⚠️ Expiró: esa confirmación ya no está disponible.")
+        ids = [int(i) for i in data.get("ids") or []]
+        movements = (await session.execute(
+            select(Movement).where(Movement.id.in_(ids))
+        )).scalars().all()
+        for mv in movements:
+            await session.delete(mv)
+        await session.commit()
+        await close_pending(session, token)
+        n = len(movements)
+        return text_reply("🗑️ Borrado." if n == 1 else f"🗑️ Borrados {n} movimientos.")
+
     if interactive_id.startswith("del_confirm:"):
         mid = int(interactive_id.split(":", 1)[1])
         mv = (await session.execute(select(Movement).where(Movement.id == mid))).scalar_one_or_none()

@@ -1,8 +1,14 @@
-"""Herramientas read-only del agente Q&A: funciones puras sobre la DB.
+"""Herramientas del agente Q&A: consultas puras sobre la DB + acciones acotadas.
 
 Los handlers levantan ValueError ante parámetros inválidos; el loop de chat
 se lo devuelve al modelo como tool_result con error para que se corrija.
+
+Acciones: edit_movement aplica el mismo flujo que el intent 'edit' (apply_changes,
+con recálculo de ciudad/FX). delete_movements NUNCA borra: crea un pending y deja
+lista una respuesta con botones de confirmación en el ActionContext — el borrado
+real ocurre solo cuando el usuario toca el botón (interactive.py).
 """
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
@@ -10,9 +16,21 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.balance import compute_balance
+from app.bot.render import BotReply
 from app.db.models import Category, Movement, Stop, User
 from app.llm.chat import ToolSpec
 from app.spend import user_share
+
+_MAX_DELETE_IDS = 5
+
+
+@dataclass
+class ActionContext:
+    """Canal lateral de las herramientas de acción hacia el handler: si una
+    acción prepara una respuesta interactiva (botones), va acá y reemplaza
+    al texto final del modelo."""
+
+    reply: BotReply | None = None
 
 _CENT = Decimal("0.01")
 
@@ -154,6 +172,7 @@ async def list_movements(session: AsyncSession, users: list[User], *, date_from=
     for m in newest_first[:limit]:
         stop = stops.get(m.stop_slug) if m.stop_slug else None
         rows.append({
+            "id": m.id,
             "date": m.movement_date.isoformat(),
             "description": m.description,
             "category": cats.get(m.category_id),
@@ -200,6 +219,81 @@ async def get_itinerary(session: AsyncSession) -> dict:
     return {"stops": rows, "note": "days = noches en la parada (departure - arrival)"}
 
 
+async def edit_movement(session: AsyncSession, users: list[User], wa_id: str, today: date,
+                        *, movement_id, **new_fields) -> dict:
+    """Aplica cambios a un movimiento reutilizando el flujo del intent 'edit'
+    (normalización + apply_changes, con recálculo de ciudad/FX)."""
+    from app.bot.editor import apply_changes
+    from app.llm.parser import normalize_changes
+
+    mv = (await session.execute(
+        select(Movement).where(Movement.id == int(movement_id))
+    )).scalar_one_or_none()
+    if mv is None:
+        raise ValueError(f"no existe un movimiento con id {movement_id}")
+
+    cat_names = list((await session.execute(
+        select(Category.name).order_by(Category.sort_order)
+    )).scalars().all())
+    raw = {f"new_{k}": v for k, v in new_fields.items() if v is not None}
+    if raw.get("new_category"):
+        wanted = str(raw["new_category"]).strip().casefold()
+        match = next((c for c in cat_names if c.casefold() == wanted), None)
+        if match is None:
+            raise ValueError(f"categoría inválida: {raw['new_category']!r}; válidas: {cat_names}")
+        raw["new_category"] = match
+    changes = normalize_changes(raw, cat_names, [u.username for u in users])
+    if not changes:
+        raise ValueError(
+            "ningún cambio válido; campos: amount, currency (ISO), date (YYYY-MM-DD), "
+            "city, category, description, split (shared|payer_only|other_only), paid_by"
+        )
+    diffs = await apply_changes(session, wa_id, mv, changes, today)
+    return {
+        "edited_id": mv.id,
+        "changes": [{"campo": label, "antes": before, "despues": after}
+                    for label, before, after in diffs],
+        "note": "cambios aplicados y guardados",
+    }
+
+
+async def delete_movements(session: AsyncSession, users: list[User], asker: User,
+                           ctx: ActionContext, *, movement_ids) -> dict:
+    """Prepara (no ejecuta) el borrado: pending + tarjeta con botones de
+    confirmación. El borrado real pasa en interactive.py al tocar el botón."""
+    from app.bot.pending import create_pending
+    from app.bot.render import buttons_reply, movement_summary
+
+    ids = [int(i) for i in (movement_ids or [])]
+    if not ids or len(ids) > _MAX_DELETE_IDS:
+        raise ValueError(f"pasá entre 1 y {_MAX_DELETE_IDS} ids de movimientos")
+    movements = (await session.execute(
+        select(Movement).where(Movement.id.in_(ids))
+    )).scalars().all()
+    missing = [i for i in ids if i not in {m.id for m in movements}]
+    if missing:
+        raise ValueError(f"no existen movimientos con id {missing}")
+
+    usernames = {u.id: u.username for u in users}
+    cats = {c.id: c.name for c in (await session.execute(select(Category))).scalars().all()}
+    lines = "\n".join(
+        f"· {movement_summary(m, cats.get(m.category_id), usernames.get(m.paid_by, '?'))}"
+        for m in movements
+    )
+    token = await create_pending(session, owner=asker.username, payload={"ids": ids}, kind="qa_del")
+    n = len(ids)
+    head = ("⚠️ ¿Borrar este movimiento? Es irreversible." if n == 1
+            else f"⚠️ ¿Borrar estos {n} movimientos? Es irreversible.")
+    label = "Borrar 🗑️" if n == 1 else f"Borrar los {n} 🗑️"
+    ctx.reply = buttons_reply(f"{head}\n{lines}",
+                              [(f"qa_del:{token}", label), ("del_cancel:0", "Cancelar")])
+    return {
+        "status": "confirmacion_pendiente",
+        "note": ("El usuario ya ve la tarjeta con los botones de confirmación; "
+                 "tu texto final NO se le envía."),
+    }
+
+
 _FILTER_PROPS = {
     "date_from": {"type": "string", "description": "Fecha mínima inclusive, YYYY-MM-DD."},
     "date_to": {"type": "string", "description": "Fecha máxima inclusive, YYYY-MM-DD."},
@@ -213,7 +307,8 @@ _FILTER_PROPS = {
 }
 
 
-def build_tools(session: AsyncSession, users: list[User], asker: User) -> list[ToolSpec]:
+def build_tools(session: AsyncSession, users: list[User], asker: User, *,
+                wa_id: str, today: date, ctx: ActionContext) -> list[ToolSpec]:
     usernames = [u.username for u in users]
 
     async def _aggregate(**kw):
@@ -227,6 +322,12 @@ def build_tools(session: AsyncSession, users: list[User], asker: User) -> list[T
 
     async def _itinerary(**kw):
         return await get_itinerary(session)
+
+    async def _edit(**kw):
+        return await edit_movement(session, users, wa_id, today, **kw)
+
+    async def _delete(**kw):
+        return await delete_movements(session, users, asker, ctx, **kw)
 
     return [
         ToolSpec(
@@ -282,5 +383,46 @@ def build_tools(session: AsyncSession, users: list[User], asker: User) -> list[T
                          "resolver países/fechas y para promedios por día (días del itinerario, no días con gastos)."),
             input_schema={"type": "object", "properties": {}, "additionalProperties": False},
             handler=_itinerary,
+        ),
+        ToolSpec(
+            name="edit_movement",
+            description=("Edita un movimiento YA guardado (los cambios se aplican al instante). "
+                         "Usá el id que devuelve list_movements. Cambiar la fecha recalcula la "
+                         "ciudad según el itinerario."),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "movement_id": {"type": "integer", "description": "id del movimiento (de list_movements)."},
+                    "amount": {"type": "string", "description": "Nuevo monto (decimal como string)."},
+                    "currency": {"type": "string", "description": "Nueva moneda ISO 4217."},
+                    "date": {"type": "string", "description": "Nueva fecha YYYY-MM-DD."},
+                    "city": {"type": "string", "description": "Nueva ciudad."},
+                    "category": {"type": "string", "description": "Nueva categoría (nombre de la lista)."},
+                    "description": {"type": "string", "description": "Nueva descripción corta."},
+                    "split": {"type": "string", "enum": ["shared", "payer_only", "other_only"],
+                              "description": "shared = 50/50; payer_only = solo del que pagó; other_only = solo del otro."},
+                    "paid_by": {"type": "string", "enum": usernames, "description": "Nuevo pagador."},
+                },
+                "required": ["movement_id"],
+                "additionalProperties": False,
+            },
+            handler=_edit,
+        ),
+        ToolSpec(
+            name="delete_movements",
+            description=("Prepara el borrado de 1 a 5 movimientos. NO borra directo: le muestra al "
+                         "usuario una tarjeta de confirmación con botones y el borrado ocurre solo si "
+                         "confirma. Usala siempre que pidan borrar/eliminar; nunca digas que vas a "
+                         "borrar sin llamarla."),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "movement_ids": {"type": "array", "items": {"type": "integer"},
+                                     "description": "ids de los movimientos a borrar (de list_movements)."},
+                },
+                "required": ["movement_ids"],
+                "additionalProperties": False,
+            },
+            handler=_delete,
         ),
     ]

@@ -66,6 +66,11 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
         from app.bot.qa import handle_question
         return await handle_question(session, user, wa_id, stripped, today, chat_client=chat_client)
     if parsed.intent == "unknown":
+        # Follow-up corto de una conversación en curso ('sí', 'el segundo') → el
+        # agente tiene el contexto; el enlatado queda para mensajes sueltos.
+        from app.bot.qa import handle_question, has_fresh_history
+        if await has_fresh_history(session, wa_id):
+            return await handle_question(session, user, wa_id, stripped, today, chat_client=chat_client)
         return unknown_reply()
     return await handle_capture(session, user, wa_id, text, today, parsed=parsed)
 

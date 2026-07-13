@@ -10,7 +10,7 @@ from app.bot.capture import all_users
 from app.bot.render import BotReply, text_reply
 from app.config import get_settings
 from app.db.models import User
-from app.qa.tools import build_tools
+from app.qa.tools import ActionContext, build_tools
 
 _SYSTEM = (
     "Sos Botardo, el bot de gastos del viaje por Europa de {users}.\n"
@@ -30,9 +30,18 @@ _SYSTEM = (
     "total de los dos (attribution=total).\n"
     "- 'promedio por día' usa los días del itinerario (get_itinerary), no los días "
     "con gastos.\n\n"
-    "ALCANCE: solo gastos, saldos e itinerario del viaje, más saludos y ayuda de uso "
-    "(se cargan gastos escribiendo p.ej. 'cena 20 euros'; también se puede editar o "
-    "borrar por mensaje). Preguntas de conocimiento general (qué visitar, historia, "
+    "ACCIONES (solo vía herramientas; nunca prometas algo que no ejecutaste en este "
+    "turno):\n"
+    "- Editar un movimiento: edit_movement con el id de list_movements; se aplica al "
+    "instante.\n"
+    "- Borrar: delete_movements. NUNCA borra directo — el usuario ve una tarjeta con "
+    "botones y confirma ahí. No pidas confirmación por texto: llamá la herramienta y "
+    "los botones hacen ese trabajo.\n"
+    "- Cargar gastos nuevos no es lo tuyo: decile que lo mande como mensaje "
+    "('cena 20 euros').\n"
+    "- No muestres los id internos en tus respuestas.\n\n"
+    "ALCANCE: solo gastos, saldos e itinerario del viaje, más saludos y ayuda de uso. "
+    "Preguntas de conocimiento general (qué visitar, historia, "
     "clima) las declinás con onda: no es lo tuyo, vos sos el contador del viaje.\n\n"
     "TONO: castellano rioplatense informal (voseo), respuestas cortas para WhatsApp.\n"
     "FORMATO: cuando respondas con datos, estructurá el mensaje: números clave en "
@@ -64,6 +73,16 @@ def _fresh_history(entries: list[dict], *, max_turns: int, ttl_minutes: int) -> 
     return fresh[-max_turns * 2:]
 
 
+async def has_fresh_history(session, wa_id: str) -> bool:
+    """¿Hay conversación Q&A reciente? (para rutear follow-ups cortos al agente)."""
+    s = get_settings()
+    payload = await get_state_payload(session, wa_id)
+    return bool(_fresh_history(
+        payload.get("qa_history") or [],
+        max_turns=s.qa_history_max_turns, ttl_minutes=s.qa_history_ttl_minutes,
+    ))
+
+
 async def handle_question(session, user: User, wa_id: str, text: str, today: date,
                           *, chat_client=None) -> BotReply:
     s = get_settings()
@@ -78,18 +97,22 @@ async def handle_question(session, user: User, wa_id: str, text: str, today: dat
         from app.llm.chat import make_chat_llm
         chat_client = make_chat_llm()
 
+    ctx = ActionContext()
     answer = await chat_client.run(
         system=_render_system(user.username, users, today),
         history=[{"role": e["role"], "content": e["content"]} for e in history],
         user_text=text,
-        tools=build_tools(session, users, asker=user),
+        tools=build_tools(session, users, asker=user, wa_id=wa_id, today=today, ctx=ctx),
         max_iterations=s.qa_max_iterations,
     )
+
+    # Si una acción preparó una respuesta interactiva (botones), esa manda.
+    reply = ctx.reply if ctx.reply is not None else text_reply(answer)
 
     now = datetime.now(timezone.utc).isoformat()
     history = history + [
         {"role": "user", "content": text, "ts": now},
-        {"role": "assistant", "content": answer, "ts": now},
+        {"role": "assistant", "content": reply.text or answer, "ts": now},
     ]
     await update_state_payload(session, wa_id, qa_history=history[-s.qa_history_max_turns * 2:])
-    return text_reply(answer)
+    return reply

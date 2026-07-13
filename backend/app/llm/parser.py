@@ -73,8 +73,11 @@ def _to_date(v) -> date | None:
         return None
 
 
-def _norm_changes(raw: dict, category_names, usernames) -> dict:
-    """new_* del LLM → dict campo→valor normalizado (descarta inválidos)."""
+def normalize_changes(raw: dict, category_names, usernames) -> dict:
+    """new_* → dict campo→valor normalizado (descarta inválidos).
+
+    Lo usan el parser (intent edit) y la herramienta edit_movement del agente Q&A.
+    """
     changes: dict = {}
     if (v := _to_decimal(raw.get("new_amount"))) is not None:
         changes["amount"] = v
@@ -141,5 +144,5 @@ async def parse_message(
         ref_last=bool(raw.get("ref_last")),
         ref_text=(raw.get("ref_text") or None),
         ref_date=_to_date(raw.get("ref_date")),
-        changes=_norm_changes(raw, category_names, usernames),
+        changes=normalize_changes(raw, category_names, usernames),
     )
