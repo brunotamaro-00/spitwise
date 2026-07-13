@@ -12,6 +12,16 @@ class MetaClient:
         resp = await self._client.post(self._url, json=payload, headers=headers)
         resp.raise_for_status()
 
+    async def send_typing(self, message_id: str) -> None:
+        """Marca el mensaje como leído y muestra 'escribiendo…' (hasta 25s o
+        hasta que se envía la respuesta)."""
+        await self._post({
+            "messaging_product": "whatsapp",
+            "status": "read",
+            "message_id": message_id,
+            "typing_indicator": {"type": "text"},
+        })
+
     async def send_text(self, wa_id: str, text: str) -> None:
         await self._post({
             "messaging_product": "whatsapp", "to": wa_id, "type": "text",

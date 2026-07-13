@@ -46,6 +46,11 @@ async def process_message(m: IncomingMessage) -> None:
     meta = MetaClient(s.whatsapp_access_token, s.whatsapp_phone_number_id, s.whatsapp_graph_version)
     maker = get_sessionmaker()
     try:
+        # 'Escribiendo…' + visto apenas entra el mensaje; si falla, seguimos igual.
+        try:
+            await meta.send_typing(m.wamid)
+        except Exception:
+            logger.warning("typing_indicator_failed wamid=%s", m.wamid)
         async with _lock(m.wa_id):
             async with maker() as session:
                 await ensure_stops_fresh(session)  # lazy TTL, no bloquea
