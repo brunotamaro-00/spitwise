@@ -39,15 +39,19 @@ export function toInputValue(s: string | null | undefined): string {
   return Number.isInteger(n) ? String(n) : String(n).replace(".", ",");
 }
 
-/** Encabezado de día legible sin corrimiento de zona horaria ("vie 6 ago"). */
+/** Fecha corta "dd/mm" sin corrimiento de zona horaria (estándar de la app). */
+export function formatShortDate(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return m && d ? `${d}/${m}` : iso;
+}
+
+/** Encabezado de día: día de semana + fecha dd/mm ("vie 06/08"),
+ *  sin corrimiento de zona horaria. */
 export function formatDayHeader(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) return iso;
-  return new Date(y, m - 1, d).toLocaleDateString("es-AR", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
+  const weekday = new Date(y, m - 1, d).toLocaleDateString("es-AR", { weekday: "short" });
+  return `${weekday} ${formatShortDate(iso)}`;
 }
 
 /** Filtra la entrada de un campo de monto: solo dígitos, coma y punto.

@@ -3,7 +3,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 import Card from "@/components/ui/Card";
 import { Label } from "@/components/ui/Field";
-import { formatDayHeader, formatUsd, parseMoney } from "@/lib/format";
+import { formatDayHeader, formatShortDate, formatUsd, parseMoney } from "@/lib/format";
 import { ACCENT, GRID, TICK, compactUsd } from "@/lib/chartTheme";
 import type { CityDaily } from "@/types";
 
@@ -58,7 +58,7 @@ export default function SpendBarChart({
     if (granularity === "day") {
       return data.map((p) => ({
         iso: p.date,
-        label: p.date.slice(5),
+        label: formatShortDate(p.date),
         usd: parseMoney(p.total_usd),
         total: p.total_usd,
       }));
@@ -70,7 +70,7 @@ export default function SpendBarChart({
     }
     return [...byWeek.entries()]
       .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([iso, usd]) => ({ iso, label: iso.slice(5), usd, total: usd.toFixed(2) }));
+      .map(([iso, usd]) => ({ iso, label: formatShortDate(iso), usd, total: usd.toFixed(2) }));
   }, [data, granularity]);
 
   if (rows.length === 0) return null;

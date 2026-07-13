@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatAmount,
+  formatDayHeader,
+  formatShortDate,
   formatUsd,
   isZeroMoney,
   normalizeAmountInput,
@@ -50,5 +52,9 @@ describe("format", () => {
   });
   it("parseMoney", () => {
     expect(parseMoney("50.00")).toBe(50);
+  });
+  it("fechas en dd/mm sin corrimiento de zona horaria", () => {
+    expect(formatShortDate("2026-08-06")).toBe("06/08");
+    expect(formatDayHeader("2026-08-06")).toMatch(/^\w+\.? 06\/08$/);
   });
 });

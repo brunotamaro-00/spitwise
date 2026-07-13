@@ -21,7 +21,7 @@ import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import Kpi from "@/components/ui/Kpi";
 import Skeleton from "@/components/ui/Skeleton";
-import { formatDayHeader, formatUsd, parseMoney } from "@/lib/format";
+import { formatDayHeader, formatShortDate, formatUsd, parseMoney } from "@/lib/format";
 import { dayTotalUsd, groupByDay } from "@/lib/groupByDay";
 import type { Category } from "@/types";
 
@@ -31,17 +31,10 @@ function fmtRange(a: string | null, b: string | null): string | null {
   return `${f(a)} – ${f(b)}`;
 }
 
-/** Rango corto para las tarjetas del itinerario: "5–8 ago" o "29 ago – 1 sep". */
+/** Rango corto dd/mm para las tarjetas del itinerario: "04/08 – 11/08". */
 function shortRange(a: string | null, b: string | null): string | null {
   if (!a || !b) return null;
-  const parse = (iso: string) => {
-    const [y, m, d] = iso.split("-").map(Number);
-    return { d, month: new Date(y, m - 1, d).toLocaleDateString("es-AR", { month: "short" }) };
-  };
-  const from = parse(a);
-  const to = parse(b);
-  if (from.month === to.month) return `${from.d}–${to.d} ${from.month}`;
-  return `${from.d} ${from.month} – ${to.d} ${to.month}`;
+  return `${formatShortDate(a)} – ${formatShortDate(b)}`;
 }
 
 export default function Cities() {
