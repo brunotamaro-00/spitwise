@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Receipt, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
-import { listUsers } from "@/api/users";
+import { getMe, listUsers } from "@/api/users";
 import { getBalance, getByCategory, getByCity, getSummary } from "@/api/dashboard";
 import { getCityDaily, getCitySummary } from "@/api/cities";
 import BalanceHero from "@/components/BalanceHero";
@@ -26,6 +26,7 @@ export default function Dashboard() {
   // Promedio por día del viaje (base itinerario): dato económico del hero.
   const trip = useQuery({ queryKey: ["city", "summary", []], queryFn: () => getCitySummary([]) });
   const users = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
+  const me = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
 
   const names: Record<number, string> = Object.fromEntries(
     (users.data ?? []).map((u) => [u.id, capitalize(u.username)]),
@@ -81,7 +82,7 @@ export default function Dashboard() {
 
       <div className="animate-rise-in stagger-2">
         {balance.data ? (
-          <BalanceHero balance={balance.data} names={names} onSettle={() => setSettle(true)} />
+          <BalanceHero balance={balance.data} names={names} myId={me.data?.id} onSettle={() => setSettle(true)} />
         ) : (
           <Skeleton className="h-20" />
         )}

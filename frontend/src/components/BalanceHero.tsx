@@ -7,10 +7,12 @@ import type { Balance } from "@/types";
 
 /** Card compacta de balance: quién le debe a quién + acción de saldar.
  *  Secundaria a propósito — el protagonista del dashboard es el gasto total. */
-export default function BalanceHero({ balance, names, onSettle }: {
-  balance: Balance; names: Record<number, string>; onSettle: () => void;
+export default function BalanceHero({ balance, names, myId, onSettle }: {
+  balance: Balance; names: Record<number, string>; myId?: number; onSettle: () => void;
 }) {
   const settled = !balance.debtor_id || isZeroMoney(balance.amount_usd);
+  // Si soy el acreedor, me deben plata => verde. Si soy el deudor, yo debo => rojo.
+  const iAmCreditor = myId != null && balance.creditor_id === myId;
 
   if (settled) {
     return (
@@ -29,7 +31,9 @@ export default function BalanceHero({ balance, names, onSettle }: {
   return (
     <Card className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 p-5">
       <div className="flex min-w-0 items-center gap-3.5">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brick-bg text-brick">
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+          iAmCreditor ? "bg-success-bg text-success" : "bg-brick-bg text-brick"
+        }`}>
           <Handshake size={20} strokeWidth={2} aria-hidden="true" />
         </span>
         <div className="min-w-0">
@@ -42,7 +46,9 @@ export default function BalanceHero({ balance, names, onSettle }: {
         </div>
       </div>
       <div className="flex items-center gap-4">
-        <span className="font-display text-[1.7rem] leading-none text-brick font-tabular">
+        <span className={`font-display text-[1.7rem] leading-none font-tabular ${
+          iAmCreditor ? "text-success" : "text-brick"
+        }`}>
           {formatUsd(balance.amount_usd)}
         </span>
         <Button variant="secondary" size="sm" onClick={onSettle}>
