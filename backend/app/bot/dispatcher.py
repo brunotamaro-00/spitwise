@@ -5,9 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import resolve_user_by_wa_id
-from app.bot.capture import handle_capture
+from app.bot.capture import _cat_names, all_users, handle_capture
+from app.bot.editor import handle_delete, handle_edit
 from app.bot.interactive import handle_interactive
-from app.bot.render import BotReply, buttons_reply, text_reply
+from app.bot.render import BotReply, buttons_reply, text_reply, unknown_reply
 from app.config import get_settings
 from app.db.models import Movement, User
 
@@ -19,10 +20,10 @@ _DELETE_COMMANDS = {"borrar", "borrar último", "borrar ultimo", "eliminar"}
 
 async def _handle_delete_command(session, user: User) -> BotReply:
     last = (await session.execute(
-        select(Movement).where(Movement.created_by == user.id).order_by(Movement.id.desc())
+        select(Movement).order_by(Movement.id.desc())
     )).scalars().first()
     if last is None:
-        return text_reply("⚠️ Nada que borrar: no tenés movimientos cargados.")
+        return text_reply("⚠️ Nada que borrar: no hay movimientos cargados.")
     desc = last.description or last.type
     return buttons_reply(
         f"¿Borrar '{desc}' ({last.currency} {last.amount})? Es irreversible.",
@@ -44,25 +45,30 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
 
     stripped = (text or "").strip()
     if not stripped:
-        return text_reply("Mandame un gasto, ej: 'cena 20 euros'.")
+        return text_reply("Mandame un gasto, ej: _cena 20 euros_.")
 
     if stripped.lower() in _DELETE_COMMANDS:
         return await _handle_delete_command(session, user)
 
-    reply = await handle_capture(session, user, wa_id, text, today, llm_client=llm_client)
-    # Si se auto-registró un gasto, ofrecer override de split sobre ESE movimiento.
-    if reply.movement_id is not None and not reply.buttons:
-        return buttons_reply(reply.text or "", [
-            (f"split_shared:{reply.movement_id}", "Compartido ✓"),
-            (f"split_mine:{reply.movement_id}", "Solo mío"),
-            (f"split_theirs:{reply.movement_id}", "Solo del otro"),
-        ])
-    return reply
+    from app.llm.parser import parse_message
+    users = await all_users(session)
+    parsed = await parse_message(
+        stripped, today=today, category_names=_cat_names(),
+        usernames=[u.username for u in users], sender=user.username, client=llm_client,
+    )
+
+    if parsed.intent == "edit":
+        return await handle_edit(session, user, wa_id, parsed, today)
+    if parsed.intent == "delete":
+        return await handle_delete(session, user, wa_id, parsed, today)
+    if parsed.intent == "unknown":
+        return unknown_reply()
+    return await handle_capture(session, user, wa_id, text, today, parsed=parsed)
 
 
 async def dispatch(session: AsyncSession, wa_id, message_type, text, interactive_id, today: date, *, llm_client=None) -> BotReply:
     try:
         return await _dispatch_inner(session, wa_id, message_type, text, interactive_id, today, llm_client=llm_client)
-    except Exception as exc:  # borde único de errores
+    except Exception:  # borde único de errores
         logger.exception("dispatch_error wa_id=%s", wa_id)
-        return text_reply(f"⚠️ {type(exc).__name__}: {exc}")
+        return text_reply("⚠️ Algo falló procesando el mensaje. Probá de nuevo en un ratito.")

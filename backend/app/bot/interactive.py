@@ -7,15 +7,31 @@ from app.bot.capture import apply_category_pick
 from app.bot.render import BotReply, text_reply
 from app.db.models import Movement, User
 
+# Legacy: botones de split de la versión anterior (pueden quedar en el historial del chat).
 _SPLIT_MAP = {"split_shared": "shared", "split_mine": "payer_only", "split_theirs": "other_only"}
 _SPLIT_LABEL = {"shared": "compartido", "payer_only": "solo tuyo", "other_only": "solo del otro"}
 
 
+def _token_and_id(interactive_id: str, prefix: str) -> tuple[str, int]:
+    rest = interactive_id[len(prefix):]
+    token, mid = rest.split("|", 1)
+    return token, int(mid)
+
+
 async def handle_interactive(session: AsyncSession, user: User, wa_id: str, interactive_id: str, today: date) -> BotReply:
     if interactive_id.startswith("cat_pick:"):
-        rest = interactive_id[len("cat_pick:"):]
-        token, cid = rest.split("|", 1)
-        return await apply_category_pick(session, user, token, int(cid))
+        token, cid = _token_and_id(interactive_id, "cat_pick:")
+        return await apply_category_pick(session, user, token, cid)
+
+    if interactive_id.startswith("edit_pick:"):
+        from app.bot.editor import apply_edit_pick
+        token, mid = _token_and_id(interactive_id, "edit_pick:")
+        return await apply_edit_pick(session, user, wa_id, token, mid, today)
+
+    if interactive_id.startswith("del_pick:"):
+        from app.bot.editor import apply_delete_pick
+        token, mid = _token_and_id(interactive_id, "del_pick:")
+        return await apply_delete_pick(session, user, token, mid)
 
     for prefix, split_val in _SPLIT_MAP.items():
         if interactive_id.startswith(prefix + ":"):

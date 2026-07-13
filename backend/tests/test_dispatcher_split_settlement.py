@@ -14,8 +14,18 @@ class FakeLLM:
     def __init__(self, payload):
         self.payload = payload
 
-    async def parse(self, text, default_currency, category_names):
+    async def parse(self, text, **kwargs):
         return self.payload
+
+
+def _payload(**over):
+    base = {
+        "intent": "expense", "amount": None, "currency": None, "description": None,
+        "category": None, "split": "shared", "paid_by": None, "date": None, "city": None,
+        "confidence": 0.9, "candidates": [],
+    }
+    base.update(over)
+    return base
 
 
 async def _two_users(db_session):
@@ -28,21 +38,42 @@ async def _two_users(db_session):
     return u1, u2
 
 
-async def test_capture_then_split_override_to_mine(db_session):
+async def test_clean_capture_has_no_buttons(db_session):
     u1, u2 = await _two_users(db_session)
-    fake = FakeLLM({"amount": "100", "currency": "USD", "description": "hotel", "category": "Alojamiento",
-                    "split": "shared", "is_settlement": False, "confidence": 0.95, "candidates": []})
+    fake = FakeLLM(_payload(amount="100", currency="USD", description="hotel",
+                            category="Alojamiento", confidence=0.95))
     reply = await dispatch(db_session, "549111", "text", "hotel 100", None, date(2026, 8, 6), llm_client=fake)
-    assert reply.buttons  # ofrece override de split
+    assert not reply.buttons  # sin botones si no hubo ambigüedad
     mv = (await db_session.execute(select(Movement))).scalar_one()
-    # Los botones apuntan al movimiento recién creado (no al "último global").
-    assert reply.buttons[0][0] == f"split_shared:{mv.id}"
-    # Simular tap en "Solo mío"
-    await handle_interactive(db_session, u1, "549111", f"split_mine:{mv.id}", date(2026, 8, 6))
-    await db_session.refresh(mv)
+    assert mv.split == "shared"
+
+
+async def test_split_edit_via_natural_language(db_session):
+    u1, u2 = await _two_users(db_session)
+    fake = FakeLLM(_payload(amount="100", currency="USD", description="hotel",
+                            category="Alojamiento", confidence=0.95))
+    await dispatch(db_session, "549111", "text", "hotel 100", None, date(2026, 8, 6), llm_client=fake)
+    # "el último fue solo mío" → intent edit
+    fake_edit = FakeLLM(_payload(intent="edit", ref_last=True, new_split="payer_only"))
+    reply = await dispatch(db_session, "549111", "text", "el hotel fue solo mío", None,
+                           date(2026, 8, 6), llm_client=fake_edit)
+    assert "editado" in (reply.text or "")
+    mv = (await db_session.execute(select(Movement))).scalar_one()
     assert mv.split == "payer_only"
     bal = compute_balance((await db_session.execute(select(Movement))).scalars().all(), u1.id, u2.id)
     assert bal.amount_usd == Decimal("0")  # solo mío => nadie debe
+
+
+async def test_legacy_split_button_still_works(db_session):
+    u1, u2 = await _two_users(db_session)
+    db_session.add(Movement(type="expense", amount=Decimal("100"), currency="USD",
+                            amount_usd=Decimal("100"), fx_rate=Decimal("1"), fx_source="frankfurter",
+                            paid_by=u1.id, split="shared", movement_date=date(2026, 8, 6), created_by=u1.id))
+    await db_session.commit()
+    mv = (await db_session.execute(select(Movement))).scalar_one()
+    await handle_interactive(db_session, u1, "549111", f"split_mine:{mv.id}", date(2026, 8, 6))
+    await db_session.refresh(mv)
+    assert mv.split == "payer_only"
 
 
 async def test_borrar_command_confirms_then_deletes(db_session):
@@ -52,7 +83,7 @@ async def test_borrar_command_confirms_then_deletes(db_session):
                             paid_by=u1.id, split="shared", movement_date=date(2026, 8, 6), created_by=u1.id))
     await db_session.commit()
     mv = (await db_session.execute(select(Movement))).scalar_one()
-    # "borrar" pide confirmación con botones sobre el último movimiento del usuario.
+    # "borrar" pide confirmación con botones sobre el último movimiento.
     reply = await dispatch(db_session, "549111", "text", "borrar", None, date(2026, 8, 6))
     assert reply.buttons and reply.buttons[0][0] == f"del_confirm:{mv.id}"
     # Confirmar borra.
@@ -67,8 +98,16 @@ async def test_settlement_capture(db_session):
                             amount_usd=Decimal("100"), fx_rate=Decimal("1"), fx_source="frankfurter",
                             paid_by=u1.id, split="shared", movement_date=date(2026, 8, 6), created_by=u1.id))
     await db_session.commit()
-    fake = FakeLLM({"amount": "50", "currency": "USD", "description": "saldo", "category": "Otros",
-                    "split": "shared", "is_settlement": True, "confidence": 0.9, "candidates": []})
-    await dispatch(db_session, "549222", "text", "le pasé 50 usd", None, date(2026, 8, 7), llm_client=fake)
+    fake = FakeLLM(_payload(intent="settlement", amount="50", currency="USD", description="saldo"))
+    reply = await dispatch(db_session, "549222", "text", "le pasé 50 usd", None, date(2026, 8, 7), llm_client=fake)
+    assert "Pago de saldo" in (reply.text or "")
     bal = compute_balance((await db_session.execute(select(Movement))).scalars().all(), u1.id, u2.id)
     assert bal.amount_usd == Decimal("0")  # saldado
+
+
+async def test_unknown_intent_gives_examples(db_session):
+    await _two_users(db_session)
+    fake = FakeLLM(_payload(intent="unknown"))
+    reply = await dispatch(db_session, "549111", "text", "hola como va", None, date(2026, 8, 6), llm_client=fake)
+    assert "No te entendí" in (reply.text or "")
+    assert not (await db_session.execute(select(Movement))).scalars().all()
