@@ -49,32 +49,35 @@ export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete
 
       <div className="shrink-0 text-right">
         <p className="font-tabular font-bold text-ink">{formatUsd(mv.amount_usd)}</p>
-        <p className="font-tabular text-xs text-ink-3">
-          {mv.currency} {formatAmount(mv.amount)}
-          {mv.fx_source === "fallback" && (
-            <span className="ml-1 font-bold text-danger" title="Tasa aproximada (fallback)">≈</span>
-          )}
-        </p>
+        {/* La línea de moneda original solo aporta si NO es USD (sino repite). */}
+        {mv.currency !== "USD" && (
+          <p className="font-tabular text-xs text-ink-3">
+            {mv.currency} {formatAmount(mv.amount)}
+            {mv.fx_source === "fallback" && (
+              <span className="ml-1 font-bold text-danger" title="Tasa aproximada (fallback)">≈</span>
+            )}
+          </p>
+        )}
         {!isSettlement && myId != null && (
           <p className="font-tabular text-[11px] text-ink-faint">tu parte {formatUsd(String(share))}</p>
         )}
       </div>
 
       {!readOnly && (
-        <div className="-mr-1 flex shrink-0 items-center">
+        <div className="-mr-2 -ml-1 flex shrink-0 items-center">
           <button
             aria-label={`Editar ${mv.description || "movimiento"}`}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-faint/70 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:h-9 lg:w-9"
+            className="flex h-7 w-6 cursor-pointer items-center justify-center rounded-md text-ink-faint/50 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:h-8 lg:w-8"
             onClick={() => onEdit?.(mv)}
           >
-            <Pencil size={15} strokeWidth={1.75} aria-hidden="true" />
+            <Pencil size={13} strokeWidth={1.75} aria-hidden="true" />
           </button>
           <button
             aria-label={`Borrar ${mv.description || "movimiento"}`}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-faint/70 transition-colors hover:bg-danger-bg hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40 lg:h-9 lg:w-9"
+            className="flex h-7 w-6 cursor-pointer items-center justify-center rounded-md text-ink-faint/50 transition-colors hover:bg-danger-bg hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40 lg:h-8 lg:w-8"
             onClick={() => onDelete?.(mv)}
           >
-            <Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
+            <Trash2 size={13} strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>
       )}
