@@ -1,6 +1,6 @@
-# Deploy — Botardo en Railway
+# Deploy — Spitwise en Railway
 
-Un solo servicio web (FastAPI: API + webhook de WhatsApp + frontend estático) + Postgres, en el proyecto Railway `botardo` de la **cuenta personal** (la misma de Andiamo — nunca la de Kavak). Proceso único persistente: los background tasks del webhook y los locks por chat dependen de eso — **no** subir `--workers`.
+Un solo servicio web (FastAPI: API + webhook de WhatsApp + frontend estático) + Postgres, en el proyecto Railway `spitwise` de la **cuenta personal** (la misma de Andiamo — nunca la de Kavak). Proceso único persistente: los background tasks del webhook y los locks por chat dependen de eso — **no** subir `--workers`.
 
 ## Arquitectura
 
@@ -11,7 +11,7 @@ Un solo servicio web (FastAPI: API + webhook de WhatsApp + frontend estático) +
 
 ## Variables de entorno
 
-### Botardo (servicio Railway)
+### Spitwise (servicio Railway)
 
 | Variable | Valor |
 |---|---|
@@ -40,19 +40,19 @@ Secretos **solo** acá: nunca en el repo (`.env` está gitignoreado).
 | Variable | Valor |
 |---|---|
 | `TRIP_SHARED_API_KEY` | mismo valor que arriba |
-| `BOTARDO_URL` | `https://<botardo>.up.railway.app` |
+| `BOTARDO_URL` | `https://<spitwise>.up.railway.app` |
 
 Redeploy de Andiamo después de agregarlas (habilita `GET /api/stops` y el chip "Gastado").
 
 ## Alta inicial (una vez)
 
-1. Railway → New Project `botardo` → Add **PostgreSQL** → Add service desde el repo (o `railway up`).
+1. Railway → New Project `spitwise` → Add **PostgreSQL** → Add service desde el repo (o `railway up`).
 2. Cargar las envs de la tabla. Settings → Networking → Generate Domain.
-3. Smoke: `curl https://<botardo>.up.railway.app/health` → `{"status":"ok"}`; login → `curl -X POST .../api/v1/auth/login -d "username=bruno&password=<pwd>"` devuelve `access_token`; el dashboard web carga con balance "a mano".
-4. **Meta** (App → WhatsApp → Configuration): Callback URL `https://<botardo>.up.railway.app/webhooks/whatsapp`, Verify token = `WHATSAPP_VERIFY_TOKEN`, suscribir el campo `messages`. El GET de verificación debe devolver el `hub.challenge`.
+3. Smoke: `curl https://<spitwise>.up.railway.app/health` → `{"status":"ok"}`; login → `curl -X POST .../api/v1/auth/login -d "username=bruno&password=<pwd>"` devuelve `access_token`; el dashboard web carga con balance "a mano".
+4. **Meta** (App → WhatsApp → Configuration): Callback URL `https://<spitwise>.up.railway.app/webhooks/whatsapp`, Verify token = `WHATSAPP_VERIFY_TOKEN`, suscribir el campo `messages`. El GET de verificación debe devolver el `hub.challenge`.
 5. Primer sync del itinerario:
    ```bash
-   curl -X POST https://<botardo>.up.railway.app/api/v1/andiamo/sync -H "Authorization: Bearer <jwt>"
+   curl -X POST https://<spitwise>.up.railway.app/api/v1/andiamo/sync -H "Authorization: Bearer <jwt>"
    # => {"synced": <n paradas, con timezone>}
    ```
 
@@ -72,6 +72,6 @@ Redeploy de Andiamo después de agregarlas (habilita `GET /api/stops` y el chip 
 
 - **Logs:** `railway logs` (o el panel del servicio). Errores del bot salen como `dispatch_error` / `webhook_background_error` con traceback.
 - **Resync del itinerario:** `POST /api/v1/andiamo/sync` con JWT (o esperar el refresh perezoso de 6h que dispara cualquier mensaje de WhatsApp).
-- **Rotar `TRIP_SHARED_API_KEY`:** generar valor nuevo → actualizarlo en **ambos** servicios (Botardo y Andiamo) → redeploy de los dos. Hasta que coincidan, el sync devuelve 0 (usa snapshot) y el chip de Andiamo desaparece — nada se rompe.
+- **Rotar `TRIP_SHARED_API_KEY`:** generar valor nuevo → actualizarlo en **ambos** servicios (Spitwise y Andiamo) → redeploy de los dos. Hasta que coincidan, el sync devuelve 0 (usa snapshot) y el chip de Andiamo desaparece — nada se rompe.
 - **Rotar token de WhatsApp:** Meta → System User token nuevo → actualizar `WHATSAPP_ACCESS_TOKEN` → redeploy. El webhook sigue validando con `WHATSAPP_APP_SECRET` (no cambia).
 - **Cold starts / sleep:** si el plan gratuito duerme el servicio, pasar a Hobby (~USD 5/mes) — el webhook de Meta no tolera bien arranques fríos.

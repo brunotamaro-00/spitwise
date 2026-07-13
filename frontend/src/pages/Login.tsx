@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { login } from "@/api/auth";
-import BotardoMark from "@/components/BotardoMark";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 
@@ -30,8 +29,8 @@ export default function Login() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-6">
       <header className="animate-fade-in">
-        <BotardoMark size={72} className="mb-4" />
-        <h1 className="font-display text-5xl leading-none text-brick">Botardo</h1>
+        <img src="/logo.png" alt="" width={72} height={72} className="mb-4 rounded-full" />
+        <h1 className="font-display text-5xl leading-none text-brick">Spitwise</h1>
         <p className="mt-2 text-sm text-ink-3">Gastos del viaje · Europa 2026</p>
       </header>
       <form onSubmit={submit} className="flex flex-col gap-3">
