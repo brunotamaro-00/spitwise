@@ -4,7 +4,7 @@ import Card from "@/components/ui/Card";
 import { Label } from "@/components/ui/Field";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { formatUsd, parseMoney } from "@/lib/format";
-import { categoryColor } from "@/lib/chartTheme";
+import { categoryBg, categoryColor } from "@/lib/chartTheme";
 import type { CategorySpend } from "@/types";
 
 type Row = { name: string; usd: number; total: string; color: string; pct: number };
@@ -28,9 +28,11 @@ function DonutTooltip({ active, payload }: { active?: boolean; payload?: { paylo
 export default function CategoryDonut({
   data,
   title = "Gasto por categoría",
+  subtitle,
 }: {
   data: CategorySpend[];
   title?: string;
+  subtitle?: string;
 }) {
   const total = data.reduce((acc, c) => acc + parseMoney(c.total_usd), 0);
   const rows: Row[] = data.map((c) => {
@@ -46,9 +48,16 @@ export default function CategoryDonut({
   if (rows.length === 0) return null;
 
   return (
-    <Card className="p-5">
-      <Label className="mb-4 block">{title}</Label>
-      <div className="relative h-56">
+    <Card className="flex h-full flex-col p-5">
+      <div className="mb-4 flex items-baseline justify-between gap-2">
+        <Label className="block">{title}</Label>
+        {subtitle && <span className="text-[11px] text-ink-faint">{subtitle}</span>}
+      </div>
+      <div
+        className="relative h-56"
+        role="img"
+        aria-label={`${title}: total ${formatUsd(total.toFixed(2))} en ${rows.length} categorías`}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Tooltip content={<DonutTooltip />} />
@@ -87,7 +96,7 @@ export default function CategoryDonut({
             <li key={r.name} className="flex items-center gap-3 text-sm">
               <span
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                style={{ background: `${r.color}1A`, color: r.color }}
+                style={{ background: categoryBg(r.name), color: r.color }}
               >
                 <Icon size={15} strokeWidth={2} aria-hidden="true" />
               </span>

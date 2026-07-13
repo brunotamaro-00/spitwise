@@ -2,7 +2,7 @@ import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YA
 
 import Card from "@/components/ui/Card";
 import { Label } from "@/components/ui/Field";
-import { formatUsd, parseMoney } from "@/lib/format";
+import { formatAmount, formatUsd, parseMoney } from "@/lib/format";
 import { TICK, cityColor } from "@/lib/chartTheme";
 import type { CitySpend } from "@/types";
 
@@ -41,16 +41,28 @@ export default function CitySpendChart({
   }));
   if (rows.length === 0) return null;
   const many = rows.length > 5;
+  const total = rows.reduce((acc, r) => acc + r.usd, 0);
 
   return (
-    <Card className="p-5">
+    <Card className="flex h-full flex-col p-5">
       <Label className="mb-4 block">{title}</Label>
-      <div style={{ height: Math.max(rows.length * 30, 200) }}>
+      {/* relative + hijo absoluto: el 100% del ResponsiveContainer necesita una
+          altura definida; min-height sola no la da y el chart colapsa a 0. */}
+      <div
+        className="relative flex-1"
+        style={{ minHeight: Math.max(rows.length * 30, 200) }}
+        role="img"
+        aria-label={`${title}: total ${formatUsd(total.toFixed(2))} en ${rows.length} ciudades`}
+      >
+        {/* Centrado con tope de altura por fila: llena la celda sin esparcir
+            de más las barras cuando hay pocas ciudades. */}
+        <div className="absolute inset-0 flex items-center">
+        <div className="h-full w-full" style={{ maxHeight: rows.length * 64 + 12 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={rows}
             layout="vertical"
-            margin={{ top: 4, right: 56, bottom: 0, left: 4 }}
+            margin={{ top: 4, right: 70, bottom: 0, left: 4 }}
             barCategoryGap={rows.length > 8 ? "18%" : "28%"}
           >
             <XAxis type="number" hide />
@@ -68,15 +80,19 @@ export default function CitySpendChart({
               {rows.map((r) => (
                 <Cell key={r.name} fill={r.color} />
               ))}
+              {/* Solo el número: "USD" está implícito (toda la app está en USD)
+                  y el prefijo hacía que el label se parta en dos líneas. */}
               <LabelList
                 dataKey="total"
                 position="right"
-                formatter={(v: unknown) => formatUsd(String(v))}
+                formatter={(v: unknown) => formatAmount(String(v))}
                 style={{ fill: "var(--color-ink-2)", fontSize: 11, fontWeight: 700 }}
               />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        </div>
+        </div>
       </div>
     </Card>
   );
