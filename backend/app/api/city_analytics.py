@@ -41,6 +41,22 @@ async def _expenses_for(
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def _itinerary_days(session: AsyncSession, slugs: list[str] | None) -> int:
+    """Días de estadía según el itinerario de Andiamo (departure - arrival),
+    de los stops seleccionados (o todos los reales si no hay filtro). Es la base
+    para el promedio por día: refleja los días del viaje, no los días con gastos."""
+    stmt = select(Stop)
+    if slugs:
+        stmt = stmt.where(Stop.slug.in_(slugs))
+    else:
+        stmt = stmt.where(Stop.is_candidate.is_(False))
+    total = 0
+    for s in (await session.execute(stmt)).scalars().all():
+        if s.arrival_date and s.departure_date:
+            total += max((s.departure_date - s.arrival_date).days, 0)
+    return total
+
+
 @router.get("/summary", response_model=CitySummaryOut)
 async def city_summary(
     slugs: list[str] | None = Query(default=None),
@@ -49,15 +65,14 @@ async def city_summary(
 ) -> CitySummaryOut:
     total = Decimal("0")
     count = 0
-    days: set[date] = set()
     for m in await _expenses_for(session, slugs):
         share = user_share(m, user.id)
         if share <= 0:
             continue
         total += share
         count += 1
-        days.add(m.movement_date)
-    n_days = len(days)
+    # Días del itinerario (Andiamo), no días con gastos cargados.
+    n_days = await _itinerary_days(session, slugs)
     avg = total / n_days if n_days else Decimal("0")
 
     arrival = departure = None
@@ -126,11 +141,11 @@ async def city_breakdown(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[CityBreakdownOut]:
-    """Una fila por ciudad (todas), para el hub de selección."""
-    flags = {
-        s.slug: s.country_flag
-        for s in (await session.execute(select(Stop))).scalars().all()
-    }
+    """Una fila por ciudad (todas), ordenada por el itinerario (Stop.order).
+    Las ciudades sin stop asociado (p.ej. "Sin ciudad") van al final."""
+    stops = (await session.execute(select(Stop))).scalars().all()
+    flags = {s.slug: s.country_flag for s in stops}
+    order = {s.slug: s.order for s in stops}
     agg: dict[tuple[str | None, str | None], dict] = {}
     for m in await _expenses_for(session, None):
         share = user_share(m, user.id)
@@ -143,7 +158,8 @@ async def city_breakdown(
         row["total"] += share
         row["count"] += 1
         row["days"].add(m.movement_date)
-    items = sorted(agg.items(), key=lambda kv: kv[1]["total"], reverse=True)
+    _LAST = 10**9
+    items = sorted(agg.items(), key=lambda kv: order.get(kv[0][0], _LAST))
     return [
         CityBreakdownOut(
             stop_slug=slug,

@@ -44,23 +44,24 @@ async def _seed_and_auth(app_client):
 
 async def test_summary_all_cities(app_client):
     h = await _seed_and_auth(app_client)
-    # bruno shared => mitad de cada gasto: (50+20+30)/2 = 50, en 3 días.
+    # bruno shared => mitad de cada gasto: (50+20+30)/2 = 50.
+    # días = itinerario: Londres (5→8 = 3) + París (29 ago→1 sep = 3) = 6.
     r = await app_client.get("/api/v1/dashboard/city/summary", headers=h)
     j = r.json()
     assert j["total_usd"] == "50.00"
     assert j["movement_count"] == 3
-    assert j["days"] == 3
-    assert j["avg_per_day_usd"] == "16.67"
+    assert j["days"] == 6
+    assert j["avg_per_day_usd"] == "8.33"
 
 
 async def test_summary_single_city_includes_dates(app_client):
     h = await _seed_and_auth(app_client)
     r = await app_client.get("/api/v1/dashboard/city/summary?slugs=londres", headers=h)
     j = r.json()
-    # Londres: (50+20)/2 = 35 en 2 días.
+    # Londres: (50+20)/2 = 35; días de itinerario = 3 (5→8 ago), avg = 11.67.
     assert j["total_usd"] == "35.00"
-    assert j["days"] == 2
-    assert j["avg_per_day_usd"] == "17.50"
+    assert j["days"] == 3
+    assert j["avg_per_day_usd"] == "11.67"
     assert j["arrival_date"] == "2026-08-05"
     assert j["departure_date"] == "2026-08-08"
 

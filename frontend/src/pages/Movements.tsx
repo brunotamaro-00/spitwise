@@ -3,6 +3,7 @@ import { Receipt, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { listCategories } from "@/api/categories";
+import { getStops } from "@/api/cities";
 import { deleteMovement, listMovements } from "@/api/movements";
 import { getMe } from "@/api/users";
 import AddMovementDialog from "@/components/AddMovementDialog";
@@ -33,11 +34,16 @@ export default function Movements() {
     queryFn: () => listMovements(sort),
   });
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
+  const { data: stops = [] } = useQuery({ queryKey: ["stops"], queryFn: getStops, staleTime: 60_000 });
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
 
   const catMap = useMemo(
     () => Object.fromEntries(categories.map((c) => [c.id, c])) as Record<number, Category>,
     [categories],
+  );
+  const flagMap = useMemo(
+    () => Object.fromEntries(stops.map((s) => [s.slug, s.country_flag])) as Record<string, string | null>,
+    [stops],
   );
   const cities = useMemo(
     () => [...new Set(data.map((m) => m.city_name).filter(Boolean))] as string[],
@@ -222,6 +228,7 @@ export default function Movements() {
                 {g.items.map((m) => (
                   <MovementRow key={m.id} mv={m} myId={me?.id}
                     category={m.category_id != null ? catMap[m.category_id] : undefined}
+                    flag={m.stop_slug ? flagMap[m.stop_slug] : undefined}
                     onEdit={(mv) => { setEditing(mv); setEditOpen(true); }}
                     onDelete={(mv) => setToDelete(mv)} />
                 ))}

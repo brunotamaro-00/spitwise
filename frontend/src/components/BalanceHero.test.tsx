@@ -8,7 +8,7 @@ describe("BalanceHero", () => {
     render(<BalanceHero balance={{ debtor_id: 2, creditor_id: 1, amount_usd: "320.50" }}
       names={{ 1: "Bruno", 2: "Katia" }} onSettle={() => {}} />);
     expect(screen.getByText(/Katia/)).toBeTruthy();
-    expect(screen.getByText(/320,50/)).toBeTruthy();
+    expect(screen.getByText(/320,5/)).toBeTruthy();
   });
   it("a mano cuando 0", () => {
     render(<BalanceHero balance={{ debtor_id: null, creditor_id: null, amount_usd: "0" }}

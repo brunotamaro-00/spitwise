@@ -3,12 +3,13 @@ import { Wallet } from "lucide-react";
 import { useState } from "react";
 
 import { listUsers } from "@/api/users";
-import { getBalance, getByCategory, getByCity, getSummary, getTimeseries } from "@/api/dashboard";
+import { getBalance, getByCategory, getByCity, getSummary } from "@/api/dashboard";
+import { getCityDaily } from "@/api/cities";
 import BalanceHero from "@/components/BalanceHero";
 import CategoryDonut from "@/components/CategoryDonut";
 import CitySpendChart from "@/components/CitySpendChart";
 import SettleDialog from "@/components/SettleDialog";
-import SpendTimeline from "@/components/SpendTimeline";
+import WeeklySpendChart from "@/components/WeeklySpendChart";
 import Card from "@/components/ui/Card";
 import { Label } from "@/components/ui/Field";
 import Skeleton from "@/components/ui/Skeleton";
@@ -20,12 +21,15 @@ export default function Dashboard() {
   const summary = useQuery({ queryKey: ["dashboard", "summary"], queryFn: getSummary });
   const byCity = useQuery({ queryKey: ["dashboard", "city"], queryFn: getByCity });
   const byCat = useQuery({ queryKey: ["dashboard", "cat"], queryFn: getByCategory });
-  const ts = useQuery({ queryKey: ["dashboard", "ts"], queryFn: getTimeseries });
+  const daily = useQuery({ queryKey: ["dashboard", "daily"], queryFn: () => getCityDaily([]) });
   const users = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
 
   const names: Record<number, string> = Object.fromEntries(
     (users.data ?? []).map((u) => [u.id, capitalize(u.username)]),
   );
+
+  // No mostrar el bucket "Sin ciudad" (gastos generales) en el gráfico por ciudad.
+  const cityRows = (byCity.data ?? []).filter((c) => c.stop_slug || c.city_name);
 
   return (
     <div className="flex animate-fade-in flex-col gap-5">
@@ -58,10 +62,10 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        {byCity.data ? <CitySpendChart data={byCity.data} /> : <Skeleton className="h-64" />}
         {byCat.data ? <CategoryDonut data={byCat.data} /> : <Skeleton className="h-64" />}
+        {byCity.data ? <CitySpendChart data={cityRows} /> : <Skeleton className="h-64" />}
       </div>
-      {ts.data ? <SpendTimeline data={ts.data} /> : <Skeleton className="h-60" />}
+      {daily.data ? <WeeklySpendChart data={daily.data} /> : <Skeleton className="h-60" />}
 
       {settle && <SettleDialog balance={balance.data} onClose={() => setSettle(false)} />}
     </div>

@@ -13,7 +13,7 @@ const mv = {
 describe("MovementRow", () => {
   it("muestra USD y moneda original con coma decimal", () => {
     render(<MovementRow mv={mv} onEdit={() => {}} onDelete={() => {}} />);
-    expect(screen.getByText(/57,15/)).toBeTruthy();
+    expect(screen.getByText(/57,2/)).toBeTruthy();
     expect(screen.getByText(/GBP 45/)).toBeTruthy();
   });
 

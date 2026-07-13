@@ -187,6 +187,7 @@ export default function Cities() {
                       mv={m}
                       myId={me?.id}
                       category={m.category_id != null ? catMap[m.category_id] : undefined}
+                      flag={m.stop_slug ? stopMap[m.stop_slug]?.country_flag : undefined}
                       readOnly
                     />
                   ))}
@@ -221,8 +222,10 @@ function Kpi({
       <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tints[tint]}`}>
         <Icon size={16} strokeWidth={2} aria-hidden="true" />
       </span>
-      <div>
-        <p className="font-display text-xl leading-none text-ink font-tabular">{value}</p>
+      <div className="min-w-0">
+        <p className="truncate font-display text-lg leading-none tracking-tight text-ink font-tabular">
+          {value}
+        </p>
         <p className="mt-1 text-xs font-medium text-ink-3">{label}</p>
       </div>
     </Card>

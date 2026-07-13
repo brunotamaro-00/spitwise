@@ -6,12 +6,12 @@ export function capitalize(s: string): string {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
-/** Número con formato argentino: punto de miles, coma decimal. Enteros sin decimales. */
+/** Número con formato argentino: punto de miles, coma decimal. Enteros sin
+ *  decimales; con decimales, se muestra 1 solo (redondeado). */
 function formatNumber(n: number): string {
-  const decimals = Number.isInteger(n) ? 0 : 2;
   return n.toLocaleString("es-AR", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
   });
 }
 

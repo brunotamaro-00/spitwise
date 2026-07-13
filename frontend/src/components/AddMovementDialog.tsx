@@ -5,6 +5,7 @@ import { listCategories } from "@/api/categories";
 import { createMovement, updateMovement } from "@/api/movements";
 import { getMe, listStops, listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
+import DatePicker from "@/components/ui/DatePicker";
 import { Field, Input, Select } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
 import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue } from "@/lib/format";
@@ -135,7 +136,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           </Field>
         </div>
         <Field label="Fecha">
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DatePicker value={date} onChange={setDate} stops={stops} />
         </Field>
         {err && <p role="alert" className="text-sm font-semibold text-danger">{err}</p>}
         <Button type="submit" disabled={save.isPending} className="mt-1">

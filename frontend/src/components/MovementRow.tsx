@@ -12,10 +12,11 @@ const SPLIT_LABEL: Record<string, string> = {
   other_only: "Solo del otro",
 };
 
-export default function MovementRow({ mv, myId, category, onEdit, onDelete, readOnly = false }: {
+export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete, readOnly = false }: {
   mv: Movement;
   myId?: number;
   category?: Category;
+  flag?: string | null;
   onEdit?: (m: Movement) => void;
   onDelete?: (m: Movement) => void;
   readOnly?: boolean;
@@ -40,7 +41,7 @@ export default function MovementRow({ mv, myId, category, onEdit, onDelete, read
           {mv.description || (isSettlement ? "Pago (saldo)" : "Sin descripción")}
         </p>
         <p className="mt-0.5 truncate text-xs text-ink-3">
-          {mv.city_name ? `${mv.city_name} · ` : ""}
+          {mv.city_name ? `${flag ? `${flag} ` : ""}${mv.city_name} · ` : ""}
           {isSettlement ? "Saldo" : SPLIT_LABEL[mv.split] ?? mv.split}
         </p>
       </div>
