@@ -63,7 +63,7 @@ async def test_edit_amount_by_reference(db_session):
     await db_session.commit()
     fake = FakeLLM(_payload(ref_text="cena", new_amount="25"))
     reply = await dispatch(db_session, "549111", "text", "la cena fue 25", None, TODAY, llm_client=fake)
-    assert "editado" in (reply.text or "")
+    assert "Editado" in (reply.text or "")
     cena = (await db_session.execute(select(Movement).where(Movement.description == "cena"))).scalar_one()
     assert cena.amount == Decimal("25")
     assert cena.amount_usd == Decimal("25.00")  # USD recalculado
@@ -78,7 +78,7 @@ async def test_edit_date_recalculates_city(db_session):
     mv = (await db_session.execute(select(Movement))).scalar_one()
     assert mv.movement_date == date(2026, 9, 23)
     assert mv.city_name == "Roma" and mv.stop_slug == "roma"
-    assert "Londres → Roma" in (reply.text or "")
+    assert "Londres → *Roma*" in (reply.text or "")
 
 
 async def test_edit_defaults_to_last_movement(db_session):
@@ -112,7 +112,7 @@ async def test_edit_ambiguous_reference_asks_buttons(db_session):
     u1_db = (await db_session.execute(select(User).where(User.username == "bruno"))).scalar_one()
     bid = reply.buttons[0][0]
     reply2 = await handle_interactive(db_session, u1_db, "549111", bid, TODAY)
-    assert "editado" in (reply2.text or "")
+    assert "Editado" in (reply2.text or "")
     amounts = {d: a for d, a in (await db_session.execute(
         select(Movement.description, Movement.amount))).all()}
     assert Decimal("25") in amounts.values()
@@ -129,7 +129,7 @@ async def test_edit_paid_by_and_split(db_session):
     mv = (await db_session.execute(select(Movement))).scalar_one()
     assert mv.paid_by == u2.id
     assert mv.split == "payer_only"
-    assert "editado" in (reply.text or "")
+    assert "Editado" in (reply.text or "")
 
 
 async def test_delete_by_reference_confirms_then_deletes(db_session):

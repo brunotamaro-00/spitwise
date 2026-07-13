@@ -4,11 +4,11 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot import resolve_user_by_wa_id
+from app.bot import copy, resolve_user_by_wa_id
 from app.bot.capture import all_users, handle_capture, load_categories
 from app.bot.editor import handle_delete, handle_edit
 from app.bot.interactive import handle_interactive
-from app.bot.render import BotReply, buttons_reply, text_reply, unknown_reply
+from app.bot.render import BotReply, buttons_reply, fmt_money, text_reply, unknown_reply
 from app.config import get_settings
 from app.db.models import Movement, User
 
@@ -16,6 +16,27 @@ logger = logging.getLogger(__name__)
 
 
 _DELETE_COMMANDS = {"borrar", "borrar último", "borrar ultimo", "eliminar"}
+_HELP_COMMANDS = {
+    "ayuda", "help", "qué podés hacer", "que podes hacer", "qué haces", "que haces",
+    "cómo te uso", "como te uso", "cómo funciona", "como funciona",
+}
+
+
+def _help_reply() -> BotReply:
+    home = copy.link_home()
+    lines = [
+        "👋 Soy *Spitwise*, el contador del viaje. Puedo:",
+        copy.bullets([
+            "*Cargar gastos*: _cena 20 euros_",
+            "*Marcar de una persona*: _pagó katia 15gbp el museo, solo de ella_",
+            "*Editar*: _la cena de ayer fue 25, no 20_",
+            "*Borrar*: _borrá el último_",
+            "*Consultar*: _¿cuánto gastamos en Roma?_ · _¿quién debe plata?_",
+        ]),
+    ]
+    if home:
+        lines.append(f"📲 O abrí la app: {home}")
+    return text_reply("\n".join(lines))
 
 
 async def _handle_delete_command(session, user: User) -> BotReply:
@@ -23,10 +44,11 @@ async def _handle_delete_command(session, user: User) -> BotReply:
         select(Movement).order_by(Movement.id.desc())
     )).scalars().first()
     if last is None:
-        return text_reply("⚠️ Nada que borrar: no hay movimientos cargados.")
+        return text_reply(f"{copy.H_WARN} Nada que borrar: no hay movimientos cargados.")
     desc = last.description or last.type
     return buttons_reply(
-        f"¿Borrar '{desc}' ({last.currency} {last.amount})? Es irreversible.",
+        f"{copy.H_WARN} ¿Borrar *{desc}* ({fmt_money(last.amount, last.currency, last.amount_usd)})?\n"
+        "Es irreversible.",
         [(f"del_confirm:{last.id}", "Borrar 🗑️"), ("del_cancel:0", "Cancelar")],
     )
 
@@ -46,10 +68,14 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
 
     stripped = (text or "").strip()
     if not stripped:
-        return text_reply("Mandame un gasto, ej: _cena 20 euros_.")
+        return text_reply(copy.EMPTY_MESSAGE)
 
-    if stripped.lower() in _DELETE_COMMANDS:
+    low = stripped.lower()
+    # Ruteo rápido: comandos evidentes que no necesitan el parser LLM.
+    if low in _DELETE_COMMANDS:
         return await _handle_delete_command(session, user)
+    if low in _HELP_COMMANDS:
+        return _help_reply()
 
     from app.llm.parser import parse_message
     users = await all_users(session)
@@ -82,4 +108,4 @@ async def dispatch(session: AsyncSession, wa_id, message_type, text, interactive
                                      llm_client=llm_client, chat_client=chat_client)
     except Exception:  # borde único de errores
         logger.exception("dispatch_error wa_id=%s", wa_id)
-        return text_reply("⚠️ Algo falló procesando el mensaje. Probá de nuevo en un ratito.")
+        return text_reply(copy.SOMETHING_FAILED)

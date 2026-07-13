@@ -127,7 +127,9 @@ class AnthropicLLM:
         resp = await self._client.messages.parse(
             model=self._model,
             max_tokens=1024,
-            system=_render_system(usernames, sender),
+            # System estable por (usuarios, remitente) → se cachea entre requests.
+            system=[{"type": "text", "text": _render_system(usernames, sender),
+                     "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": _render_user(
                 text, today, category_names, usernames, sender, categories
             )}],

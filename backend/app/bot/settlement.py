@@ -1,2 +1,9 @@
+from decimal import Decimal
+
+from app.bot.render import ar_number
+
+
 def format_settlement_confirm(currency: str, amount, amount_usd) -> str:
-    return f"🤝 Pago registrado: {currency} {amount} (USD {amount_usd}). Neto actualizado."
+    monto = f"{currency} {ar_number(Decimal(str(amount)))}"
+    usd = ar_number(Decimal(str(amount_usd)))
+    return f"🤝 *Pago registrado*: {monto} (USD {usd}). Neto actualizado."

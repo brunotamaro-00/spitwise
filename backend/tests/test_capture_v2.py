@@ -54,7 +54,7 @@ async def test_explicit_date_resolves_city_from_itinerary(db_session):
     assert mv.movement_date == date(2026, 9, 23)
     assert mv.city_name == "Roma"
     assert mv.stop_slug == "roma"
-    assert "23 sep" in reply.text and "Roma" in reply.text
+    assert "23/09" in reply.text and "Roma" in reply.text
 
 
 async def test_default_currency_follows_movement_date_city(db_session):
@@ -110,7 +110,7 @@ async def test_full_card_contents(db_session):
     text = reply.text or ""
     assert "✅ *Gasto guardado*" in text
     assert "🍽️ Comida — cena" in text
-    assert "USD 10.00" in text
+    assert "USD 10,0" in text
     assert "6 ago" in text
     assert "Londres" in text  # parada activa de hoy
     assert "Pagó Bruno" in text

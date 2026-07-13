@@ -4,10 +4,11 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot import copy
 from app.bot.capture import _category_id, _map_source, other_user, resolve_place, user_by_username
 from app.bot.pending import close_pending, create_pending, load_pending
 from app.bot.render import (
-    BotReply, buttons_reply, cat_label, edit_card, fmt_date, movement_summary,
+    BotReply, ar_number, buttons_reply, cat_label, edit_card, fmt_date, movement_summary,
     split_label, text_reply,
 )
 from app.db.models import Category, Movement, User
@@ -113,7 +114,8 @@ async def apply_changes(session, wa_id: str, mv: Movement, changes: dict, today:
     # Monto/moneda/fecha → recalcular USD.
     money_changed = False
     if "amount" in changes and changes["amount"] != mv.amount:
-        diffs.append(("💰", f"{mv.currency} {mv.amount:.2f}", f"{mv.currency} {changes['amount']:.2f}"))
+        diffs.append(("💰", f"{mv.currency} {ar_number(mv.amount)}",
+                      f"{mv.currency} {ar_number(changes['amount'])}"))
         mv.amount = changes["amount"]
         money_changed = True
     if "currency" in changes and changes["currency"] != mv.currency:
@@ -140,12 +142,15 @@ async def _pick_buttons(session, candidates, action: str, payload: dict, owner: 
 
 async def handle_edit(session, user: User, wa_id: str, parsed, today: date) -> BotReply:
     if not parsed.changes:
-        return text_reply("🤔 Entendí que querés editar, pero no qué cambiar. Ej: _la cena de ayer fue 25_.")
+        return text_reply(
+            f"{copy.H_HUH} Entendí que querés *editar*, pero no qué cambiar. "
+            "Ej: _la cena de ayer fue 25_."
+        )
     candidates = await find_candidates(
         session, ref_last=parsed.ref_last, ref_text=parsed.ref_text, ref_date=parsed.ref_date
     )
     if not candidates:
-        return text_reply("⚠️ No encontré ningún movimiento que matchee esa referencia.")
+        return text_reply(f"{copy.H_WARN} No encontré ningún movimiento que matchee esa referencia.")
     if len(candidates) > 1:
         payload = {"changes": _serialize_changes(parsed.changes)}
         return await _pick_buttons(session, candidates, "edit_pick", payload, user.username, "¿Cuál querés editar?")
@@ -164,14 +169,14 @@ async def handle_delete(session, user: User, wa_id: str, parsed, today: date) ->
         session, ref_last=parsed.ref_last, ref_text=parsed.ref_text, ref_date=parsed.ref_date
     )
     if not candidates:
-        return text_reply("⚠️ No encontré ningún movimiento que matchee esa referencia.")
+        return text_reply(f"{copy.H_WARN} No encontré ningún movimiento que matchee esa referencia.")
     if len(candidates) > 1:
         return await _pick_buttons(session, candidates, "del_pick", {}, user.username, "¿Cuál querés borrar?")
     mv = candidates[0]
     payer = await _payer_name(session, mv)
     cat = await _cat_name(session, mv)
     return buttons_reply(
-        f"¿Borrar este movimiento? Es irreversible.\n{movement_summary(mv, cat, payer)}",
+        f"{copy.H_WARN} ¿Borrar este movimiento? Es irreversible.\n{movement_summary(mv, cat, payer)}",
         [(f"del_confirm:{mv.id}", "Borrar 🗑️"), ("del_cancel:0", "Cancelar")],
     )
 
@@ -218,6 +223,6 @@ async def apply_delete_pick(session, user: User, token: str, movement_id: int) -
     payer = await _payer_name(session, mv)
     cat = await _cat_name(session, mv)
     return buttons_reply(
-        f"¿Borrar este movimiento? Es irreversible.\n{movement_summary(mv, cat, payer)}",
+        f"{copy.H_WARN} ¿Borrar este movimiento? Es irreversible.\n{movement_summary(mv, cat, payer)}",
         [(f"del_confirm:{mv.id}", "Borrar 🗑️"), ("del_cancel:0", "Cancelar")],
     )

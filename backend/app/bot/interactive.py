@@ -4,8 +4,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.capture import apply_category_pick
-from app.bot.render import BotReply, text_reply
-from app.db.models import Movement, User
+from app.bot.render import BotReply, deleted_card, movement_summary, text_reply
+from app.db.models import Category, Movement, User
+
+
+async def _summary_lines(session: AsyncSession, movements: list[Movement]) -> str:
+    """Desglose de los movimientos (para confirmar qué se borró), antes de borrarlos."""
+    users = {u.id: u.username for u in (await session.execute(select(User))).scalars().all()}
+    cats = {c.id: c.name for c in (await session.execute(select(Category))).scalars().all()}
+    return "\n".join(
+        movement_summary(m, cats.get(m.category_id), users.get(m.paid_by, "?"))
+        for m in movements
+    )
 
 # Legacy: botones de split de la versión anterior (pueden quedar en el historial del chat).
 _SPLIT_MAP = {"split_shared": "shared", "split_mine": "payer_only", "split_theirs": "other_only"}
@@ -53,20 +63,25 @@ async def handle_interactive(session: AsyncSession, user: User, wa_id: str, inte
         movements = (await session.execute(
             select(Movement).where(Movement.id.in_(ids))
         )).scalars().all()
+        summary = await _summary_lines(session, movements)  # antes de borrar
         for mv in movements:
             await session.delete(mv)
         await session.commit()
         await close_pending(session, token)
         n = len(movements)
-        return text_reply("🗑️ Borrado." if n == 1 else f"🗑️ Borrados {n} movimientos.")
+        if n == 0:
+            return text_reply("⚠️ Ya no estaban esos movimientos.")
+        return text_reply(deleted_card(summary, plural=n))
 
     if interactive_id.startswith("del_confirm:"):
         mid = int(interactive_id.split(":", 1)[1])
         mv = (await session.execute(select(Movement).where(Movement.id == mid))).scalar_one_or_none()
-        if mv is not None:
-            await session.delete(mv)
-            await session.commit()
-        return text_reply("🗑️ Borrado.")
+        if mv is None:
+            return text_reply("⚠️ Ese movimiento ya no existe.")
+        summary = await _summary_lines(session, [mv])  # antes de borrar
+        await session.delete(mv)
+        await session.commit()
+        return text_reply(deleted_card(summary))
 
     if interactive_id.startswith("del_cancel:"):
         return text_reply("Cancelado.")

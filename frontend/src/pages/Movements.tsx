@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Receipt, SearchX, SlidersHorizontal, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { listCategories } from "@/api/categories";
 import { getStops } from "@/api/cities";
@@ -27,8 +28,32 @@ export default function Movements() {
   const [editOpen, setEditOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Movement | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [sort, setSort] = useState<"date" | "created">("date");
-  const [f, setF] = useState(EMPTY);
+  const [params, setParams] = useSearchParams();
+  // Estado inicial desde la URL, para que los deep-links del bot lleguen filtrados.
+  const [sort, setSort] = useState<"date" | "created">(
+    params.get("sort") === "created" ? "created" : "date",
+  );
+  const [f, setF] = useState({
+    onlyMine: params.get("mine") === "1",
+    city: params.get("city") ?? "",
+    categoryId: params.get("cat") ?? "",
+    from: params.get("from") ?? "",
+    to: params.get("to") ?? "",
+    q: params.get("q") ?? "",
+  });
+
+  // Sincroniza filtros → URL (para copiar/compartir y para deep-links).
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (f.onlyMine) p.set("mine", "1");
+    if (f.city) p.set("city", f.city);
+    if (f.categoryId) p.set("cat", f.categoryId);
+    if (f.from) p.set("from", f.from);
+    if (f.to) p.set("to", f.to);
+    if (f.q) p.set("q", f.q);
+    if (sort !== "date") p.set("sort", sort);
+    setParams(p, { replace: true });
+  }, [f, sort, setParams]);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["movements", sort],

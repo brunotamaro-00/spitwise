@@ -4,10 +4,11 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot import copy
 from app.bot.active_stop import resolve_active_stop, stop_for_date
 from app.bot.pending import close_pending, create_pending, load_pending
 from app.bot.render import (
-    BotReply, buttons_reply, cat_label, expense_card, settlement_card, text_reply,
+    BotReply, buttons_reply, cat_label, expense_card, fmt_money, settlement_card, text_reply,
 )
 from app.categories.catalog import CATEGORIES
 from app.db.models import Category, Movement, User
@@ -112,7 +113,7 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
         )
 
     if parsed.amount is None:
-        return text_reply("⚠️ No pude leer el monto. Probá: _cena 20 euros_.")
+        return text_reply(f"{copy.H_WARN} No le pesqué el *monto*. Probá: _cena 20 euros_.")
 
     movement_date = parsed.movement_date or today
     stop_slug, city_name, place_currency = await resolve_place(
@@ -147,7 +148,8 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
             cid = await _category_id(session, name)
             buttons.append((f"cat_pick:{token}|{cid}", cat_label(name)))
         return buttons_reply(
-            f"¿Qué categoría? ({parsed.description or 'gasto'} · {parsed.currency} {parsed.amount})", buttons
+            f"{copy.H_HUH} ¿Qué categoría? _{parsed.description or 'gasto'}_ · "
+            f"*{fmt_money(parsed.amount, parsed.currency, amount_usd)}*", buttons
         )
 
     cat_id = await _category_id(session, parsed.category_name)
