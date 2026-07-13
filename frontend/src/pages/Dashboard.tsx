@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Receipt, TrendingUp, Wallet } from "lucide-react";
+import { Receipt, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
 import { listUsers } from "@/api/users";
@@ -11,8 +11,8 @@ import CitySpendChart from "@/components/CitySpendChart";
 import SettleDialog from "@/components/SettleDialog";
 import SpendBarChart from "@/components/SpendBarChart";
 import { PageTitle } from "@/components/ui/Brand";
+import Card from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
-import Kpi from "@/components/ui/Kpi";
 import Skeleton from "@/components/ui/Skeleton";
 import { capitalize, formatUsd } from "@/lib/format";
 
@@ -50,29 +50,40 @@ export default function Dashboard() {
         <PageTitle>Dashboard</PageTitle>
       </div>
 
-      {/* Hero del viaje: el balance manda; abajo, la foto económica. */}
+      {/* Hero del viaje: el gasto total manda; el balance es secundario. */}
       <div className="animate-rise-in stagger-1">
-        {balance.data ? (
-          <BalanceHero balance={balance.data} names={names} onSettle={() => setSettle(true)} />
+        {summary.data ? (
+          <Card className="relative overflow-hidden p-6 text-white hero-gradient soft-hero lg:p-7">
+            <div className="spit-dots absolute inset-0" aria-hidden="true" />
+            <div className="relative">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+                Mis gastos · todo el viaje
+              </p>
+              <p className="mt-2 font-display text-6xl leading-none font-tabular lg:text-7xl">
+                {formatUsd(summary.data.total_usd)}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-white/85">
+                <span className="inline-flex items-center gap-1.5">
+                  <Receipt size={15} strokeWidth={2} aria-hidden="true" />
+                  {summary.data.movement_count} movimiento{summary.data.movement_count === 1 ? "" : "s"}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <TrendingUp size={15} strokeWidth={2} aria-hidden="true" />
+                  <span className="font-tabular">{formatUsd(trip.data?.avg_per_day_usd ?? "0")}</span> por día
+                </span>
+              </div>
+            </div>
+          </Card>
         ) : (
-          <Skeleton className="h-40" />
+          <Skeleton className="h-44" />
         )}
       </div>
 
-      <div className="animate-rise-in stagger-2 grid grid-cols-3 gap-3">
-        {summary.data ? (
-          <>
-            <Kpi icon={Wallet} tint="brick" label="Mis gastos" value={formatUsd(summary.data.total_usd)} />
-            <Kpi icon={Receipt} tint="blue" label="Movimientos" value={String(summary.data.movement_count)} />
-            <Kpi
-              icon={TrendingUp}
-              tint="amber"
-              label="Prom./día"
-              value={formatUsd(trip.data?.avg_per_day_usd ?? "0")}
-            />
-          </>
+      <div className="animate-rise-in stagger-2">
+        {balance.data ? (
+          <BalanceHero balance={balance.data} names={names} onSettle={() => setSettle(true)} />
         ) : (
-          [0, 1, 2].map((i) => <Skeleton key={i} className="h-24" />)
+          <Skeleton className="h-20" />
         )}
       </div>
 
