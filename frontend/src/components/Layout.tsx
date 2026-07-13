@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { LayoutDashboard, ListOrdered, LogOut, Map, Plus } from "lucide-react";
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { logout } from "@/api/auth";
 import { getMe } from "@/api/users";
 import AddMovementDialog from "@/components/AddMovementDialog";
+import { Wordmark } from "@/components/ui/Brand";
 import { capitalize } from "@/lib/format";
 
 const TABS = [
@@ -16,6 +17,7 @@ const TABS = [
 
 export default function Layout() {
   const nav = useNavigate();
+  const location = useLocation();
   const [adding, setAdding] = useState(false);
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
 
@@ -38,14 +40,16 @@ export default function Layout() {
     <div className="min-h-dvh lg:flex">
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-border bg-surface px-4 py-6 lg:flex">
-        <div className="flex items-center gap-2.5 px-2">
-          <img src="/logo.png" alt="" width={34} height={34} className="rounded-full" />
+        <div className="flex items-center gap-3 px-2">
+          <img src="/logo-sm.png" alt="" width={38} height={38} />
           <div>
-            <span className="block font-display text-2xl leading-none text-brick">Spitwise</span>
-            <p className="mt-0.5 text-xs text-ink-3">Europa 2026</p>
+            <Wordmark className="text-[1.6rem]" />
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
+              Europa 2026
+            </p>
           </div>
         </div>
-        <nav aria-label="Navegación principal" className="mt-8 flex flex-col gap-1">
+        <nav aria-label="Secciones" className="mt-8 flex flex-col gap-1">
           {TABS.map(({ to, label, Icon }) => (
             <NavLink
               key={to}
@@ -78,8 +82,8 @@ export default function Layout() {
       {/* Header (mobile) */}
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-md lg:hidden">
         <span className="flex items-center gap-2">
-          <img src="/logo.png" alt="" width={26} height={26} className="rounded-full" />
-          <span className="font-display text-xl leading-none text-brick">Spitwise</span>
+          <img src="/logo-sm.png" alt="" width={28} height={28} />
+          <Wordmark className="text-[1.35rem]" />
         </span>
         <div className="flex items-center gap-2">
           {avatar}
@@ -89,8 +93,14 @@ export default function Layout() {
 
       {/* Contenido */}
       <div className="flex-1 lg:pl-60">
-        <main className="mx-auto max-w-lg p-4 pb-24 lg:max-w-5xl lg:p-8 lg:pb-8">
-          <Outlet />
+        {/* pb-40: espacio para scrollear el último ítem por encima del FAB
+            (bottom nav 3.5rem + FAB 3.5rem alto a 4.75rem del borde). */}
+        <main className="mx-auto max-w-lg p-4 pb-40 lg:max-w-5xl lg:p-8 lg:pb-28">
+          {/* key por ruta: cada cambio de tab remonta el contenido y dispara
+              las animaciones de entrada de la página. */}
+          <div key={location.pathname} className="animate-fade-in">
+            <Outlet />
+          </div>
         </main>
       </div>
 
@@ -98,14 +108,14 @@ export default function Layout() {
       <button
         onClick={() => setAdding(true)}
         aria-label="Agregar movimiento"
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brick text-white soft-pop transition-[background-color,transform] hover:bg-brick-hover active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:bottom-8 lg:right-8"
+        className="brick-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full text-white soft-hero transition-transform hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:bottom-8 lg:right-8"
       >
         <Plus size={26} strokeWidth={2} aria-hidden="true" />
       </button>
 
       {/* Bottom nav (mobile) */}
       <nav
-        aria-label="Navegación principal"
+        aria-label="Navegación inferior"
         className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
       >
         <div className="mx-auto flex max-w-lg">
@@ -115,14 +125,21 @@ export default function Layout() {
               to={to}
               end={to === "/"}
               className={({ isActive }) =>
-                `flex min-h-[56px] flex-1 cursor-pointer flex-col items-center justify-center gap-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brick/30 ${
+                `flex min-h-[56px] flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brick/30 ${
                   isActive ? "text-brick" : "text-ink-3 hover:text-ink"
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <Icon size={22} strokeWidth={isActive ? 2.25 : 1.75} aria-hidden="true" />
+                  {/* Pill detrás del ícono activo: estado sólido, sin ambigüedad. */}
+                  <span
+                    className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors ${
+                      isActive ? "bg-brick-bg" : ""
+                    }`}
+                  >
+                    <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} aria-hidden="true" />
+                  </span>
                   {label}
                 </>
               )}

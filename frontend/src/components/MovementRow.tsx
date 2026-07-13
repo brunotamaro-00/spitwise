@@ -1,7 +1,7 @@
 import { Handshake, Pencil, Trash2 } from "lucide-react";
 
 import { categoryIcon } from "@/lib/categoryIcons";
-import { categoryColor } from "@/lib/chartTheme";
+import { categoryBg, categoryColor } from "@/lib/chartTheme";
 import { formatAmount, formatUsd } from "@/lib/format";
 import { myShare } from "@/lib/share";
 import type { Category, Movement } from "@/types";
@@ -24,13 +24,14 @@ export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete
   const isSettlement = mv.type === "settlement";
   const share = myId != null ? myShare(mv, myId) : 0;
   const Icon = isSettlement ? Handshake : categoryIcon(category?.name);
-  const color = isSettlement ? "#8A7F6A" : categoryColor(category?.name ?? null);
+  const color = isSettlement ? "var(--color-ink-3)" : categoryColor(category?.name ?? null);
+  const bg = isSettlement ? "var(--color-surface-2)" : categoryBg(category?.name ?? null);
 
   return (
     <div className="flex items-center gap-3 border-b border-border py-3 last:border-b-0">
       <span
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-        style={{ background: `${color}1A`, color }}
+        style={{ background: bg, color }}
         aria-hidden="true"
       >
         <Icon size={17} strokeWidth={2} />

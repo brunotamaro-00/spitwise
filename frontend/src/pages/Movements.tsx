@@ -8,13 +8,14 @@ import { deleteMovement, listMovements } from "@/api/movements";
 import { getMe } from "@/api/users";
 import AddMovementDialog from "@/components/AddMovementDialog";
 import MovementRow from "@/components/MovementRow";
+import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import { Field, Input, Select } from "@/components/ui/Field";
 import Skeleton from "@/components/ui/Skeleton";
 import { formatDayHeader, formatUsd } from "@/lib/format";
-import { groupByDay } from "@/lib/groupByDay";
+import { dayTotalUsd, groupByDay } from "@/lib/groupByDay";
 import { involvesMe, myShare } from "@/lib/share";
 import type { Category, Movement } from "@/types";
 
@@ -102,9 +103,9 @@ export default function Movements() {
     (f.from ? 1 : 0) + (f.to ? 1 : 0) + (f.q ? 1 : 0);
 
   return (
-    <div className="animate-fade-in">
+    <div>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold text-ink">Movimientos</h1>
+        <PageTitle>Movimientos</PageTitle>
         <button
           onClick={() => setShowFilters((v) => !v)}
           aria-expanded={showFilters}
@@ -121,7 +122,7 @@ export default function Movements() {
       </div>
 
       {showFilters && (
-        <Card className="mb-3 animate-fade-in p-4">
+        <Card className="mb-3 animate-fade-in p-5">
           <div className="mb-3">
             <span className="mb-1.5 block text-xs font-semibold text-ink-3">Ordenar por</span>
             <div className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5">
@@ -191,10 +192,11 @@ export default function Movements() {
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-xl border border-border bg-surface-2 px-4 py-2.5">
           <span className="text-xs text-ink-3">
             {filtered.length} de {data.length} · visible{" "}
-            <span className="font-tabular font-semibold text-ink">{formatUsd(String(totals.visible))}</span>
+            <span className="font-tabular text-sm font-semibold text-ink">{formatUsd(String(totals.visible))}</span>
           </span>
           <span className="text-xs text-ink-3">
-            tu parte <span className="font-tabular font-semibold text-brick">{formatUsd(String(totals.mine))}</span>
+            tu parte{" "}
+            <span className="font-tabular text-sm font-semibold text-brick">{formatUsd(String(totals.mine))}</span>
           </span>
         </div>
       )}
@@ -223,8 +225,15 @@ export default function Movements() {
         <div className="flex flex-col gap-4">
           {groups.map((g) => (
             <section key={g.date}>
-              <h2 className="mb-1 px-1 text-xs font-medium capitalize text-ink-3">{formatDayHeader(g.date)}</h2>
-              <Card className="px-4">
+              <h2 className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+                  {formatDayHeader(g.date)}
+                </span>
+                <span className="font-tabular text-[11px] font-semibold text-ink-faint">
+                  {formatUsd(String(dayTotalUsd(g.items)))}
+                </span>
+              </h2>
+              <Card className="px-5">
                 {g.items.map((m) => (
                   <MovementRow key={m.id} mv={m} myId={me?.id}
                     category={m.category_id != null ? catMap[m.category_id] : undefined}

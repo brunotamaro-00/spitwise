@@ -6,8 +6,10 @@ import { createMovement, updateMovement } from "@/api/movements";
 import { getMe, listStops, listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
 import DatePicker from "@/components/ui/DatePicker";
-import { Field, Input, Select } from "@/components/ui/Field";
+import { Field, Input, Label, Select } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
+import { categoryBg, categoryColor } from "@/lib/chartTheme";
+import { categoryIcon } from "@/lib/categoryIcons";
 import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue } from "@/lib/format";
 import type { Movement } from "@/types";
 
@@ -19,7 +21,34 @@ const SPLITS = [
   { value: "other_only", label: "Solo del otro" },
 ];
 
-/** Alta y edición de movimientos. `editing` presente => PATCH parcial. */
+/** Grupo de botones exclusivos (segmented control). */
+function Segmented({ options, value, onChange }: {
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          aria-pressed={value === o.value}
+          className={`min-h-[38px] flex-1 cursor-pointer rounded-md px-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+            value === o.value ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Alta y edición de movimientos. `editing` presente => PATCH parcial.
+ *  Diseñado para cargar un gasto en segundos: monto grande primero,
+ *  categoría como chips con ícono, pagador/división como segmented. */
 export default function AddMovementDialog({ editing, onClose }: {
   editing?: Movement | null;
   onClose: () => void;
@@ -73,6 +102,7 @@ export default function AddMovementDialog({ editing, onClose }: {
       qc.invalidateQueries({ queryKey: ["movements"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["balance"] });
+      qc.invalidateQueries({ queryKey: ["city"] });
       onClose();
     },
     onError: () => setErr("No se pudo guardar. Revisá el monto."),
@@ -90,29 +120,79 @@ export default function AddMovementDialog({ editing, onClose }: {
 
   return (
     <Modal title={editing ? "Editar movimiento" : "Agregar movimiento"} onClose={onClose}>
-      <form onSubmit={submit} className="flex flex-col gap-3">
-        <div className="grid grid-cols-[1fr_auto] gap-3">
-          <Field label="Monto">
-            <Input ref={firstRef} inputMode="decimal" placeholder="20,00"
-                   value={amount} onChange={(e) => setAmount(sanitizeAmountInput(e.target.value))} />
-          </Field>
-          <Field label="Moneda">
-            <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-              {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
-            </Select>
-          </Field>
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        {/* El monto manda: input display grande + moneda al lado. */}
+        <div className="rounded-xl border border-border bg-surface-2/50 p-4">
+          <Label>Monto</Label>
+          <div className="mt-1 flex items-center gap-3">
+            <input
+              ref={firstRef}
+              inputMode="decimal"
+              placeholder="0,00"
+              aria-label="Monto"
+              value={amount}
+              onChange={(e) => setAmount(sanitizeAmountInput(e.target.value))}
+              className="w-full min-w-0 bg-transparent font-display text-4xl leading-none text-ink outline-none font-tabular placeholder:text-ink-faint"
+            />
+            {/* wrapper de ancho fijo: el Select base trae w-full */}
+            <div className="w-24 shrink-0">
+              <Select value={currency} onChange={(e) => setCurrency(e.target.value)} aria-label="Moneda">
+                {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
+              </Select>
+            </div>
+          </div>
         </div>
+
         <Field label="Descripción">
           <Input placeholder="cena, taxi, museo…"
                  value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
+
+        {/* Categoría: chips con ícono, un toque; tocar de nuevo deselecciona. */}
+        <div className="flex flex-col gap-1.5">
+          <Label>Categoría</Label>
+          <div className="flex flex-wrap gap-2">
+            {categories.map((c) => {
+              const active = categoryId === String(c.id);
+              const Icon = categoryIcon(c.name);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCategoryId(active ? "" : String(c.id))}
+                  aria-pressed={active}
+                  className={`flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+                    active ? "" : "border-border bg-surface text-ink-2 hover:bg-surface-2"
+                  }`}
+                  style={active ? {
+                    background: categoryBg(c.name),
+                    color: categoryColor(c.name),
+                    borderColor: categoryColor(c.name),
+                  } : undefined}
+                >
+                  <Icon size={14} strokeWidth={2} aria-hidden="true" />
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label>Pagó</Label>
+          <Segmented
+            options={users.map((u) => ({ value: String(u.id), label: capitalize(u.username) }))}
+            value={paidBy}
+            onChange={setPaidBy}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label>División</Label>
+          <Segmented options={SPLITS} value={split} onChange={setSplit} />
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Categoría">
-            <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">—</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-          </Field>
           <Field label="Ciudad">
             <Select value={stopSlug} onChange={(e) => setStopSlug(e.target.value)}>
               <option value="">Auto (por fecha)</option>
@@ -122,22 +202,11 @@ export default function AddMovementDialog({ editing, onClose }: {
               ))}
             </Select>
           </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="División">
-            <Select value={split} onChange={(e) => setSplit(e.target.value)}>
-              {SPLITS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </Select>
-          </Field>
-          <Field label="Pagó">
-            <Select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
-              {users.map((u) => <option key={u.id} value={u.id}>{capitalize(u.username)}</option>)}
-            </Select>
+          <Field label="Fecha">
+            <DatePicker value={date} onChange={setDate} stops={stops} />
           </Field>
         </div>
-        <Field label="Fecha">
-          <DatePicker value={date} onChange={setDate} stops={stops} />
-        </Field>
+
         {err && <p role="alert" className="text-sm font-semibold text-danger">{err}</p>}
         <Button type="submit" disabled={save.isPending} className="mt-1">
           {save.isPending ? "Guardando…" : "Guardar"}

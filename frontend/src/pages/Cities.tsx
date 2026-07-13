@@ -14,19 +14,34 @@ import {
 } from "@/api/cities";
 import { getMe } from "@/api/users";
 import CategoryDonut from "@/components/CategoryDonut";
-import DailySpendChart from "@/components/DailySpendChart";
+import SpendBarChart from "@/components/SpendBarChart";
 import MovementRow from "@/components/MovementRow";
+import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
+import Kpi from "@/components/ui/Kpi";
 import Skeleton from "@/components/ui/Skeleton";
-import { formatDayHeader, formatUsd } from "@/lib/format";
-import { groupByDay } from "@/lib/groupByDay";
+import { formatDayHeader, formatUsd, parseMoney } from "@/lib/format";
+import { dayTotalUsd, groupByDay } from "@/lib/groupByDay";
 import type { Category } from "@/types";
 
 function fmtRange(a: string | null, b: string | null): string | null {
   if (!a && !b) return null;
   const f = (s: string | null) => (s ? formatDayHeader(s) : "…");
   return `${f(a)} – ${f(b)}`;
+}
+
+/** Rango corto para las tarjetas del itinerario: "5–8 ago" o "29 ago – 1 sep". */
+function shortRange(a: string | null, b: string | null): string | null {
+  if (!a || !b) return null;
+  const parse = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return { d, month: new Date(y, m - 1, d).toLocaleDateString("es-AR", { month: "short" }) };
+  };
+  const from = parse(a);
+  const to = parse(b);
+  if (from.month === to.month) return `${from.d}–${to.d} ${from.month}`;
+  return `${from.d} ${from.month} – ${to.d} ${to.month}`;
 }
 
 export default function Cities() {
@@ -57,6 +72,10 @@ export default function Cities() {
   );
   const stopMap = useMemo(() => Object.fromEntries(stops.map((s) => [s.slug, s])), [stops]);
   const groups = useMemo(() => groupByDay(movements), [movements]);
+  const tripTotal = useMemo(
+    () => breakdown.reduce((acc, b) => acc + parseMoney(b.total_usd), 0),
+    [breakdown],
+  );
 
   function toggle(slug: string | null) {
     if (!slug) return;
@@ -79,40 +98,62 @@ export default function Cities() {
   const flag = single?.country_flag;
 
   return (
-    <div className="animate-fade-in flex flex-col gap-5">
-      <h1 className="text-2xl font-bold text-ink">Ciudades</h1>
+    <div className="flex flex-col gap-5">
+      <div className="animate-rise-in">
+        <PageTitle>Ciudades</PageTitle>
+      </div>
 
-      {/* Selector de ciudades */}
+      {/* Itinerario: una tarjeta por parada, en el orden del viaje. */}
       {loadingBreak ? (
-        <Skeleton className="h-12" />
+        <Skeleton className="h-24" />
       ) : breakdown.length === 0 ? null : (
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="animate-rise-in stagger-1 -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:-mx-8 lg:px-8">
           <button
             onClick={() => setParams(new URLSearchParams(), { replace: true })}
             aria-pressed={selected.length === 0}
-            className={`shrink-0 cursor-pointer rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+            className={`flex min-w-[7.5rem] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
               selected.length === 0
-                ? "border-brick bg-brick text-white"
-                : "border-border bg-surface text-ink-2 hover:bg-surface-2"
+                ? "border-brick bg-brick text-white soft-pop"
+                : "border-border bg-surface text-ink-2 soft-card hover:bg-surface-2"
             }`}
           >
-            Todas
+            <span className="text-sm font-bold">Todo el viaje</span>
+            <span className={`font-display text-lg leading-none font-tabular ${selected.length === 0 ? "text-white" : "text-ink"}`}>
+              {formatUsd(tripTotal.toFixed(2))}
+            </span>
+            <span className={`text-[11px] font-medium ${selected.length === 0 ? "text-white/75" : "text-ink-faint"}`}>
+              {breakdown.length} paradas
+            </span>
           </button>
           {breakdown.map((b) => {
             const slug = b.stop_slug;
             const active = slug != null && selectedSet.has(slug);
+            const stop = slug ? stopMap[slug] : undefined;
+            const range = stop ? shortRange(stop.arrival_date, stop.departure_date) : null;
             return (
               <button
-                key={slug ?? b.city_name}
+                key={slug ?? b.city_name ?? "general"}
                 onClick={() => toggle(slug)}
                 aria-pressed={active}
-                className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
-                  active ? "border-brick bg-brick-bg text-brick" : "border-border bg-surface text-ink-2 hover:bg-surface-2"
+                disabled={!slug}
+                className={`flex min-w-[7.5rem] shrink-0 flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+                  active
+                    ? "cursor-pointer border-brick bg-brick text-white soft-pop"
+                    : slug
+                      ? "cursor-pointer border-border bg-surface text-ink-2 soft-card hover:bg-surface-2"
+                      : "border-border bg-surface-2/60 text-ink-3"
                 }`}
               >
-                {b.country_flag && <span aria-hidden="true">{b.country_flag}</span>}
-                <span>{b.city_name ?? "Sin ciudad"}</span>
-                <span className="font-tabular text-xs text-ink-faint">{formatUsd(b.total_usd)}</span>
+                <span className="flex max-w-full items-center gap-1.5 text-sm font-bold">
+                  {b.country_flag && <span aria-hidden="true">{b.country_flag}</span>}
+                  <span className="truncate">{b.city_name ?? "Generales"}</span>
+                </span>
+                <span className={`font-display text-lg leading-none font-tabular ${active ? "text-white" : "text-ink"}`}>
+                  {formatUsd(b.total_usd)}
+                </span>
+                <span className={`text-[11px] font-medium ${active ? "text-white/75" : "text-ink-faint"}`}>
+                  {range ?? (slug ? `${b.movement_count} mov.` : "sin ciudad")}
+                </span>
               </button>
             );
           })}
@@ -120,8 +161,8 @@ export default function Cities() {
       )}
 
       {/* Header / hero de la selección */}
-      <Card className="relative overflow-hidden p-5 text-white hero-gradient soft-hero">
-        <div className="hero-texture absolute inset-0" aria-hidden="true" />
+      <Card className="animate-rise-in stagger-1 relative overflow-hidden p-5 text-white hero-gradient soft-hero">
+        <div className="spit-dots absolute inset-0" aria-hidden="true" />
         <div className="relative">
           <div className="flex items-center gap-3">
             {flag ? (
@@ -152,16 +193,17 @@ export default function Cities() {
       </Card>
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="animate-rise-in stagger-2 grid grid-cols-3 gap-3">
         <Kpi icon={Receipt} tint="blue" label="Movimientos" value={String(summary?.movement_count ?? 0)} />
         <Kpi icon={CalendarDays} tint="teal" label="Días" value={String(summary?.days ?? 0)} />
         <Kpi icon={TrendingUp} tint="amber" label="Prom./día" value={formatUsd(summary?.avg_per_day_usd ?? "0")} />
       </div>
 
-      {/* Gráficos */}
-      <div className="grid items-start gap-5 lg:grid-cols-2">
+      {/* Gráficos: items-stretch para que ninguna card deje hueco al lado
+          de la más alta en desktop. */}
+      <div className="animate-rise-in stagger-3 grid items-stretch gap-5 lg:grid-cols-2">
         {byCat.length > 0 && <CategoryDonut data={byCat} />}
-        {daily.length > 0 && <DailySpendChart data={daily} />}
+        {daily.length > 0 && <SpendBarChart data={daily} granularity="day" />}
       </div>
 
       {/* Detalle de movimientos */}
@@ -179,8 +221,15 @@ export default function Cities() {
           <div className="flex flex-col gap-4">
             {groups.map((g) => (
               <section key={g.date}>
-                <h3 className="mb-1 px-1 text-xs font-medium capitalize text-ink-3">{formatDayHeader(g.date)}</h3>
-                <Card className="px-4">
+                <h3 className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+                    {formatDayHeader(g.date)}
+                  </span>
+                  <span className="font-tabular text-[11px] font-semibold text-ink-faint">
+                    {formatUsd(String(dayTotalUsd(g.items)))}
+                  </span>
+                </h3>
+                <Card className="px-5">
                   {g.items.map((m) => (
                     <MovementRow
                       key={m.id}
@@ -201,33 +250,3 @@ export default function Cities() {
   );
 }
 
-function Kpi({
-  icon: Icon,
-  tint,
-  label,
-  value,
-}: {
-  icon: typeof Receipt;
-  tint: "blue" | "teal" | "amber";
-  label: string;
-  value: string;
-}) {
-  const tints = {
-    blue: "bg-accent-blue-bg text-accent-blue",
-    teal: "bg-accent-teal-bg text-accent-teal",
-    amber: "bg-accent-amber-bg text-accent-amber",
-  } as const;
-  return (
-    <Card className="flex flex-col gap-2 p-4">
-      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tints[tint]}`}>
-        <Icon size={16} strokeWidth={2} aria-hidden="true" />
-      </span>
-      <div className="min-w-0">
-        <p className="truncate font-display text-lg leading-none tracking-tight text-ink font-tabular">
-          {value}
-        </p>
-        <p className="mt-1 text-xs font-medium text-ink-3">{label}</p>
-      </div>
-    </Card>
-  );
-}
