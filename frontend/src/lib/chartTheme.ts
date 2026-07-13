@@ -12,11 +12,27 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Bebidas/Salidas": "#55902F",
   Otros: "#7A5AC4",
 };
-export const FALLBACK_SERIES = "#8A7F6A"; // ink-3: sin categoría
+export const FALLBACK_SERIES = "#857F74"; // = --color-ink-3: sin categoría
+
+/** Fondos suaves por categoría: espejo de los tokens --color-*-bg de index.css.
+ *  Reemplaza el truco frágil de hex+alpha concatenado. */
+export const CATEGORY_BG: Record<string, string> = {
+  Alojamiento: "var(--color-brick-bg)",
+  Comida: "var(--color-accent-blue-bg)",
+  Transporte: "var(--color-accent-amber-bg)",
+  Actividades: "var(--color-accent-teal-bg)",
+  Compras: "var(--color-accent-plum-bg)",
+  "Bebidas/Salidas": "var(--color-accent-green-bg)",
+  Otros: "var(--color-accent-indigo-bg)",
+};
+
+export function categoryBg(name: string | null): string {
+  return (name && CATEGORY_BG[name]) || "var(--color-surface-2)";
+}
 
 export const ACCENT = "#C44428"; // brick: serie única (barras, línea)
-export const GRID = "#EDE8E0"; // tenue, alineado a los neutros cálidos
-export const TICK = { fill: "#857F74", fontSize: 12 } as const; // ink-3
+export const GRID = "var(--color-border)"; // grilla tenue, tokenizada
+export const TICK = { fill: "var(--color-ink-3)", fontSize: 12 } as const;
 
 // Paleta cíclica para colorear series por ciudad (deriva de los accents).
 export const CITY_PALETTE = [
@@ -32,17 +48,6 @@ export const CITY_PALETTE = [
 export function cityColor(index: number): string {
   return CITY_PALETTE[index % CITY_PALETTE.length];
 }
-
-export const TOOLTIP_STYLE = {
-  background: "#FFFFFF",
-  border: "1px solid #E6E1D8",
-  borderRadius: 12,
-  boxShadow: "0 8px 24px rgb(27 26 23 / 0.12), 0 2px 6px rgb(27 26 23 / 0.06)",
-  padding: "8px 12px",
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#1B1A17",
-} as const;
 
 export function categoryColor(name: string | null): string {
   return (name && CATEGORY_COLORS[name]) || FALLBACK_SERIES;

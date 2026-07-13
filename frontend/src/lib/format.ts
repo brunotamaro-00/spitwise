@@ -6,13 +6,20 @@ export function capitalize(s: string): string {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
-/** Número con formato argentino: punto de miles, coma decimal. Enteros sin
- *  decimales; con decimales, se muestra 1 solo (redondeado). */
+/** Número con formato argentino: punto de miles, coma decimal. Siempre con
+ *  exactamente 1 decimal ("20,0", "306,5"): un solo estándar en toda la app. */
 function formatNumber(n: number): string {
   return n.toLocaleString("es-AR", {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
+}
+
+/** ¿El monto es cero a efectos de mostrar? (tolerante a "0", "0.00", "-0"). */
+export function isZeroMoney(s: string | null | undefined): boolean {
+  if (s == null || s === "") return true;
+  const n = Number(s);
+  return Number.isNaN(n) || Math.abs(n) < 0.005;
 }
 
 export function formatUsd(s: string): string {
@@ -44,9 +51,14 @@ export function formatDayHeader(iso: string): string {
 }
 
 /** Filtra la entrada de un campo de monto: solo dígitos, coma y punto.
- *  Impide tipear letras u otros símbolos en campos numéricos. */
+ *  Impide tipear letras u otros símbolos, y limita a 2 decimales después de
+ *  la coma (el separador decimal inequívoco en es-AR). */
 export function sanitizeAmountInput(s: string): string {
-  return s.replace(/[^\d.,]/g, "");
+  const t = s.replace(/[^\d.,]/g, "");
+  const comma = t.lastIndexOf(",");
+  if (comma === -1) return t;
+  const decimals = t.slice(comma + 1).replace(/[.,]/g, "");
+  return t.slice(0, comma + 1) + decimals.slice(0, 2);
 }
 
 /** Normaliza lo tipeado por el usuario a decimal con punto para el backend.

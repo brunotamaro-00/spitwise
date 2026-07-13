@@ -45,6 +45,12 @@
   --font-display: "Anton", sans-serif;
   --font-sans: "Hanken Grotesk", system-ui, sans-serif;
 
+  /* Escala de radios del sistema (fija el estándar: controles = lg,
+     paneles/inputs grandes = xl, cards = 2xl, chips = full). */
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+
   /* Sombras suaves difusas + una con tinte cálido para las heros */
   --shadow-sm: 0 1px 2px rgb(27 26 23 / 0.05), 0 2px 6px rgb(27 26 23 / 0.06);
   --shadow-md: 0 4px 16px rgb(27 26 23 / 0.10), 0 2px 6px rgb(27 26 23 / 0.06);
@@ -77,10 +83,20 @@ body {
   .brick-gradient { background-image: var(--gradient-brick); }
   .plum-gradient { background-image: var(--gradient-plum); }
 
-  /* Textura sutil de "mapa/pasaporte" para las heros: puntos muy tenues. */
-  .hero-texture {
-    background-image: radial-gradient(rgb(255 255 255 / 0.10) 1px, transparent 1px);
-    background-size: 14px 14px;
+  /* Firma de marca: el "trail" de puntitos que escupe la llama del logo.
+     Puntos tenues concentrados hacia la esquina superior derecha (diagonal). */
+  .spit-dots {
+    background-image: radial-gradient(rgb(255 255 255 / 0.14) 1.2px, transparent 1.2px);
+    background-size: 15px 15px;
+    -webkit-mask-image: radial-gradient(130% 130% at 100% 0%, black 0%, transparent 62%);
+    mask-image: radial-gradient(130% 130% at 100% 0%, black 0%, transparent 62%);
+  }
+  /* Variante sobre canvas claro (login, empty states). */
+  .spit-dots-ink {
+    background-image: radial-gradient(rgb(27 26 23 / 0.07) 1.2px, transparent 1.2px);
+    background-size: 15px 15px;
+    -webkit-mask-image: radial-gradient(130% 130% at 100% 0%, black 0%, transparent 62%);
+    mask-image: radial-gradient(130% 130% at 100% 0%, black 0%, transparent 62%);
   }
 }
 
@@ -103,6 +119,13 @@ body {
   .animate-fade-in { animation: fade-in 0.2s ease-out both; }
   .animate-rise-in { animation: rise-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-skeleton { animation: skeleton 1.3s ease-in-out infinite; }
+
+  /* Stagger de entrada: cada card de la página revela con un pequeño delay. */
+  .stagger-1 { animation-delay: 0.05s; }
+  .stagger-2 { animation-delay: 0.1s; }
+  .stagger-3 { animation-delay: 0.15s; }
+  .stagger-4 { animation-delay: 0.2s; }
+  .stagger-5 { animation-delay: 0.25s; }
 }
 
 @media (prefers-reduced-motion: reduce) {
