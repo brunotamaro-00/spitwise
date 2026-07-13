@@ -40,7 +40,7 @@ Secretos **solo** acá: nunca en el repo (`.env` está gitignoreado).
 | Variable | Valor |
 |---|---|
 | `TRIP_SHARED_API_KEY` | mismo valor que arriba |
-| `BOTARDO_URL` | `https://<spitwise>.up.railway.app` |
+| `SPITWISE_URL` | `https://<spitwise>.up.railway.app` |
 
 Redeploy de Andiamo después de agregarlas (habilita `GET /api/stops` y el chip "Gastado").
 

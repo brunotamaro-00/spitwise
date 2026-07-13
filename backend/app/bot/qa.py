@@ -13,7 +13,7 @@ from app.db.models import User
 from app.qa.tools import ActionContext, build_tools
 
 _SYSTEM = (
-    "Sos Botardo, el bot de gastos del viaje por Europa de {users}.\n"
+    "Sos Spitwise, el bot de gastos del viaje por Europa de {users}.\n"
     "Estás chateando por WhatsApp con {sender}. Hoy es {today}.\n\n"
     "REGLAS DE DATOS (no negociables):\n"
     "- Todo número que digas tiene que salir de las herramientas. Nunca inventes "
