@@ -61,20 +61,20 @@ export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete
       </div>
 
       {!readOnly && (
-        <div className="flex shrink-0 items-center">
+        <div className="-mr-1 flex shrink-0 items-center">
           <button
             aria-label={`Editar ${mv.description || "movimiento"}`}
-            className="flex min-h-[40px] min-w-[40px] cursor-pointer items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-faint/70 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:h-9 lg:w-9"
             onClick={() => onEdit?.(mv)}
           >
-            <Pencil size={17} strokeWidth={1.75} aria-hidden="true" />
+            <Pencil size={15} strokeWidth={1.75} aria-hidden="true" />
           </button>
           <button
             aria-label={`Borrar ${mv.description || "movimiento"}`}
-            className="flex min-h-[40px] min-w-[40px] cursor-pointer items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-danger-bg hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-faint/70 transition-colors hover:bg-danger-bg hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40 lg:h-9 lg:w-9"
             onClick={() => onDelete?.(mv)}
           >
-            <Trash2 size={17} strokeWidth={1.75} aria-hidden="true" />
+            <Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>
       )}
