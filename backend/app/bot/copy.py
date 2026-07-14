@@ -29,6 +29,10 @@ SOMETHING_FAILED = (
     f"{H_WARN} Se me trabó procesando eso. Probá de nuevo, "
     "y si sigue, reformulalo un poco (ej: _cena 20 euros_)."
 )
+SAVED_BUT_UNCONFIRMED = (
+    f"{H_WARN} Lo procesé, pero no pude confirmarte por WhatsApp. "
+    "Revisá la app por las dudas."
+)
 EMPTY_MESSAGE = "Mandame un gasto, ej: _cena 20 euros_."
 
 

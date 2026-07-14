@@ -85,9 +85,9 @@ async def test_borrar_command_confirms_then_deletes(db_session):
     mv = (await db_session.execute(select(Movement))).scalar_one()
     # "borrar" pide confirmación con botones sobre el último movimiento.
     reply = await dispatch(db_session, "549111", "text", "borrar", None, date(2026, 8, 6))
-    assert reply.buttons and reply.buttons[0][0] == f"del_confirm:{mv.id}"
+    assert reply.buttons and reply.buttons[0][0].startswith("del_confirm:")
     # Confirmar borra.
-    await handle_interactive(db_session, u1, "549111", f"del_confirm:{mv.id}", date(2026, 8, 6))
+    await handle_interactive(db_session, u1, "549111", reply.buttons[0][0], date(2026, 8, 6))
     assert (await db_session.execute(select(Movement))).scalars().all() == []
 
 

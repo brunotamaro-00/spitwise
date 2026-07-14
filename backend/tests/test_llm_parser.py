@@ -114,3 +114,13 @@ def test_render_user_without_descriptions_falls_back_to_flat_list():
 async def test_question_intent_is_valid():
     got = await _parse(_payload(intent="question"))
     assert got.intent == "question"
+
+
+async def test_invalid_intent_defaults_to_unknown():
+    got = await _parse(_payload(intent="gibberish", amount="10"))
+    assert got.intent == "unknown"
+
+
+async def test_legacy_payload_without_intent_defaults_to_unknown():
+    got = await _parse({"amount": "10", "confidence": 0.9})
+    assert got.intent == "unknown"

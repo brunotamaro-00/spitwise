@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import copy
-from app.bot.active_stop import resolve_active_stop, stop_for_date
+from app.bot.active_stop import place_for_date, resolve_active_stop
 from app.bot.pending import close_pending, create_pending, load_pending
 from app.bot.render import (
     BotReply, buttons_reply, cat_label, expense_card, fmt_money, settlement_card, text_reply,
@@ -37,9 +37,11 @@ async def _category_id(session: AsyncSession, name: str | None) -> int | None:
 
 
 def _map_source(src: str, currency: str) -> str:
-    # Igual que app/api/movements.py (Plan 2).
+    # Igual que app/api/movements.py.
     if src == "fallback":
         return "fallback"
+    if src == "direct" or currency.upper() == "USD":
+        return "direct"
     if currency.upper() == "ARS":
         return "dolarapi"
     return "frankfurter"
@@ -80,10 +82,9 @@ async def resolve_place(session, wa_id: str, movement_date: date, today: date, e
     if movement_date == today:
         return await resolve_active_stop(session, wa_id, today)
 
-    stop = await stop_for_date(session, movement_date)
-    if stop is None or not (stop.arrival_date and stop.arrival_date <= movement_date):
-        return None, None, "USD"
-    if stop.departure_date and movement_date >= stop.departure_date:
+    # Misma semántica estricta que la API web (place_for_date).
+    stop = await place_for_date(session, movement_date)
+    if stop is None:
         return None, None, "USD"
     return stop.slug, stop.name, (stop.currency_code or "USD")
 
@@ -152,7 +153,7 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
             f"*{fmt_money(parsed.amount, parsed.currency, amount_usd)}*", buttons
         )
 
-    cat_id = await _category_id(session, parsed.category_name)
+    cat_id = None if parsed.is_settlement else await _category_id(session, parsed.category_name)
     mv = await _persist(session, payer=payer, parsed=parsed, amount_usd=amount_usd, rate=rate, src=src,
                         stop_slug=stop_slug, city_name=city_name, cat_id=cat_id,
                         movement_date=movement_date, created_by=user, raw=text)
@@ -166,7 +167,7 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
 
 
 async def apply_category_pick(session, user: User, token: str, category_id: int) -> BotReply:
-    data = await load_pending(session, token)
+    data = await load_pending(session, token, owner=user.username)
     if data is None:
         return text_reply("⚠️ Expiró: ese pending ya no está disponible.")
     payer_id = int(data.get("paid_by") or user.id)

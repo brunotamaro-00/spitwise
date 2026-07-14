@@ -13,10 +13,11 @@ import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
 import { Field, Input, Select } from "@/components/ui/Field";
 import Skeleton from "@/components/ui/Skeleton";
-import { formatDayHeader, formatUsd } from "@/lib/format";
-import { dayTotalUsd, groupByDay } from "@/lib/groupByDay";
+import { formatAmount, formatDayHeader, formatUsd } from "@/lib/format";
+import { dayTotalShare, dayTotalUsd, groupByDay } from "@/lib/groupByDay";
 import { involvesMe, myShare } from "@/lib/share";
 import type { Category, Movement } from "@/types";
 
@@ -27,6 +28,7 @@ export default function Movements() {
   const [editing, setEditing] = useState<Movement | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Movement | null>(null);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [params, setParams] = useSearchParams();
   // Estado inicial desde la URL, para que los deep-links del bot lleguen filtrados.
@@ -55,7 +57,7 @@ export default function Movements() {
     setParams(p, { replace: true });
   }, [f, sort, setParams]);
 
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["movements", sort],
     queryFn: () => listMovements(sort),
   });
@@ -86,7 +88,11 @@ export default function Movements() {
       qc.invalidateQueries({ queryKey: ["movements"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["balance"] });
+      qc.invalidateQueries({ queryKey: ["city"] });
+      setToDelete(null);
+      setDeleteErr(null);
     },
+    onError: () => setDeleteErr("No se pudo borrar. Probá de nuevo."),
   });
 
   const filtered = useMemo(() => {
@@ -103,12 +109,17 @@ export default function Movements() {
   }, [data, f, me]);
 
   // Agrupar preservando el orden del backend, por la fecha del criterio activo:
-  // "date" = fecha imputada; "created" = fecha de carga (created_at).
+  // "date" = fecha imputada; "created" = fecha de carga en TZ local del browser.
   const groups = useMemo(
     () =>
-      groupByDay(filtered, (m) =>
-        sort === "created" ? m.created_at.slice(0, 10) : m.movement_date,
-      ),
+      groupByDay(filtered, (m) => {
+        if (sort !== "created") return m.movement_date;
+        const d = new Date(m.created_at);
+        const y = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, "0");
+        const da = String(d.getDate()).padStart(2, "0");
+        return `${y}-${mo}-${da}`;
+      }),
     [filtered, sort],
   );
 
@@ -145,6 +156,12 @@ export default function Movements() {
           )}
         </button>
       </div>
+
+      {isError && (
+        <div className="mb-3">
+          <ErrorState onRetry={() => refetch()} />
+        </div>
+      )}
 
       {showFilters && (
         <Card className="mb-3 animate-fade-in p-5">
@@ -255,7 +272,9 @@ export default function Movements() {
                   {formatDayHeader(g.date)}
                 </span>
                 <span className="font-tabular text-[11px] font-semibold text-ink-faint">
-                  {formatUsd(String(dayTotalUsd(g.items)))}
+                  {formatUsd(String(
+                    f.onlyMine && me ? dayTotalShare(g.items, me.id) : dayTotalUsd(g.items),
+                  ))}
                 </span>
               </h2>
               <Card className="px-5">
@@ -263,8 +282,9 @@ export default function Movements() {
                   <MovementRow key={m.id} mv={m} myId={me?.id}
                     category={m.category_id != null ? catMap[m.category_id] : undefined}
                     flag={m.stop_slug ? flagMap[m.stop_slug] : undefined}
+                    preferShare={f.onlyMine}
                     onEdit={(mv) => { setEditing(mv); setEditOpen(true); }}
-                    onDelete={(mv) => setToDelete(mv)} />
+                    onDelete={(mv) => { setDeleteErr(null); setToDelete(mv); }} />
                 ))}
               </Card>
             </section>
@@ -276,9 +296,11 @@ export default function Movements() {
       {toDelete && (
         <ConfirmDialog
           title="Borrar movimiento"
-          message={`¿Borrar "${toDelete.description || toDelete.type}" (${toDelete.currency} ${toDelete.amount})?`}
+          message={`¿Borrar "${toDelete.description || toDelete.type}" (${toDelete.currency} ${formatAmount(toDelete.amount)})?`}
+          busy={del.isPending}
+          error={deleteErr}
           onConfirm={() => del.mutate(toDelete)}
-          onClose={() => setToDelete(null)}
+          onClose={() => { if (!del.isPending) { setToDelete(null); setDeleteErr(null); } }}
         />
       )}
     </div>

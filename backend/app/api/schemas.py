@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 
 class TokenResponse(BaseModel):
@@ -15,11 +16,15 @@ class UserOut(BaseModel):
     username: str
 
 
+MovementType = Literal["expense", "settlement"]
+SplitType = Literal["shared", "payer_only", "other_only"]
+
+
 class MovementIn(BaseModel):
-    type: str = "expense"
-    amount: Decimal
+    type: MovementType = "expense"
+    amount: Decimal = Field(gt=0)
     currency: str = "USD"
-    split: str = "shared"
+    split: SplitType = "shared"
     paid_by: int | None = None  # default: usuario actual
     description: str | None = None
     category_id: int | None = None
@@ -27,7 +32,12 @@ class MovementIn(BaseModel):
     city_name: str | None = None
     general: bool = False  # gasto general sin ciudad: no derivar la parada por fecha
     movement_date: date | None = None
-    fx_rate: Decimal | None = None  # override manual
+    fx_rate: Decimal | None = None  # override manual (multiplicador a USD)
+
+    @field_validator("currency")
+    @classmethod
+    def _upper_currency(cls, v: str) -> str:
+        return v.upper()
 
 
 class MovementUpdate(BaseModel):
@@ -35,17 +45,23 @@ class MovementUpdate(BaseModel):
     (via model_fields_set). Nunca usar MovementIn acá: sus campos obligatorios
     romperían las ediciones parciales."""
 
-    type: str | None = None
-    amount: Decimal | None = None
+    type: MovementType | None = None
+    amount: Decimal | None = Field(default=None, gt=0)
     currency: str | None = None
-    split: str | None = None
+    split: SplitType | None = None
     paid_by: int | None = None
     description: str | None = None
     category_id: int | None = None
     stop_slug: str | None = None
     city_name: str | None = None
+    general: bool | None = None
     movement_date: date | None = None
     fx_rate: Decimal | None = None  # setearlo => fx_source='manual'
+
+    @field_validator("currency")
+    @classmethod
+    def _upper_currency(cls, v: str | None) -> str | None:
+        return v.upper() if v else v
 
 
 class MovementOut(BaseModel):

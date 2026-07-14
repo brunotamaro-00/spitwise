@@ -35,7 +35,13 @@ def compute_balance(movements, user_a: int, user_b: int) -> Balance:
             continue
         if m.split == "payer_only":
             continue
-        share = amt if m.split == "other_only" else amt / Decimal("2")
+        if m.split == "other_only":
+            share = amt
+        elif m.split == "shared":
+            share = amt / Decimal("2")
+        else:
+            # Split inválido: no silently tratar como shared.
+            continue
         # El que NO pagó le debe `share` al que pagó.
         if payer == user_a:
             # user_b le debe a user_a => net (a debe a b) baja.

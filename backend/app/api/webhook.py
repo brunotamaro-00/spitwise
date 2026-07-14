@@ -7,6 +7,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.andiamo import ensure_stops_fresh
+from app.bot import copy
 from app.bot.active_stop import resolve_trip_timezone
 from app.bot.dispatcher import dispatch
 from app.config import get_settings
@@ -40,6 +41,14 @@ async def verify(request: Request) -> Response:
     return Response(status_code=403)
 
 
+async def _notify_user(meta: MetaClient, wa_id: str, text: str) -> None:
+    """Best-effort: si Meta también falla, solo logueamos."""
+    try:
+        await meta.send_text(wa_id, text)
+    except Exception:
+        logger.exception("webhook_notify_failed wa_id=%s", wa_id)
+
+
 async def process_message(m: IncomingMessage) -> None:
     """Corre en background: LLM + FX + respuesta por Graph, fuera del camino del 200."""
     s = get_settings()
@@ -56,12 +65,23 @@ async def process_message(m: IncomingMessage) -> None:
                 await ensure_stops_fresh(session)  # lazy TTL, no bloquea
                 tz = await resolve_trip_timezone(session)
                 reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, today_in_tz(tz))
-        if reply.buttons:
-            await meta.send_buttons(m.wa_id, reply.text or "", reply.buttons)
-        elif reply.text:
-            await meta.send_text(m.wa_id, reply.text)
+        try:
+            if reply.buttons:
+                await meta.send_buttons(m.wa_id, reply.text or "", reply.buttons)
+            elif reply.text:
+                await meta.send_text(m.wa_id, reply.text)
+        except Exception:
+            logger.exception("webhook_send_failed wamid=%s", m.wamid)
+            # El gasto/acción pudo haberse persistido: avisamos para no reenviar a ciegas.
+            home = copy.link_home()
+            msg = copy.SAVED_BUT_UNCONFIRMED
+            if home:
+                msg = f"{msg}\n{home}"
+            await _notify_user(meta, m.wa_id, msg)
     except Exception:
         logger.exception("webhook_background_error wamid=%s", m.wamid)
+        # Meta ya recibió 200 + wamid claimed: sin este aviso el mensaje se pierde en silencio.
+        await _notify_user(meta, m.wa_id, copy.SOMETHING_FAILED)
     finally:
         await meta.aclose()
 

@@ -12,7 +12,7 @@ const SPLIT_LABEL: Record<string, string> = {
   other_only: "Solo del otro",
 };
 
-export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete, readOnly = false }: {
+export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete, readOnly = false, preferShare = false }: {
   mv: Movement;
   myId?: number;
   category?: Category;
@@ -20,12 +20,15 @@ export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete
   onEdit?: (m: Movement) => void;
   onDelete?: (m: Movement) => void;
   readOnly?: boolean;
+  /** En vistas personales (Ciudades), el primary es "tu parte". */
+  preferShare?: boolean;
 }) {
   const isSettlement = mv.type === "settlement";
   const share = myId != null ? myShare(mv, myId) : 0;
   const Icon = isSettlement ? Handshake : categoryIcon(category?.name);
   const color = isSettlement ? "var(--color-ink-3)" : categoryColor(category?.name ?? null);
   const bg = isSettlement ? "var(--color-surface-2)" : categoryBg(category?.name ?? null);
+  const showSharePrimary = preferShare && !isSettlement && myId != null;
 
   return (
     <div className="flex items-center gap-3 border-b border-border py-3 last:border-b-0">
@@ -48,8 +51,9 @@ export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete
       </div>
 
       <div className="shrink-0 text-right">
-        <p className="font-tabular font-bold text-ink">{formatUsd(mv.amount_usd)}</p>
-        {/* La línea de moneda original solo aporta si NO es USD (sino repite). */}
+        <p className="font-tabular font-bold text-ink">
+          {formatUsd(showSharePrimary ? String(share) : mv.amount_usd)}
+        </p>
         {mv.currency !== "USD" && (
           <p className="font-tabular text-xs text-ink-3">
             {mv.currency} {formatAmount(mv.amount)}
@@ -58,8 +62,12 @@ export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete
             )}
           </p>
         )}
-        {!isSettlement && myId != null && (
-          <p className="font-tabular text-[11px] text-ink-faint">tu parte {formatUsd(String(share))}</p>
+        {showSharePrimary ? (
+          <p className="font-tabular text-[11px] text-ink-faint">ticket {formatUsd(mv.amount_usd)}</p>
+        ) : (
+          !isSettlement && myId != null && (
+            <p className="font-tabular text-[11px] text-ink-faint">tu parte {formatUsd(String(share))}</p>
+          )
         )}
       </div>
 

@@ -19,10 +19,11 @@ import MovementRow from "@/components/MovementRow";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
 import Kpi from "@/components/ui/Kpi";
 import Skeleton from "@/components/ui/Skeleton";
 import { formatDayHeader, formatShortDate, formatUsd, parseMoney } from "@/lib/format";
-import { dayTotalUsd, groupByDay } from "@/lib/groupByDay";
+import { dayTotalShare, groupByDay } from "@/lib/groupByDay";
 import type { Category } from "@/types";
 
 function fmtRange(a: string | null, b: string | null): string | null {
@@ -42,7 +43,7 @@ export default function Cities() {
   const selected = params.getAll("c");
   const selectedSet = new Set(selected);
 
-  const { data: breakdown = [], isLoading: loadingBreak } = useQuery({
+  const { data: breakdown = [], isLoading: loadingBreak, isError: errBreak, refetch: refetchBreak } = useQuery({
     queryKey: ["city", "breakdown"],
     queryFn: getCityBreakdown,
   });
@@ -51,13 +52,22 @@ export default function Cities() {
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
 
   const key = selected.slice().sort();
-  const { data: summary } = useQuery({ queryKey: ["city", "summary", key], queryFn: () => getCitySummary(selected) });
-  const { data: byCat = [] } = useQuery({ queryKey: ["city", "cat", key], queryFn: () => getCityByCategory(selected) });
-  const { data: daily = [] } = useQuery({ queryKey: ["city", "daily", key], queryFn: () => getCityDaily(selected) });
-  const { data: movements = [], isLoading: loadingMovs } = useQuery({
+  const { data: summary, isError: errSummary, refetch: refetchSummary } = useQuery({ queryKey: ["city", "summary", key], queryFn: () => getCitySummary(selected) });
+  const { data: byCat = [], isError: errCat, refetch: refetchCat } = useQuery({ queryKey: ["city", "cat", key], queryFn: () => getCityByCategory(selected) });
+  const { data: daily = [], isError: errDaily, refetch: refetchDaily } = useQuery({ queryKey: ["city", "daily", key], queryFn: () => getCityDaily(selected) });
+  const { data: movements = [], isLoading: loadingMovs, isError: errMovs, refetch: refetchMovs } = useQuery({
     queryKey: ["city", "movs", key],
     queryFn: () => getCityMovements(selected),
   });
+
+  const cityError = errBreak || errSummary || errCat || errDaily || errMovs;
+  function retryCity() {
+    if (errBreak) refetchBreak();
+    if (errSummary) refetchSummary();
+    if (errCat) refetchCat();
+    if (errDaily) refetchDaily();
+    if (errMovs) refetchMovs();
+  }
 
   const catMap = useMemo(
     () => Object.fromEntries(categories.map((c) => [c.id, c])) as Record<number, Category>,
@@ -95,6 +105,8 @@ export default function Cities() {
       <div className="animate-rise-in">
         <PageTitle>Ciudades</PageTitle>
       </div>
+
+      {cityError && <ErrorState onRetry={retryCity} />}
 
       {/* Itinerario: una tarjeta por parada, en el orden del viaje. */}
       {loadingBreak ? (
@@ -219,7 +231,7 @@ export default function Cities() {
                     {formatDayHeader(g.date)}
                   </span>
                   <span className="font-tabular text-[11px] font-semibold text-ink-faint">
-                    {formatUsd(String(dayTotalUsd(g.items)))}
+                    {formatUsd(String(me ? dayTotalShare(g.items, me.id) : 0))}
                   </span>
                 </h3>
                 <Card className="px-5">
@@ -231,6 +243,7 @@ export default function Cities() {
                       category={m.category_id != null ? catMap[m.category_id] : undefined}
                       flag={m.stop_slug ? stopMap[m.stop_slug]?.country_flag : undefined}
                       readOnly
+                      preferShare
                     />
                   ))}
                 </Card>

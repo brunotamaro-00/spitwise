@@ -111,7 +111,7 @@ async def test_full_card_contents(db_session):
     assert "✅ *Gasto guardado*" in text
     assert "🍽️ Comida — cena" in text
     assert "USD 10,0" in text
-    assert "6 ago" in text
+    assert "06/08" in text
     assert "Londres" in text  # parada activa de hoy
     assert "Pagó Bruno" in text
     assert "50/50" in text

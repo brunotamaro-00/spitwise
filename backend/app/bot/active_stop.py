@@ -14,7 +14,7 @@ async def _get_state(session: AsyncSession, wa_id: str) -> WhatsAppSessionState 
 
 
 def _pick_stop(stops, d: date):
-    """Parada vigente para una fecha: rango arrival<=d<departure, o la última arribada."""
+    """Parada activa 'hoy': rango arrival<=d<departure, o la última arribada (gaps/tránsito)."""
     for s in stops:
         if s.arrival_date and s.departure_date and s.arrival_date <= d < s.departure_date:
             return s
@@ -22,8 +22,18 @@ def _pick_stop(stops, d: date):
     return arrived[-1] if arrived else stops[0]
 
 
-async def stop_for_date(session: AsyncSession, d: date):
-    """Stop vigente para una fecha, o None si no hay itinerario sincronizado."""
+def _stop_in_range(stops, d: date):
+    """Parada estricta: solo si d cae en [arrival, departure). Gaps y post-viaje => None."""
+    for s in stops:
+        if s.arrival_date and s.departure_date and s.arrival_date <= d < s.departure_date:
+            return s
+        # Sin departure_date: vigente desde arrival en adelante.
+        if s.arrival_date and not s.departure_date and s.arrival_date <= d:
+            return s
+    return None
+
+
+async def _load_stops(session: AsyncSession):
     from app.db.models import Stop
     stops = (await session.execute(select(Stop).order_by(Stop.arrival_date))).scalars().all()
     if not stops:
@@ -34,8 +44,19 @@ async def stop_for_date(session: AsyncSession, d: date):
         if get_settings().andiamo_url:
             await sync_stops(session)
             stops = (await session.execute(select(Stop).order_by(Stop.arrival_date))).scalars().all()
+    return list(stops)
+
+
+async def stop_for_date(session: AsyncSession, d: date):
+    """Stop 'activo' (leniente) para timezone / WhatsApp hoy. Ver place_for_date para imputación."""
+    stops = await _load_stops(session)
     return _pick_stop(stops, d) if stops else None
 
+
+async def place_for_date(session: AsyncSession, d: date):
+    """Stop para imputar un gasto a una fecha (bot backdate + API web). Estricto: fuera de rango => None."""
+    stops = await _load_stops(session)
+    return _stop_in_range(stops, d) if stops else None
 
 async def resolve_active_stop(session: AsyncSession, wa_id: str, today: date):
     # 1) Override de sesión (day-trips).

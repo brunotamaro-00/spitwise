@@ -17,6 +17,7 @@ async def _summary_lines(session: AsyncSession, movements: list[Movement]) -> st
         for m in movements
     )
 
+
 # Legacy: botones de split de la versión anterior (pueden quedar en el historial del chat).
 _SPLIT_MAP = {"split_shared": "shared", "split_mine": "payer_only", "split_theirs": "other_only"}
 _SPLIT_LABEL = {"shared": "compartido", "payer_only": "solo tuyo", "other_only": "solo del otro"}
@@ -28,7 +29,32 @@ def _token_and_id(interactive_id: str, prefix: str) -> tuple[str, int]:
     return token, int(mid)
 
 
+async def _delete_by_ids(session: AsyncSession, user: User, ids: list[int], expected: int | None = None) -> BotReply:
+    movements = (await session.execute(
+        select(Movement).where(Movement.id.in_(ids))
+    )).scalars().all()
+    summary = await _summary_lines(session, movements)
+    for mv in movements:
+        await session.delete(mv)
+    await session.commit()
+    n = len(movements)
+    if n == 0:
+        return text_reply("⚠️ Ya no estaban esos movimientos.")
+    reply = deleted_card(summary, plural=n)
+    if expected is not None and n < expected:
+        missing = expected - n
+        reply = f"{reply}\n⚠️ {missing} ya no existían."
+    return text_reply(reply)
+
+
 async def handle_interactive(session: AsyncSession, user: User, wa_id: str, interactive_id: str, today: date) -> BotReply:
+    try:
+        return await _handle_interactive(session, user, wa_id, interactive_id, today)
+    except (ValueError, IndexError):
+        return text_reply("⚠️ Botón inválido o viejo.")
+
+
+async def _handle_interactive(session: AsyncSession, user: User, wa_id: str, interactive_id: str, today: date) -> BotReply:
     if interactive_id.startswith("cat_pick:"):
         token, cid = _token_and_id(interactive_id, "cat_pick:")
         return await apply_category_pick(session, user, token, cid)
@@ -56,32 +82,29 @@ async def handle_interactive(session: AsyncSession, user: User, wa_id: str, inte
     if interactive_id.startswith("qa_del:"):
         from app.bot.pending import close_pending, load_pending
         token = interactive_id[len("qa_del:"):]
-        data = await load_pending(session, token)
+        data = await load_pending(session, token, owner=user.username)
         if data is None:
             return text_reply("⚠️ Expiró: esa confirmación ya no está disponible.")
         ids = [int(i) for i in data.get("ids") or []]
-        movements = (await session.execute(
-            select(Movement).where(Movement.id.in_(ids))
-        )).scalars().all()
-        summary = await _summary_lines(session, movements)  # antes de borrar
-        for mv in movements:
-            await session.delete(mv)
-        await session.commit()
+        expected = len(ids)
+        reply = await _delete_by_ids(session, user, ids, expected=expected)
         await close_pending(session, token)
-        n = len(movements)
-        if n == 0:
-            return text_reply("⚠️ Ya no estaban esos movimientos.")
-        return text_reply(deleted_card(summary, plural=n))
+        return reply
 
     if interactive_id.startswith("del_confirm:"):
-        mid = int(interactive_id.split(":", 1)[1])
-        mv = (await session.execute(select(Movement).where(Movement.id == mid))).scalar_one_or_none()
-        if mv is None:
-            return text_reply("⚠️ Ese movimiento ya no existe.")
-        summary = await _summary_lines(session, [mv])  # antes de borrar
-        await session.delete(mv)
-        await session.commit()
-        return text_reply(deleted_card(summary))
+        from app.bot.pending import close_pending, load_pending
+        rest = interactive_id.split(":", 1)[1]
+        # Nuevo: token de pending. Legacy: id numérico sin TTL.
+        if rest.isdigit():
+            mid = int(rest)
+            return await _delete_by_ids(session, user, [mid])
+        data = await load_pending(session, rest, owner=user.username)
+        if data is None:
+            return text_reply("⚠️ Expiró: esa confirmación ya no está disponible.")
+        ids = [int(i) for i in data.get("ids") or []]
+        reply = await _delete_by_ids(session, user, ids, expected=len(ids))
+        await close_pending(session, rest)
+        return reply
 
     if interactive_id.startswith("del_cancel:"):
         return text_reply("Cancelado.")

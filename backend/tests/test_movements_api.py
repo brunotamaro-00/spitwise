@@ -22,7 +22,7 @@ async def test_create_usd_movement(app_client):
     assert r.status_code == 201, r.text
     body = r.json()
     assert body["amount_usd"] == "30.00"
-    assert body["fx_source"] == "frankfurter"  # USD -> direct -> mapea a frankfurter
+    assert body["fx_source"] == "direct"
     assert body["paid_by"] >= 1
 
 
@@ -71,6 +71,41 @@ async def test_create_derives_city_from_date(app_client):
     p = await app_client.patch(f"/api/v1/movements/{mid}", headers=h,
                                json={"movement_date": "2026-08-30"})
     assert p.json()["stop_slug"] == "paris"
+
+
+async def test_create_outside_itinerary_has_no_city(app_client):
+    from datetime import date
+    from app.db.models import Stop
+    h = await _auth(app_client)
+    async with app_client._maker() as s:
+        s.add(Stop(slug="londres", order=1, name="Londres", currency_code="GBP",
+                   arrival_date=date(2026, 8, 5), departure_date=date(2026, 8, 13)))
+        await s.commit()
+    r = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "10", "currency": "USD", "movement_date": "2026-12-25",
+    })
+    assert r.status_code == 201
+    assert r.json()["stop_slug"] is None
+    assert r.json()["city_name"] is None
+    # PATCH a fecha fuera del itinerario limpia ciudad (no deja Londres stale).
+    mid = (await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "10", "currency": "USD", "movement_date": "2026-08-06",
+    })).json()["id"]
+    p = await app_client.patch(f"/api/v1/movements/{mid}", headers=h,
+                               json={"movement_date": "2026-12-25"})
+    assert p.json()["stop_slug"] is None
+
+
+async def test_rejects_invalid_split_and_ars_manual_rate(app_client):
+    h = await _auth(app_client)
+    bad = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "10", "currency": "USD", "split": "half", "movement_date": "2026-08-06",
+    })
+    assert bad.status_code == 422
+    ars = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "1000", "currency": "ARS", "fx_rate": "1600", "movement_date": "2026-08-06",
+    })
+    assert ars.status_code == 422
 
 
 async def test_partial_patch_keeps_manual_fx(app_client):

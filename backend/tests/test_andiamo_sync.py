@@ -30,7 +30,8 @@ async def test_sync_upserts(db_session, monkeypatch):
     get_settings.cache_clear()
     async with _client(_STOPS) as c:
         n = await sync_stops(db_session, client=c)
-    assert n == 2
+    assert n["synced"] == 2
+    assert n["status"] == "ok"
     rows = (await db_session.execute(select(Stop).order_by(Stop.order))).scalars().all()
     assert rows[0].slug == "londres"
     assert rows[0].currency_code == "GBP"
@@ -49,5 +50,6 @@ async def test_sync_returns_zero_on_error(db_session, monkeypatch):
     get_settings.cache_clear()
     async with _client({}, status=500) as c:
         n = await sync_stops(db_session, client=c)
-    assert n == 0
+    assert n["synced"] == 0
+    assert n["status"] == "fetch_failed"
     get_settings.cache_clear()

@@ -175,9 +175,12 @@ async def handle_delete(session, user: User, wa_id: str, parsed, today: date) ->
     mv = candidates[0]
     payer = await _payer_name(session, mv)
     cat = await _cat_name(session, mv)
+    token = await create_pending(
+        session, owner=user.username, payload={"ids": [mv.id]}, kind="del_confirm",
+    )
     return buttons_reply(
         f"{copy.H_WARN} ¿Borrar este movimiento? Es irreversible.\n{movement_summary(mv, cat, payer)}",
-        [(f"del_confirm:{mv.id}", "Borrar 🗑️"), ("del_cancel:0", "Cancelar")],
+        [(f"del_confirm:{token}", "Borrar 🗑️"), ("del_cancel:0", "Cancelar")],
     )
 
 
@@ -201,7 +204,7 @@ def _deserialize_changes(raw: dict) -> dict:
 
 
 async def apply_edit_pick(session, user: User, wa_id: str, token: str, movement_id: int, today: date) -> BotReply:
-    data = await load_pending(session, token)
+    data = await load_pending(session, token, owner=user.username)
     if data is None:
         return text_reply("⚠️ Expiró: ese pending ya no está disponible.")
     mv = (await session.execute(select(Movement).where(Movement.id == movement_id))).scalar_one_or_none()
@@ -213,7 +216,7 @@ async def apply_edit_pick(session, user: User, wa_id: str, token: str, movement_
 
 
 async def apply_delete_pick(session, user: User, token: str, movement_id: int) -> BotReply:
-    data = await load_pending(session, token)
+    data = await load_pending(session, token, owner=user.username)
     if data is None:
         return text_reply("⚠️ Expiró: ese pending ya no está disponible.")
     mv = (await session.execute(select(Movement).where(Movement.id == movement_id))).scalar_one_or_none()
@@ -222,7 +225,10 @@ async def apply_delete_pick(session, user: User, token: str, movement_id: int) -
         return text_reply("⚠️ No encontrado: ese movimiento ya no existe.")
     payer = await _payer_name(session, mv)
     cat = await _cat_name(session, mv)
+    confirm_token = await create_pending(
+        session, owner=user.username, payload={"ids": [mv.id]}, kind="del_confirm",
+    )
     return buttons_reply(
         f"{copy.H_WARN} ¿Borrar este movimiento? Es irreversible.\n{movement_summary(mv, cat, payer)}",
-        [(f"del_confirm:{mv.id}", "Borrar 🗑️"), ("del_cancel:0", "Cancelar")],
+        [(f"del_confirm:{confirm_token}", "Borrar 🗑️"), ("del_cancel:0", "Cancelar")],
     )

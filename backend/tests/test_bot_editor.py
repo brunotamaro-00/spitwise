@@ -143,8 +143,7 @@ async def test_delete_by_reference_confirms_then_deletes(db_session):
     reply = await dispatch(db_session, "549111", "text", "borrá el museo", None, TODAY, llm_client=fake)
     assert reply.buttons and reply.buttons[0][0].startswith("del_confirm:")
     assert "Museo" in (reply.text or "")
-    mid = int(reply.buttons[0][0].split(":")[1])
-    await handle_interactive(db_session, u1, "549111", f"del_confirm:{mid}", TODAY)
+    await handle_interactive(db_session, u1, "549111", reply.buttons[0][0], TODAY)
     left = (await db_session.execute(select(Movement.description))).scalars().all()
     assert left == ["cena"]
 

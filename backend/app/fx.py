@@ -3,6 +3,8 @@ from decimal import Decimal, ROUND_HALF_UP
 
 import httpx
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -22,8 +24,24 @@ async def _cached_rate(session: AsyncSession, currency: str, on_date: date) -> D
 
 
 async def _store_rate(session: AsyncSession, currency: str, on_date: date, rate: Decimal) -> None:
-    session.add(FxRate(currency=currency, rate_date=on_date, rate_to_usd=rate))
-    await session.flush()
+    """Inserta la tasa; si ya existe (race), no lanza — el caller re-lee cache."""
+    dialect = session.bind.dialect.name if session.bind is not None else ""
+    if dialect == "postgresql":
+        stmt = (
+            pg_insert(FxRate)
+            .values(currency=currency, rate_date=on_date, rate_to_usd=rate)
+            .on_conflict_do_nothing(index_elements=["currency", "rate_date"])
+        )
+        await session.execute(stmt)
+        await session.flush()
+        return
+    # SQLite (tests) y demás: insert + tolerar unique.
+    try:
+        async with session.begin_nested():
+            session.add(FxRate(currency=currency, rate_date=on_date, rate_to_usd=rate))
+            await session.flush()
+    except IntegrityError:
+        pass
 
 
 def _fallback_rate(currency: str) -> Decimal:
@@ -42,7 +60,11 @@ async def get_rate_to_usd(
     if currency == "USD":
         return Decimal("1"), "direct"
 
-    cached = await _cached_rate(session, currency, on_date)
+    # ARS: dolarapi solo publica MEP vivo (hoy). Nunca cachear bajo fechas arbitrarias
+    # ni reutilizar caches de otros días como si fueran históricos.
+    cache_date = date.today() if currency == "ARS" else on_date
+
+    cached = await _cached_rate(session, currency, cache_date)
     if cached is not None:
         return cached, "cache"
 
@@ -63,7 +85,11 @@ async def get_rate_to_usd(
             resp.raise_for_status()
             rate = Decimal(str(resp.json()["rates"]["USD"]))
             source = "frankfurter"
-        await _store_rate(session, currency, on_date, rate)
+        await _store_rate(session, currency, cache_date, rate)
+        # Si hubo race y otro proceso ganó el insert, devolver lo cacheado.
+        cached_after = await _cached_rate(session, currency, cache_date)
+        if cached_after is not None:
+            return cached_after, source
         return rate, source
     except Exception:
         return _fallback_rate(currency), "fallback"

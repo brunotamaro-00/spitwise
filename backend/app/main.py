@@ -17,16 +17,35 @@ from app.users import seed_users_from_env
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+_DEFAULT_SECRETS = {
+    "secret_key": "change-me-in-production-use-a-long-random-string",
+    "bot_api_key": "change-me-bot-key",
+    "trip_shared_api_key": "change-me-shared-key",
+}
+
+
+def _assert_prod_secrets() -> None:
+    s = get_settings()
+    if s.environment in ("dev", "test"):
+        return
+    bad = [name for name, default in _DEFAULT_SECRETS.items() if getattr(s, name) == default]
+    if bad:
+        raise RuntimeError(
+            f"Secrets con valor default en environment={s.environment!r}: {', '.join(bad)}. "
+            "Configurá SECRET_KEY / TRIP_SHARED_API_KEY / BOT_API_KEY antes de arrancar."
+        )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _assert_prod_secrets()
     maker = get_sessionmaker()
     async with maker() as session:
         await seed_categories(session)
         await session.commit()
         await seed_users_from_env(session)
         if get_settings().andiamo_url:
-            await sync_stops(session)  # primer sync; tolerante a fallo (devuelve 0)
+            await sync_stops(session)  # primer sync; tolerante a fallo
     yield
 
 

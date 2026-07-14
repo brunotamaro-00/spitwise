@@ -100,6 +100,7 @@ export default function AddMovementDialog({ editing, onClose }: {
   const save = useMutation({
     mutationFn: async () => {
       const stop = stops.find((s) => s.slug === stopSlug);
+      const isEdit = Boolean(editing && !completing);
       const body: Partial<Movement> & { general?: boolean } = {
         amount: normalizeAmountInput(amount),
         currency,
@@ -107,14 +108,24 @@ export default function AddMovementDialog({ editing, onClose }: {
         category_id: categoryId ? Number(categoryId) : null,
         split,
         movement_date: date,
-        // Ciudad vacía => el backend deriva por fecha. "General" => sin ciudad.
-        stop_slug: stop ? stop.slug : null,
-        city_name: stop ? stop.name : null,
-        general: stopSlug === GENERAL,
       };
       if (paidBy) body.paid_by = Number(paidBy);
-      // Completar => alta de un movimiento nuevo (el original queda intacto).
-      return editing && !completing ? updateMovement(editing.id, body) : createMovement(body);
+
+      if (stopSlug === GENERAL) {
+        body.stop_slug = null;
+        body.city_name = null;
+        body.general = true;
+      } else if (stop) {
+        body.stop_slug = stop.slug;
+        body.city_name = stop.name;
+      } else if (!isEdit) {
+        // Create + Auto: nulls => backend deriva por fecha.
+        body.stop_slug = null;
+        body.city_name = null;
+      }
+      // Edit + Auto: omitir stop_* para que el backend re-derive / no limpie a ciegas.
+
+      return isEdit ? updateMovement(editing!.id, body) : createMovement(body);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["movements"] });

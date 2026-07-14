@@ -118,8 +118,8 @@ async def parse_message(
 
     intent = raw.get("intent")
     if intent not in _VALID_INTENTS:
-        # Compat: payloads viejos sin intent usaban is_settlement.
-        intent = "settlement" if raw.get("is_settlement") else "expense"
+        # Compat: payloads viejos sin intent usaban is_settlement; resto => unknown.
+        intent = "settlement" if raw.get("is_settlement") else "unknown"
 
     category = raw.get("category")
     if category not in category_names:

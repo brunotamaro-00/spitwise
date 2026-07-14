@@ -58,15 +58,16 @@ Redeploy de Andiamo después de agregarlas (habilita `GET /api/stops` y el chip 
 
 ## Checklist end-to-end (con los números reales)
 
-- [ ] "cena 45 libras" → `✅ Comida: GBP 45 (USD ~57) · <ciudad activa>` + botones de split; en logs de Railway no hay reintentos de Meta (el 200 salió antes del LLM).
-- [ ] Tap "Solo mío" → confirma el cambio de split.
+- [ ] "cena 45 libras" → `✅ Gasto guardado` / tarjeta con monto + ciudad activa; **sin** botones de split (el split se cambia con lenguaje natural, ej. "esa cena fue solo mía").
+- [ ] "la cena fue solo mía" → confirma el cambio de split.
 - [ ] "borrar" → botones de confirmación → "Borrar 🗑️" borra.
-- [ ] Mismo gasto desde los 2 números a la vez → cada botón de split edita el movimiento propio (sin race).
+- [ ] Mismo gasto desde los 2 números a la vez → cada uno crea su propio movimiento (locks por `wa_id`; no hay race sobre un split compartido).
 - [ ] Dashboard mobile: gasto visible, balance actualizado, ciudad activa correcta por fecha/timezone.
 - [ ] "le pasé 20 usd" → settlement, el neto baja.
 - [ ] "empanadas 5000 pesos" → ARS por dólar MEP, `fx_source=dolarapi`.
 - [ ] Andiamo `/stops/<ciudad-activa>` → chip "Gastado: USD X".
 - [ ] Corregir `fx_rate` en la web → recalcula USD (`fx_source=manual`); editar después la descripción NO pisa la tasa.
+- [ ] Si el bot falla en background, el usuario recibe un mensaje "Se me trabó…" (no silencio).
 
 ## Runbook
 

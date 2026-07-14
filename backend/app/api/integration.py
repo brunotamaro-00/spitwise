@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+import secrets
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +16,7 @@ router = APIRouter(tags=["integration"])
 
 
 async def require_api_key(x_api_key: str = Header(...)) -> None:
-    if x_api_key != get_settings().trip_shared_api_key:
+    if not secrets.compare_digest(x_api_key, get_settings().trip_shared_api_key):
         raise HTTPException(status_code=401, detail="API key inválida")
 
 
@@ -25,6 +26,7 @@ async def cities_spend(
     _: None = Depends(require_api_key),
     session: AsyncSession = Depends(get_session),
 ) -> list[CitySpendPublicOut]:
+    """Total del hogar (gross amount_usd de expenses), no share personal."""
     stmt = (
         select(Movement.stop_slug, Movement.city_name,
                func.sum(Movement.amount_usd), func.count())
@@ -45,5 +47,4 @@ async def trigger_sync(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    n = await sync_stops(session)
-    return {"synced": n}
+    return await sync_stops(session)

@@ -1,10 +1,16 @@
 import type { Movement } from "@/types";
+import { myShare } from "@/lib/share";
 
 export type DayGroup = { date: string; items: Movement[] };
 
-/** Total USD de los gastos de un grupo (los settlements no suman gasto). */
+/** Total USD bruto de los gastos de un grupo (los settlements no suman gasto). */
 export function dayTotalUsd(items: Movement[]): number {
   return items.reduce((acc, m) => acc + (m.type === "expense" ? Number(m.amount_usd) : 0), 0);
+}
+
+/** Total de la parte del usuario (misma semántica que analytics). */
+export function dayTotalShare(items: Movement[], userId: number): number {
+  return items.reduce((acc, m) => acc + myShare(m, userId), 0);
 }
 
 /** Agrupa movimientos en bloques consecutivos por día, preservando el orden

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
 from app.api.schemas import MovementIn, MovementOut, MovementUpdate
-from app.bot.active_stop import stop_for_date
+from app.bot.active_stop import place_for_date, resolve_trip_timezone
 from app.db.engine import get_session
 from app.db.models import Movement, User
 from app.fx import convert_to_usd
@@ -20,9 +20,16 @@ def _map_source(fx_source: str, currency: str) -> str:
     # FX devuelve frankfurter|dolarapi|cache|direct|fallback.
     if fx_source == "fallback":
         return "fallback"
+    if fx_source == "direct" or currency.upper() == "USD":
+        return "direct" if currency.upper() == "USD" else fx_source
     if currency.upper() == "ARS":
         return "dolarapi"
     return "frankfurter"
+
+
+async def _load_today(session: AsyncSession):
+    tz = await resolve_trip_timezone(session)
+    return today_in_tz(tz)
 
 
 @router.post("", response_model=MovementOut, status_code=status.HTTP_201_CREATED)
@@ -31,22 +38,30 @@ async def create_movement(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Movement:
-    # Plan 4 reemplaza el None por la timezone de la parada activa.
-    mdate = body.movement_date or today_in_tz(None)
+    today = await _load_today(session)
+    mdate = body.movement_date or today
     stop_slug, city_name = body.stop_slug, body.city_name
     # `general` (o un saldo) => sin ciudad; no derivar la parada activa por fecha.
     is_general = body.general or body.type == "settlement"
     if not is_general and stop_slug is None and city_name is None:
-        stop = await stop_for_date(session, mdate)
+        stop = await place_for_date(session, mdate)
         if stop is not None:
             stop_slug, city_name = stop.slug, stop.name
+    if body.type == "settlement":
+        stop_slug, city_name = None, None
     if body.fx_rate is not None:
         rate = body.fx_rate
+        # ARS system rate is ~1/venta (<1). Users often type pesos-per-USD (>1).
+        if body.currency.upper() == "ARS" and rate >= 1:
+            raise HTTPException(
+                status_code=422,
+                detail="fx_rate para ARS debe ser el multiplicador a USD (ej. 0.000625), no pesos por dólar",
+            )
         amount_usd = (body.amount * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         fx_source = "manual"
     else:
         # Regla: el TC es siempre el de la fecha de CARGA, no la del gasto.
-        amount_usd, rate, src = await convert_to_usd(session, body.amount, body.currency, today_in_tz(None))
+        amount_usd, rate, src = await convert_to_usd(session, body.amount, body.currency, today)
         fx_source = _map_source(src, body.currency)
     mv = Movement(
         type=body.type,
@@ -58,7 +73,7 @@ async def create_movement(
         paid_by=body.paid_by or user.id,
         split=body.split,
         description=body.description,
-        category_id=body.category_id,
+        category_id=None if body.type == "settlement" else body.category_id,
         stop_slug=stop_slug,
         city_name=city_name,
         movement_date=mdate,
@@ -108,15 +123,35 @@ async def update_movement(
     if "currency" in sent:
         mv.currency = body.currency.upper()
 
-    # Si cambió la fecha y no vino una parada explícita, re-derivar la ciudad.
-    if "movement_date" in sent and not ({"stop_slug", "city_name"} & sent):
-        stop = await stop_for_date(session, mv.movement_date)
-        if stop is not None:
-            mv.stop_slug, mv.city_name = stop.slug, stop.name
+    # general=True => forzar sin ciudad.
+    if "general" in sent and body.general:
+        mv.stop_slug, mv.city_name = None, None
+
+    # Si cambió la fecha y no vino override de ciudad / general, re-derivar (o limpiar).
+    if "movement_date" in sent and not ({"stop_slug", "city_name"} & sent) and not (
+        "general" in sent and body.general
+    ):
+        if mv.type != "settlement":
+            stop = await place_for_date(session, mv.movement_date)
+            if stop is not None:
+                mv.stop_slug, mv.city_name = stop.slug, stop.name
+            else:
+                mv.stop_slug, mv.city_name = None, None
+
+    # Settlement nunca lleva ciudad.
+    if mv.type == "settlement":
+        mv.stop_slug, mv.city_name = None, None
+        mv.category_id = None
 
     fx_inputs_changed = sent & {"amount", "currency"}
     if "fx_rate" in sent:
-        # Override explícito -> manual.
+        if body.fx_rate is None:
+            raise HTTPException(status_code=422, detail="fx_rate no puede ser null")
+        if mv.currency == "ARS" and body.fx_rate >= 1:
+            raise HTTPException(
+                status_code=422,
+                detail="fx_rate para ARS debe ser el multiplicador a USD (ej. 0.000625), no pesos por dólar",
+            )
         mv.fx_rate = body.fx_rate
         mv.fx_source = "manual"
         mv.amount_usd = (mv.amount * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
@@ -125,8 +160,9 @@ async def update_movement(
             # Respetar la tasa manual vigente; solo recalcular el monto.
             mv.amount_usd = (mv.amount * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         else:
+            today = await _load_today(session)
             # Regla: el TC es siempre el de la fecha de CARGA/edición, no la del gasto.
-            amount_usd, rate, src = await convert_to_usd(session, mv.amount, mv.currency, today_in_tz(None))
+            amount_usd, rate, src = await convert_to_usd(session, mv.amount, mv.currency, today)
             mv.amount_usd = amount_usd
             mv.fx_rate = rate
             mv.fx_source = _map_source(src, mv.currency)
@@ -144,7 +180,8 @@ async def delete_movement(
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     mv = (await session.execute(select(Movement).where(Movement.id == movement_id))).scalar_one_or_none()
-    if mv is not None:
-        await session.delete(mv)
-        await session.commit()
+    if mv is None:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    await session.delete(mv)
+    await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

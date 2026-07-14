@@ -35,7 +35,7 @@ export default function Dashboard() {
   // No mostrar el bucket "Sin ciudad" (gastos generales) en el gráfico por ciudad.
   const cityRows = (byCity.data ?? []).filter((c) => c.stop_slug || c.city_name);
 
-  const queries = [balance, summary, byCity, byCat, daily];
+  const queries = [balance, summary, byCity, byCat, daily, trip];
   if (queries.some((q) => q.isError)) {
     return (
       <div className="flex flex-col gap-5">

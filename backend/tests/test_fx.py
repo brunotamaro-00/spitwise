@@ -57,9 +57,34 @@ async def test_ars_uses_dolarapi_mep(db_session):
         rate, source = await get_rate_to_usd(db_session, "ARS", date(2026, 8, 6), client=client)
     assert source == "dolarapi"
     assert rate == Decimal("0.000625")  # 1/1600
-    # Segunda llamada: cache.
+    # Segunda llamada: cache (bajo date.today(), no bajo la fecha pedida).
     rate2, source2 = await get_rate_to_usd(db_session, "ARS", date(2026, 8, 6))
     assert (rate2, source2) == (Decimal("0.000625"), "cache")
+
+
+async def test_ars_does_not_poison_cache_under_requested_date(db_session):
+    """ARS vive en 'hoy': pedir una fecha pasada no debe crear fila under that date."""
+    from sqlalchemy import select
+
+    from app.db.models import FxRate
+
+    past = date(2020, 1, 1)
+    async with _mock_mep_client(1600.0) as client:
+        await get_rate_to_usd(db_session, "ARS", past, client=client)
+    rows = (await db_session.execute(select(FxRate).where(FxRate.currency == "ARS"))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].rate_date == date.today()
+    assert rows[0].rate_date != past
+
+
+async def test_store_race_returns_cached_not_fallback(db_session):
+    """Tras insert exitoso, re-read de cache no cae a fallback."""
+    async with _mock_client(1.50) as client:
+        rate, source = await get_rate_to_usd(db_session, "CHF", date(2026, 8, 6), client=client)
+    assert source == "frankfurter"
+    assert rate == Decimal("1.50")
+    rate2, source2 = await get_rate_to_usd(db_session, "CHF", date(2026, 8, 6))
+    assert (rate2, source2) == (Decimal("1.50"), "cache")
 
 
 async def test_ars_fallback_on_dolarapi_error(db_session):
