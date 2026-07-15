@@ -17,9 +17,10 @@ from app.users import seed_users_from_env
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+# Solo secretos que la app usa de verdad. bot_api_key existe en config pero no se lee
+# en ningún endpoint — no debe tumbar el deploy.
 _DEFAULT_SECRETS = {
     "secret_key": "change-me-in-production-use-a-long-random-string",
-    "bot_api_key": "change-me-bot-key",
     "trip_shared_api_key": "change-me-shared-key",
 }
 
@@ -32,7 +33,7 @@ def _assert_prod_secrets() -> None:
     if bad:
         raise RuntimeError(
             f"Secrets con valor default en environment={s.environment!r}: {', '.join(bad)}. "
-            "Configurá SECRET_KEY / TRIP_SHARED_API_KEY / BOT_API_KEY antes de arrancar."
+            "Configurá SECRET_KEY / TRIP_SHARED_API_KEY antes de arrancar."
         )
 
 
