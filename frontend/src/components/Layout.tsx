@@ -41,10 +41,10 @@ export default function Layout() {
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-border bg-surface px-4 py-6 lg:flex">
         <div className="flex items-center gap-3 px-2">
-          <img src="/logo-sm.png" alt="" className="-my-1 h-12 w-12 object-contain" />
+          <img src="/brand/mark-tile.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 object-contain drop-shadow-sm" />
           <div>
-            <Wordmark className="text-[1.6rem]" />
-            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
+            <Wordmark className="text-[1.5rem]" />
+            <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
               Europa 2026
             </p>
           </div>
@@ -81,9 +81,9 @@ export default function Layout() {
 
       {/* Header (mobile) */}
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-md lg:hidden">
-        <span className="flex items-center gap-2">
-          <img src="/logo-sm.png" alt="" className="-my-2 h-11 w-11 object-contain" />
-          <Wordmark className="text-[1.35rem]" />
+        <span className="flex items-center gap-2.5">
+          <img src="/brand/mark-tile.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain drop-shadow-sm" />
+          <Wordmark className="text-[1.3rem]" />
         </span>
         <div className="flex items-center gap-2">
           {avatar}

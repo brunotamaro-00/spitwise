@@ -19,6 +19,14 @@
   --color-brick-bg: #FBEAE4;
   --color-brick-border: #E9C4B9;
 
+  /* Espresso — marrón profundo del tile del logo. Superficie de marca oscura
+     (hero, login, splash). Muestreado del master: #342112. */
+  --color-espresso: #342112;
+  --color-espresso-2: #46301E;     /* elevación / borde interior */
+  --color-espresso-ink: #F4ECE1;   /* texto primario sobre espresso (AA+) */
+  --color-espresso-ink-2: #CBB8A4; /* texto secundario sobre espresso */
+  --color-espresso-border: #5A4430; /* divisores sobre espresso */
+
   /* Familia de acentos de viaje — derivada de la paleta categórica validada
      (dataviz). UI y charts comparten estos tokens: una sola verdad de color. */
   --color-accent-blue: #2E6FBF;   /* Comida */
@@ -62,6 +70,8 @@
   --gradient-hero: linear-gradient(135deg, #C44428 0%, #B0491F 45%, #A67F2A 100%);
   --gradient-brick: linear-gradient(135deg, #C44428 0%, #9A341D 100%);
   --gradient-plum: linear-gradient(135deg, #8E3D88 0%, #5C2A70 100%);
+  /* Espresso: profundidad cálida para paneles de marca oscuros. */
+  --gradient-espresso: linear-gradient(160deg, #3E2818 0%, #2C1B0E 100%);
 }
 
 body {
@@ -82,6 +92,14 @@ body {
   .hero-gradient { background-image: var(--gradient-hero); }
   .brick-gradient { background-image: var(--gradient-brick); }
   .plum-gradient { background-image: var(--gradient-plum); }
+
+  /* Superficie de marca oscura (eco del tile del logo). Combinar con un hijo
+     .spit-dots posicionado para la firma del escupitajo. */
+  .espresso-panel {
+    background-color: var(--color-espresso);
+    background-image: var(--gradient-espresso);
+    color: var(--color-espresso-ink);
+  }
 
   /* Firma de marca: el "trail" de puntitos que escupe la llama del logo.
      Puntos tenues concentrados hacia la esquina superior derecha (diagonal). */
