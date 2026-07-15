@@ -1,22 +1,23 @@
 import { cn } from "@/lib/cn";
 
-/** Wordmark de Spitwise: Anton en tinta con un "trail" de puntitos terracota
- *  saliendo del final de la palabra — el escupitajo de la llama del logo.
- *  Escala con el font-size del contenedor (todo en em). */
-export function Wordmark({ className }: { className?: string }) {
+/** Wordmark de Spitwise: `spit` terracota + `wise` tinta, en minúscula y
+ *  Hanken Grotesk 800 — igual que el logo entregado. Escala con el font-size
+ *  del contenedor. El escupitajo (firma de marca) vive en el logo y en
+ *  `SpitDivider`, no en el texto. */
+export function Wordmark({ className, tone = "light" }: { className?: string; tone?: "light" | "dark" }) {
+  // Sobre espresso, `wise` en tinta desaparece: usamos crema, y un terracota
+  // más claro para `spit` que mantiene contraste AA.
+  const spit = tone === "dark" ? "text-[#E68A5C]" : "text-brick";
+  const wise = tone === "dark" ? "text-espresso-ink" : "text-ink";
   return (
     <span
       className={cn(
-        "relative inline-block whitespace-nowrap pr-[0.45em] font-display leading-none text-ink",
+        "inline-block whitespace-nowrap font-sans text-[1.05em] font-extrabold lowercase leading-none tracking-[-0.035em]",
         className,
       )}
     >
-      Spitwise
-      <span aria-hidden="true">
-        <span className="absolute bottom-[0.34em] right-[0.28em] h-[0.11em] w-[0.11em] rounded-full bg-brick" />
-        <span className="absolute bottom-[0.55em] right-[0.14em] h-[0.085em] w-[0.085em] rounded-full bg-brick/70" />
-        <span className="absolute bottom-[0.74em] right-[0.02em] h-[0.06em] w-[0.06em] rounded-full bg-brick/40" />
-      </span>
+      <span className={spit}>spit</span>
+      <span className={wise}>wise</span>
     </span>
   );
 }
