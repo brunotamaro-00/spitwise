@@ -81,6 +81,42 @@ async def test_date_outside_itinerary_has_no_city(db_session):
     assert "Sin ciudad" in reply.text
 
 
+async def test_pre_trip_today_has_no_city(db_session):
+    """Antes del viaje, un gasto de hoy sin ciudad explícita queda General.
+
+    Antes caía en la primera parada (Londres) por el fallback leniente de
+    resolve_active_stop → _pick_stop.
+    """
+    u1, _ = await _setup(db_session)
+    pre_trip = date(2026, 7, 16)  # Londres llega el 1/8
+    fake = FakeLLM(_payload(
+        amount="320", currency="USD", description="seguro de viaje",
+        category="Otros", split="payer_only",
+    ))
+    reply = await handle_capture(
+        db_session, u1, "549111", "seguro de viaje 320 usd solo bruno",
+        pre_trip, llm_client=fake,
+    )
+    mv = (await db_session.execute(select(Movement))).scalar_one()
+    assert mv.city_name is None and mv.stop_slug is None
+    assert mv.currency == "USD"
+    assert "Sin ciudad" in reply.text
+
+
+async def test_today_session_override_still_applies(db_session):
+    """Day-trip override de sesión sigue imputando ciudad al cargar 'hoy'."""
+    from app.bot.active_stop import set_active_stop_override
+
+    u1, _ = await _setup(db_session)
+    await set_active_stop_override(db_session, "549111", "roma", "Roma", "EUR")
+    fake = FakeLLM(_payload(amount="10", description="gelato", category="Comida"))
+    await handle_capture(db_session, u1, "549111", "gelato 10", TODAY, llm_client=fake)
+    mv = (await db_session.execute(select(Movement))).scalar_one()
+    assert mv.stop_slug == "roma"
+    assert mv.city_name == "Roma"
+    assert mv.currency == "EUR"
+
+
 async def test_paid_by_name_sets_other_user_as_payer(db_session):
     u1, u2 = await _setup(db_session)
     fake = FakeLLM(_payload(amount="20", currency="USD", description="museo",

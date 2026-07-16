@@ -31,7 +31,7 @@ class ParsedMessage:
     split: str = "shared"
     paid_by: str | None = None  # username, None => quien escribe
     movement_date: date | None = None  # None => hoy
-    city: str | None = None  # None => itinerario según fecha
+    city: str | None = None  # None => itinerario estricto por fecha (fuera de rango => General)
     confidence: float = 1.0
     category_candidates: list[str] = field(default_factory=list)
     # edit / delete

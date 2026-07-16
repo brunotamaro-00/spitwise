@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import copy
-from app.bot.active_stop import place_for_date, resolve_active_stop, visible_stops
+from app.bot.active_stop import get_state_payload, place_for_date, visible_stops
 from app.bot.pending import close_pending, create_pending, load_pending
 from app.bot.render import (
     BotReply, buttons_reply, cat_label, expense_card, fmt_money, settlement_card, text_reply,
@@ -68,8 +68,10 @@ async def resolve_place(session, wa_id: str, movement_date: date, today: date,
     """(stop_slug, city_name, currency_code) para la fecha del movimiento.
 
     - Ciudad explícita en el mensaje: si matchea una parada, esa; si no, texto libre.
-    - Fecha = hoy: parada activa (respeta el override de sesión para day-trips).
-    - Otra fecha: parada del itinerario para esa fecha; fuera de rango => sin ciudad.
+    - Sin ciudad explícita: parada del itinerario solo si la fecha cae en rango
+      (misma semántica estricta que la API web). Antes del viaje, gaps o
+      post-viaje => sin ciudad (General).
+    - Fecha = hoy: respeta override de sesión (day-trips) antes de imputar.
 
     `username` es el remitente: define qué paradas propias ve (p.ej. Pititas solo
     para su dueña). Una parada ajena nunca matchea, ni por nombre explícito.
@@ -82,10 +84,12 @@ async def resolve_place(session, wa_id: str, movement_date: date, today: date,
                 return s.slug, s.name, (s.currency_code or "USD")
         return None, explicit_city.strip(), "USD"
 
+    # Day-trip override de sesión: solo aplica al cargar "hoy".
     if movement_date == today:
-        return await resolve_active_stop(session, wa_id, today, username)
+        ov = (await get_state_payload(session, wa_id)).get("active_stop") or {}
+        if ov.get("stop_slug"):
+            return ov["stop_slug"], ov.get("city_name"), ov.get("currency_code", "USD")
 
-    # Misma semántica estricta que la API web (place_for_date).
     stop = await place_for_date(session, movement_date, username)
     if stop is None:
         return None, None, "USD"
