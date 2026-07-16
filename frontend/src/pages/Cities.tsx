@@ -15,6 +15,7 @@ import {
 } from "@/api/cities";
 import { getMe } from "@/api/users";
 import CategoryDonut from "@/components/CategoryDonut";
+import Flag from "@/components/Flag";
 import SpendBarChart from "@/components/SpendBarChart";
 import MovementRow from "@/components/MovementRow";
 import MovementSheet from "@/components/MovementSheet";
@@ -158,7 +159,7 @@ export default function Cities() {
                 }`}
               >
                 <span className="flex max-w-full items-center gap-1.5 text-sm font-bold">
-                  {b.country_flag && <span aria-hidden="true">{b.country_flag}</span>}
+                  {b.country_flag && <Flag flag={b.country_flag} className="text-sm leading-none" />}
                   <span className="truncate">{b.city_name ?? "Generales"}</span>
                   {b.is_archived && (
                     <Archive
@@ -189,7 +190,7 @@ export default function Cities() {
         <div className="relative">
           <div className="flex items-center gap-3">
             {flag ? (
-              <span className="text-3xl leading-none" aria-hidden="true">{flag}</span>
+              <Flag flag={flag} className="text-3xl leading-none" />
             ) : (
               <MapPin size={26} strokeWidth={2} aria-hidden="true" />
             )}

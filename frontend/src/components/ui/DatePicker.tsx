@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { formatDayHeader, todayLocal } from "@/lib/format";
 import { stopForDate } from "@/lib/stops";
+import Flag from "@/components/Flag";
 import type { Stop } from "@/types";
 
 const WEEKDAYS = ["L", "M", "M", "J", "V", "S", "D"];
@@ -129,8 +130,8 @@ export default function DatePicker({
         <span className="flex items-center gap-2">
           {value ? capitalizeDay(formatDayHeader(value)) : "Elegir fecha"}
           {derived && (
-            <span className="text-ink-faint" aria-hidden="true">
-              · {derived.country_flag} {derived.name}
+            <span className="inline-flex items-center gap-1 text-ink-faint" aria-hidden="true">
+              · <Flag flag={derived.country_flag} className="text-sm" /> {derived.name}
             </span>
           )}
         </span>
@@ -191,12 +192,10 @@ export default function DatePicker({
                     >
                       <span className="font-tabular leading-none">{c.day}</span>
                       {stop?.country_flag && (
-                        <span
+                        <Flag
+                          flag={stop.country_flag}
                           className={cn("mt-0.5 text-[9px] leading-none", selected ? "opacity-90" : "opacity-70")}
-                          aria-hidden="true"
-                        >
-                          {stop.country_flag}
-                        </span>
+                        />
                       )}
                     </button>
                   );
@@ -206,7 +205,7 @@ export default function DatePicker({
               <div className="mt-2 flex items-center justify-between">
                 <span className="truncate text-xs text-ink-3">
                   {derived ? (
-                    <>Itinerario: <span className="font-semibold text-ink-2">{derived.country_flag} {derived.name}</span></>
+                    <>Itinerario: <span className="inline-flex items-center gap-1 font-semibold text-ink-2"><Flag flag={derived.country_flag} className="text-xs" /> {derived.name}</span></>
                   ) : (
                     "Sin ciudad en el itinerario para esta fecha"
                   )}

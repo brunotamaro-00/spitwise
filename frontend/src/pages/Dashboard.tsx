@@ -4,9 +4,8 @@ import { useState } from "react";
 
 import { getMe, listUsers } from "@/api/users";
 import { getBalance, getByCategory, getByCity, getSummary } from "@/api/dashboard";
-import { getCityDaily, getCitySummary, getStops } from "@/api/cities";
+import { getCityDaily, getCitySummary } from "@/api/cities";
 import BalanceHero from "@/components/BalanceHero";
-import TodayCard from "@/components/TodayCard";
 import CategoryDonut from "@/components/CategoryDonut";
 import CitySpendChart from "@/components/CitySpendChart";
 import SettleDialog from "@/components/SettleDialog";
@@ -27,7 +26,6 @@ export default function Dashboard() {
   const daily = useQuery({ queryKey: ["dashboard", "daily"], queryFn: () => getCityDaily([]) });
   // Promedio por día del viaje (base itinerario): dato económico del hero.
   const trip = useQuery({ queryKey: ["city", "summary", []], queryFn: () => getCitySummary([]) });
-  const stops = useQuery({ queryKey: ["stops"], queryFn: getStops, staleTime: 60_000 });
   const users = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
   const me = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
 
@@ -80,14 +78,6 @@ export default function Dashboard() {
           </Card>
         ) : (
           <Skeleton className="h-44" />
-        )}
-      </div>
-
-      <div className="animate-rise-in stagger-2">
-        {daily.data ? (
-          <TodayCard daily={daily.data} stops={stops.data ?? []} />
-        ) : (
-          <Skeleton className="h-20" />
         )}
       </div>
 

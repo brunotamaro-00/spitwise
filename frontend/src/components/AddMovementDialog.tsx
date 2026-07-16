@@ -259,7 +259,7 @@ export default function AddMovementDialog({ editing, onClose }: {
               <option value="">Auto (por fecha)</option>
               <option value={GENERAL}>General (sin ciudad)</option>
               {stops.map((s) => (
-                <option key={s.slug} value={s.slug}>{s.country_flag ? `${s.country_flag} ` : ""}{s.name}</option>
+                <option key={s.slug} value={s.slug}>{s.name}</option>
               ))}
             </Select>
           </Field>

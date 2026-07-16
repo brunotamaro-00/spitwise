@@ -1,5 +1,6 @@
 import { Handshake, Pencil, Trash2 } from "lucide-react";
 
+import Flag from "@/components/Flag";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { categoryBg, categoryColor } from "@/lib/chartTheme";
 import { formatAmount, formatUsd } from "@/lib/format";
@@ -47,7 +48,12 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
           {mv.description || (isSettlement ? "Pago (saldo)" : "Sin descripción")}
         </p>
         <p className="mt-0.5 truncate text-xs text-ink-3">
-          {mv.city_name ? `${flag ? `${flag} ` : ""}${mv.city_name} · ` : ""}
+          {mv.city_name ? (
+            <>
+              {flag && <Flag flag={flag} className="mr-1 text-[11px]" />}
+              {mv.city_name} ·{" "}
+            </>
+          ) : null}
           {isSettlement ? "Saldo" : SPLIT_LABEL[mv.split] ?? mv.split}
         </p>
       </div>

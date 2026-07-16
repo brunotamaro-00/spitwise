@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 
 import { listUsers } from "@/api/users";
+import Flag from "@/components/Flag";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { categoryIcon } from "@/lib/categoryIcons";
@@ -78,7 +79,16 @@ export default function MovementSheet({ mv, category, flag, myId, onEdit, onDele
         {!isSettlement && <Row label="Categoría">{category?.name ?? "Sin categoría"}</Row>}
         <Row label="Fecha">{capitalize(formatDayHeader(mv.movement_date))}</Row>
         {!isSettlement && (
-          <Row label="Ciudad">{mv.city_name ? `${flag ? `${flag} ` : ""}${mv.city_name}` : "General"}</Row>
+          <Row label="Ciudad">
+            {mv.city_name ? (
+              <span className="inline-flex items-center gap-1.5">
+                {flag && <Flag flag={flag} className="text-sm" />}
+                {mv.city_name}
+              </span>
+            ) : (
+              "General"
+            )}
+          </Row>
         )}
         <Row label={isSettlement ? "Pagó (transferencia)" : "Pagó"}>
           {payer ? capitalize(payer.username) : "—"}
