@@ -40,15 +40,20 @@ export default function Layout() {
     <div className="min-h-dvh lg:flex">
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-border bg-surface px-4 py-6 lg:flex">
-        <div className="flex items-center gap-3 px-2">
+        <NavLink
+          to="/"
+          end
+          aria-label="Ir al dashboard"
+          className="flex items-center gap-3 rounded-lg px-2 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+        >
           <img src="/brand/mark-tile.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 object-contain drop-shadow-sm" />
           <div>
-            <Wordmark className="text-[1.5rem]" />
+            <Wordmark className="text-[1.7rem]" />
             <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
               Europa 2026
             </p>
           </div>
-        </div>
+        </NavLink>
         <nav aria-label="Secciones" className="mt-8 flex flex-col gap-1">
           {TABS.map(({ to, label, Icon }) => (
             <NavLink
@@ -81,10 +86,15 @@ export default function Layout() {
 
       {/* Header (mobile) */}
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-md lg:hidden">
-        <span className="flex items-center gap-2.5">
+        <NavLink
+          to="/"
+          end
+          aria-label="Ir al dashboard"
+          className="flex items-center gap-2.5 rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+        >
           <img src="/brand/mark-tile.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain drop-shadow-sm" />
-          <Wordmark className="text-[1.3rem]" />
-        </span>
+          <Wordmark className="text-[1.8rem]" />
+        </NavLink>
         <div className="flex items-center gap-2">
           {avatar}
           {logoutBtn}
