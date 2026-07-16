@@ -6,6 +6,7 @@ import { listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
+import { useToast } from "@/components/ui/Toast";
 import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue } from "@/lib/format";
 import type { Balance } from "@/types";
 
@@ -15,6 +16,7 @@ export default function SettleDialog({ balance, onClose }: {
   balance?: Balance; onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const firstRef = useRef<HTMLSelectElement>(null);
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
   const [amount, setAmount] = useState(balance ? toInputValue(balance.amount_usd) : "");
@@ -36,6 +38,7 @@ export default function SettleDialog({ balance, onClose }: {
       qc.invalidateQueries({ queryKey: ["balance"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["movements"] });
+      toast("success", "Pago registrado");
       onClose();
     },
     onError: () => setErr("No se pudo registrar el pago."),

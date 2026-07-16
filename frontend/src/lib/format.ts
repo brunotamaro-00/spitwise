@@ -39,6 +39,17 @@ export function toInputValue(s: string | null | undefined): string {
   return Number.isInteger(n) ? String(n) : String(n).replace(".", ",");
 }
 
+/** Hoy en formato ISO (yyyy-mm-dd) en la zona horaria LOCAL del dispositivo.
+ *  Nunca usar toISOString().slice(0,10): eso es UTC y después de medianoche
+ *  local imputa el gasto al día equivocado. */
+export function todayLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${da}`;
+}
+
 /** Fecha corta "dd/mm" sin corrimiento de zona horaria (estándar de la app). */
 export function formatShortDate(iso: string): string {
   const [, m, d] = iso.split("-");

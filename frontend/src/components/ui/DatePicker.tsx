@@ -3,7 +3,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/cn";
-import { formatDayHeader } from "@/lib/format";
+import { formatDayHeader, todayLocal } from "@/lib/format";
+import { stopForDate } from "@/lib/stops";
 import type { Stop } from "@/types";
 
 const WEEKDAYS = ["L", "M", "M", "J", "V", "S", "D"];
@@ -20,19 +21,6 @@ function pad(n: number): string {
 function iso(y: number, m: number, d: number): string {
   return `${y}-${pad(m + 1)}-${pad(d)}`;
 }
-function todayISO(): string {
-  const d = new Date();
-  return iso(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-/** Parada del itinerario activa en la fecha iso (arrival <= d < departure).
- *  Comparación lexicográfica directa: las fechas ISO yyyy-mm-dd ordenan bien. */
-function stopForDate(stops: Stop[], date: string): Stop | undefined {
-  return stops.find(
-    (s) => s.arrival_date && s.departure_date && s.arrival_date <= date && date < s.departure_date,
-  );
-}
-
 type Pos = { left: number; width: number; top?: number; bottom?: number };
 
 /** Campo de fecha con calendario propio (responsive). Se abre al tocar cualquier
@@ -52,7 +40,7 @@ export default function DatePicker({
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<Pos | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const initial = value || todayISO();
+  const initial = value || todayLocal();
   const [view, setView] = useState(() => {
     const [y, m] = initial.split("-").map(Number);
     return { y, m: (m || 1) - 1 };
@@ -127,7 +115,7 @@ export default function DatePicker({
     });
   }
 
-  const today = todayISO();
+  const today = todayLocal();
 
   return (
     <div>

@@ -9,6 +9,7 @@ import { deleteMovement, listMovements } from "@/api/movements";
 import { getMe } from "@/api/users";
 import AddMovementDialog from "@/components/AddMovementDialog";
 import MovementRow from "@/components/MovementRow";
+import MovementSheet from "@/components/MovementSheet";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -16,6 +17,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import { Field, Input, Select } from "@/components/ui/Field";
 import Skeleton from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 import { formatAmount, formatDayHeader, formatUsd } from "@/lib/format";
 import { dayTotalShare, dayTotalUsd, groupByDay } from "@/lib/groupByDay";
 import { involvesMe, myShare } from "@/lib/share";
@@ -25,8 +27,10 @@ const EMPTY = { onlyMine: false, city: "", categoryId: "", from: "", to: "", q: 
 
 export default function Movements() {
   const qc = useQueryClient();
+  const toast = useToast();
   const [editing, setEditing] = useState<Movement | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [viewing, setViewing] = useState<Movement | null>(null);
   const [toDelete, setToDelete] = useState<Movement | null>(null);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -91,6 +95,7 @@ export default function Movements() {
       qc.invalidateQueries({ queryKey: ["city"] });
       setToDelete(null);
       setDeleteErr(null);
+      toast("success", "Movimiento borrado");
     },
     onError: () => setDeleteErr("No se pudo borrar. Probá de nuevo."),
   });
@@ -283,6 +288,7 @@ export default function Movements() {
                     category={m.category_id != null ? catMap[m.category_id] : undefined}
                     flag={m.stop_slug ? flagMap[m.stop_slug] : undefined}
                     preferShare={f.onlyMine}
+                    onOpen={setViewing}
                     onEdit={(mv) => { setEditing(mv); setEditOpen(true); }}
                     onDelete={(mv) => { setDeleteErr(null); setToDelete(mv); }} />
                 ))}
@@ -292,6 +298,17 @@ export default function Movements() {
         </div>
       )}
 
+      {viewing && (
+        <MovementSheet
+          mv={viewing}
+          myId={me?.id}
+          category={viewing.category_id != null ? catMap[viewing.category_id] : undefined}
+          flag={viewing.stop_slug ? flagMap[viewing.stop_slug] : undefined}
+          onEdit={(mv) => { setViewing(null); setEditing(mv); setEditOpen(true); }}
+          onDelete={(mv) => { setViewing(null); setDeleteErr(null); setToDelete(mv); }}
+          onClose={() => setViewing(null)}
+        />
+      )}
       {editOpen && <AddMovementDialog editing={editing} onClose={() => setEditOpen(false)} />}
       {toDelete && (
         <ConfirmDialog
