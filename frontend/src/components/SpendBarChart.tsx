@@ -93,7 +93,7 @@ export default function SpendBarChart({
       >
         <div className="absolute inset-0">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
+          <BarChart data={rows} margin={{ top: 6, right: 8, bottom: 0, left: 4 }}>
             <CartesianGrid vertical={false} stroke={GRID} />
             <XAxis
               dataKey="label"
@@ -102,7 +102,7 @@ export default function SpendBarChart({
               axisLine={false}
               minTickGap={granularity === "week" ? 8 : 16}
             />
-            <YAxis tick={TICK} tickLine={false} axisLine={false} width={40} tickFormatter={compactUsd} />
+            <YAxis tick={TICK} tickLine={false} axisLine={false} width={36} tickFormatter={compactUsd} />
             <Tooltip
               cursor={{ fill: "var(--color-surface-2)", opacity: 0.5 }}
               content={<ChartTooltip granularity={granularity} />}
