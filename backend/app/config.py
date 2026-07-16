@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     trip_shared_api_key: str = "change-me-shared-key"
     andiamo_url: str = ""  # ej. https://andiamo-production.up.railway.app
 
+    # Stop local "Pititas" (4-11 sept): username dueño de esa parada. Vacío =>
+    # no se siembra y el itinerario se comporta como si no existiera.
+    pititas_owner: str = ""
+
     # Dominio público de esta app (para deep-links del bot hacia el frontend).
     # ej. https://<spitwise>.up.railway.app ; vacío => el bot omite el link.
     spitwise_url: str = Field(default="", alias="SPITWISE_URL")

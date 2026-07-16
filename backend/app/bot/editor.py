@@ -63,7 +63,8 @@ async def _cat_name(session, mv: Movement) -> str | None:
     )).scalar_one_or_none()
 
 
-async def apply_changes(session, wa_id: str, mv: Movement, changes: dict, today: date) -> list[tuple[str, str, str]]:
+async def apply_changes(session, wa_id: str, mv: Movement, changes: dict, today: date,
+                        username: str | None = None) -> list[tuple[str, str, str]]:
     """Aplica cambios a un movimiento con recálculo en cascada. Devuelve diffs (label, antes, después)."""
     diffs: list[tuple[str, str, str]] = []
 
@@ -100,13 +101,15 @@ async def apply_changes(session, wa_id: str, mv: Movement, changes: dict, today:
         diffs.append(("📅", fmt_date(mv.movement_date), fmt_date(new_date)))
         mv.movement_date = new_date
         if "city" not in changes and mv.type != "settlement":
-            slug, city, _cur = await resolve_place(session, wa_id, new_date, today, None)
+            slug, city, _cur = await resolve_place(session, wa_id, new_date, today, None, username)
             if (slug, city) != (mv.stop_slug, mv.city_name):
                 diffs.append(("📍", mv.city_name or "Sin ciudad", city or "Sin ciudad"))
                 mv.stop_slug, mv.city_name = slug, city
 
     if "city" in changes and mv.type != "settlement":
-        slug, city, _cur = await resolve_place(session, wa_id, mv.movement_date, today, changes["city"])
+        slug, city, _cur = await resolve_place(
+            session, wa_id, mv.movement_date, today, changes["city"], username
+        )
         if (slug, city) != (mv.stop_slug, mv.city_name):
             diffs.append(("📍", mv.city_name or "Sin ciudad", city or "Sin ciudad"))
             mv.stop_slug, mv.city_name = slug, city
@@ -158,7 +161,7 @@ async def handle_edit(session, user: User, wa_id: str, parsed, today: date) -> B
 
 
 async def apply_edit_to(session, user: User, wa_id: str, mv: Movement, changes: dict, today: date) -> BotReply:
-    diffs = await apply_changes(session, wa_id, mv, changes, today)
+    diffs = await apply_changes(session, wa_id, mv, changes, today, user.username)
     if not diffs:
         return text_reply("Nada que cambiar: ya estaba así. 👌")
     return text_reply(edit_card(mv, diffs))

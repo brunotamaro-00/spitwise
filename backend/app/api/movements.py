@@ -27,8 +27,8 @@ def _map_source(fx_source: str, currency: str) -> str:
     return "frankfurter"
 
 
-async def _load_today(session: AsyncSession):
-    tz = await resolve_trip_timezone(session)
+async def _load_today(session: AsyncSession, username: str | None = None):
+    tz = await resolve_trip_timezone(session, username)
     return today_in_tz(tz)
 
 
@@ -38,13 +38,13 @@ async def create_movement(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Movement:
-    today = await _load_today(session)
+    today = await _load_today(session, user.username)
     mdate = body.movement_date or today
     stop_slug, city_name = body.stop_slug, body.city_name
     # `general` (o un saldo) => sin ciudad; no derivar la parada activa por fecha.
     is_general = body.general or body.type == "settlement"
     if not is_general and stop_slug is None and city_name is None:
-        stop = await place_for_date(session, mdate)
+        stop = await place_for_date(session, mdate, user.username)
         if stop is not None:
             stop_slug, city_name = stop.slug, stop.name
     if body.type == "settlement":
@@ -132,7 +132,7 @@ async def update_movement(
         "general" in sent and body.general
     ):
         if mv.type != "settlement":
-            stop = await place_for_date(session, mv.movement_date)
+            stop = await place_for_date(session, mv.movement_date, user.username)
             if stop is not None:
                 mv.stop_slug, mv.city_name = stop.slug, stop.name
             else:

@@ -34,19 +34,33 @@ async def require_api_key(x_api_key: str = Header(...)) -> None:
         raise HTTPException(status_code=401, detail="API key inválida")
 
 
+async def _local_slugs(session: AsyncSession) -> list[str]:
+    """Slugs que solo existen en Spitwise. Andiamo no los conoce, así que nunca
+    se le exponen como ciudad (su itinerario no tiene dónde renderizarlos)."""
+    return list(
+        (await session.execute(select(Stop.slug).where(Stop.is_local.is_(True)))).scalars().all()
+    )
+
+
 @router.get("/cities/spend", response_model=list[CitySpendPublicOut])
 async def cities_spend(
     slug: str | None = Query(default=None),
     _: None = Depends(require_api_key),
     session: AsyncSession = Depends(get_session),
 ) -> list[CitySpendPublicOut]:
-    """Total del hogar (gross amount_usd de expenses), no share personal."""
+    """Total del hogar (gross amount_usd de expenses), no share personal.
+    Excluye stops locales: son ciudades que no existen en el itinerario de Andiamo."""
     stmt = (
         select(Movement.stop_slug, Movement.city_name,
                func.sum(Movement.amount_usd), func.count())
         .where(_EXPENSE)
         .group_by(Movement.stop_slug, Movement.city_name)
     )
+    local = await _local_slugs(session)
+    if local:
+        stmt = stmt.where(
+            func.coalesce(Movement.stop_slug, "").not_in(local)
+        )
     if slug:
         stmt = stmt.where(Movement.stop_slug == slug)
     rows = (await session.execute(stmt)).all()
@@ -64,14 +78,20 @@ async def cities_spend_detail(
     session: AsyncSession = Depends(get_session),
 ) -> SpendDetailOut:
     """Detalle de gasto de una ciudad para Andiamo. Totales gross del hogar.
-    Siempre 200: slug desconocido => ceros y arrays vacíos (nunca 404)."""
-    base = select(Movement).where(_EXPENSE, Movement.stop_slug == slug)
-    movements = list((await session.execute(base)).scalars().all())
+    Siempre 200: slug desconocido => ceros y arrays vacíos (nunca 404).
+    Un stop local se trata como desconocido: para Andiamo no existe."""
+    is_local = slug in await _local_slugs(session)
+    movements: list[Movement] = []
+    if not is_local:
+        base = select(Movement).where(_EXPENSE, Movement.stop_slug == slug)
+        movements = list((await session.execute(base)).scalars().all())
 
     total = sum((m.amount_usd for m in movements), Decimal("0"))
     city_name = movements[0].city_name if movements else None
 
-    stop = (await session.execute(select(Stop).where(Stop.slug == slug))).scalar_one_or_none()
+    stop = None if is_local else (
+        await session.execute(select(Stop).where(Stop.slug == slug))
+    ).scalar_one_or_none()
     days = 0
     if stop and stop.arrival_date and stop.departure_date:
         days = max((stop.departure_date - stop.arrival_date).days, 0)

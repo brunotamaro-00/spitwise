@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.andiamo import ensure_stops_fresh
 from app.bot import copy
 from app.bot.active_stop import resolve_trip_timezone
+from app.users import username_for_wa_id
 from app.bot.dispatcher import dispatch
 from app.config import get_settings
 from app.db.engine import get_session, get_sessionmaker
@@ -73,7 +74,11 @@ async def process_message(m: IncomingMessage) -> None:
         async with _lock(m.wa_id):
             async with maker() as session:
                 await ensure_stops_fresh(session)  # lazy TTL, no bloquea
-                tz = await resolve_trip_timezone(session)
+                # La tz sale de la parada del remitente: durante Pititas, Katia
+                # y Bruno están en husos distintos.
+                tz = await resolve_trip_timezone(
+                    session, await username_for_wa_id(session, m.wa_id)
+                )
                 reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, today_in_tz(tz))
         try:
             if reply.buttons:

@@ -99,7 +99,7 @@ Definido en `backend/app/db/models.py`. Tipos API en `api/schemas.py`; mirror TS
 | **User** | Login web + `whatsapp_wa_id` |
 | **Category** | 7 fijas: Alojamiento, Comida, Transporte, Actividades, Compras, Bebidas/Salidas, Otros |
 | **Movement** | `expense` \| `settlement`; `split`: `shared` \| `payer_only` \| `other_only`; FX + ciudad |
-| **Stop** | Parada de itinerario cacheada desde Andiamo |
+| **Stop** | Parada de itinerario cacheada desde Andiamo (+ locales: ver `is_local`) |
 | **FxRate** | Cache diario de tasas |
 | **BotPendingAction** | Flujos multi-step (categoría ambigua, confirm delete) |
 | **WhatsAppSessionState** | Override de ciudad activa + historial Q&A |
@@ -113,6 +113,7 @@ Definido en `backend/app/db/models.py`. Tipos API en `api/schemas.py`; mirror TS
 4. **Fecha FX = hoy (load date)**, no la fecha del movimiento.
 5. **PATCH con `fx_rate` manual** → `fx_source=manual`; editar descripción después **no** debe pisar la tasa.
 6. **Itinerario** no se hardcodea: usar filas `Stop` sincronizadas.
+7. **Stops locales** (`Stop.is_local`, hoy solo *Pititas*): existen solo en Spitwise. El sync de Andiamo **no** los reconcilia y las APIs de integración **no** los exponen. Un `Stop.owner_username` seteado imputa solo a ese usuario, **por remitente** (no por `paid_by`). Ver `app/stops_local.py` y la sección *Stop local Pititas* de `DEPLOY.md`.
 
 ## API (prefijo `/api/v1`)
 

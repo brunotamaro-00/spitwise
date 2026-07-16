@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import copy
-from app.bot.active_stop import place_for_date, resolve_active_stop
+from app.bot.active_stop import place_for_date, resolve_active_stop, visible_stops
 from app.bot.pending import close_pending, create_pending, load_pending
 from app.bot.render import (
     BotReply, buttons_reply, cat_label, expense_card, fmt_money, settlement_card, text_reply,
@@ -63,16 +63,19 @@ async def user_by_username(session: AsyncSession, username: str) -> User | None:
     )).scalar_one_or_none()
 
 
-async def resolve_place(session, wa_id: str, movement_date: date, today: date, explicit_city: str | None):
+async def resolve_place(session, wa_id: str, movement_date: date, today: date,
+                        explicit_city: str | None, username: str | None = None):
     """(stop_slug, city_name, currency_code) para la fecha del movimiento.
 
     - Ciudad explícita en el mensaje: si matchea una parada, esa; si no, texto libre.
     - Fecha = hoy: parada activa (respeta el override de sesión para day-trips).
     - Otra fecha: parada del itinerario para esa fecha; fuera de rango => sin ciudad.
+
+    `username` es el remitente: define qué paradas propias ve (p.ej. Pititas solo
+    para su dueña). Una parada ajena nunca matchea, ni por nombre explícito.
     """
     if explicit_city:
-        from app.db.models import Stop
-        stops = (await session.execute(select(Stop))).scalars().all()
+        stops = await visible_stops(session, username)
         wanted = explicit_city.strip().casefold()
         for s in stops:
             if (s.name or "").casefold() == wanted:
@@ -80,10 +83,10 @@ async def resolve_place(session, wa_id: str, movement_date: date, today: date, e
         return None, explicit_city.strip(), "USD"
 
     if movement_date == today:
-        return await resolve_active_stop(session, wa_id, today)
+        return await resolve_active_stop(session, wa_id, today, username)
 
     # Misma semántica estricta que la API web (place_for_date).
-    stop = await place_for_date(session, movement_date)
+    stop = await place_for_date(session, movement_date, username)
     if stop is None:
         return None, None, "USD"
     return stop.slug, stop.name, (stop.currency_code or "USD")
@@ -117,8 +120,10 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
         return text_reply(f"{copy.H_WARN} No le pesqué el *monto*. Probá: _cena 20 euros_.")
 
     movement_date = parsed.movement_date or today
+    # La ciudad la define el remitente, no el pagador: si Katia carga "pagó
+    # bruno 30" desde Pititas, el gasto ocurrió donde está ella.
     stop_slug, city_name, place_currency = await resolve_place(
-        session, wa_id, movement_date, today, parsed.city
+        session, wa_id, movement_date, today, parsed.city, user.username
     )
     if parsed.currency is None:
         parsed.currency = place_currency

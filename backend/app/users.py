@@ -17,6 +17,13 @@ async def get_trip_users(session: AsyncSession) -> tuple[User, User]:
     return users[0], users[1]
 
 
+async def username_for_wa_id(session: AsyncSession, wa_id: str) -> str | None:
+    """Username del remitente de WhatsApp. None si el número no está registrado."""
+    return (
+        await session.execute(select(User.username).where(User.whatsapp_wa_id == wa_id))
+    ).scalar_one_or_none()
+
+
 async def seed_users_from_env(session: AsyncSession) -> None:
     from app.api.auth import hash_password
 

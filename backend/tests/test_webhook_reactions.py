@@ -51,7 +51,7 @@ def fake_env(monkeypatch):
     async def fake_stops(session):
         return None
 
-    async def fake_tz(session):
+    async def fake_tz(session, username=None):
         return "UTC"
 
     monkeypatch.setattr(webhook, "ensure_stops_fresh", fake_stops)

@@ -12,6 +12,7 @@ from app.andiamo import sync_stops
 from app.categories.seed import seed_categories
 from app.config import get_settings, parse_cors
 from app.db.engine import get_sessionmaker
+from app.stops_local import seed_local_stops
 from app.users import seed_users_from_env
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -47,6 +48,8 @@ async def lifespan(app: FastAPI):
         await seed_users_from_env(session)
         if get_settings().andiamo_url:
             await sync_stops(session)  # primer sync; tolerante a fallo
+        # Después del sync: el orden de Pititas se deriva del snapshot.
+        await seed_local_stops(session)
     yield
 
 

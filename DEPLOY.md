@@ -31,6 +31,7 @@ Un solo servicio web (FastAPI: API + webhook de WhatsApp + frontend estático) +
 | `WHATSAPP_GRAPH_VERSION` | `v21.0` |
 | `TRIP_SHARED_API_KEY` | **mismo valor** que en Andiamo |
 | `ANDIAMO_URL` | `https://andiamo-production.up.railway.app` |
+| `PITITAS_OWNER` | `katia` (ver *Stop local Pititas*; vacío ⇒ feature apagada) |
 | `CORS_ORIGINS` | (vacío — mismo origen; solo dev usa localhost) |
 
 Secretos **solo** acá: nunca en el repo (`.env` está gitignoreado).
@@ -76,3 +77,15 @@ Redeploy de Andiamo después de agregarlas (habilita `GET /api/stops` y el chip 
 - **Rotar `TRIP_SHARED_API_KEY`:** generar valor nuevo → actualizarlo en **ambos** servicios (Spitwise y Andiamo) → redeploy de los dos. Hasta que coincidan, el sync devuelve 0 (usa snapshot) y el chip de Andiamo desaparece — nada se rompe.
 - **Rotar token de WhatsApp:** Meta → System User token nuevo → actualizar `WHATSAPP_ACCESS_TOKEN` → redeploy. El webhook sigue validando con `WHATSAPP_APP_SECRET` (no cambia).
 - **Cold starts / sleep:** si el plan gratuito duerme el servicio, pasar a Hobby (~USD 5/mes) — el webhook de Meta no tolera bien arranques fríos.
+
+## Stop local Pititas
+
+Del **4 al 11 de septiembre de 2026** Bruno está solo en Portugal y Katia viaja con sus amigas. Los gastos de Katia en ese tramo se imputan a una parada **Pititas** (😊, EUR, `Europe/Paris`) en vez de Portugal; los de Bruno siguen yendo a Portugal. El 12 ya es Estrasburgo para los dos.
+
+Pititas es un **stop local** (`Stop.is_local`): existe solo en Spitwise.
+
+- **Andiamo no la conoce ni la debe conocer.** El sync la excluye de la reconciliación (si no, el primer `sync-hook` la borraría) y `/cities/spend` + `/cities/spend-detail` no la exponen. `/trip/spend` sí la suma: es plata gastada.
+- **Se siembra sola** en el arranque (`app/stops_local.py`), después del sync, y es idempotente. Con `PITITAS_OWNER` vacío no se crea nada.
+- **La imputación es por remitente**, no por pagador: si Katia carga "pagó bruno 30", el gasto igual cae en Pititas porque ella es la que está ahí.
+- En la web la ven **los dos** (el balance ya mezcla esa plata; ocultarla dejaría un neto sin explicación), pero a Bruno nunca se le imputa ahí.
+- **Para desactivarla:** borrar `PITITAS_OWNER` y redeploy. La fila queda en la DB con los gastos ya cargados; para que deje de imputar, borrar la fila `stops` con slug `pititas` (los movimientos conservan `city_name`).

@@ -13,18 +13,30 @@ async def _get_state(session: AsyncSession, wa_id: str) -> WhatsAppSessionState 
     ).scalar_one_or_none()
 
 
+def _by_priority(stops):
+    """Un stop propio del usuario gana sobre el compartido cuando solapan (p.ej.
+    Pititas vs Portugal del 4 al 11 de sept). Sin esto el empate sería arbitrario.
+    sorted() es estable: dentro de cada grupo se mantiene el orden por fecha."""
+    return sorted(stops, key=lambda s: (s.owner_username is None,))
+
+
 def _pick_stop(stops, d: date):
     """Parada activa 'hoy': rango arrival<=d<departure, o la última arribada (gaps/tránsito)."""
-    for s in stops:
+    for s in _by_priority(stops):
         if s.arrival_date and s.departure_date and s.arrival_date <= d < s.departure_date:
             return s
     arrived = [s for s in stops if s.arrival_date and s.arrival_date <= d]
-    return arrived[-1] if arrived else stops[0]
+    if not arrived:
+        return stops[0]
+    # Última arribada; si varias comparten fecha (Pititas y Portugal empiezan el
+    # mismo día), gana la propia del usuario.
+    latest = max(s.arrival_date for s in arrived)
+    return _by_priority([s for s in arrived if s.arrival_date == latest])[0]
 
 
 def _stop_in_range(stops, d: date):
     """Parada estricta: solo si d cae en [arrival, departure). Gaps y post-viaje => None."""
-    for s in stops:
+    for s in _by_priority(stops):
         if s.arrival_date and s.departure_date and s.arrival_date <= d < s.departure_date:
             return s
         # Sin departure_date: vigente desde arrival en adelante.
@@ -33,7 +45,13 @@ def _stop_in_range(stops, d: date):
     return None
 
 
-async def _load_stops(session: AsyncSession):
+async def visible_stops(session: AsyncSession, username: str | None = None) -> list:
+    """Stops visibles para imputar los gastos de `username`.
+
+    Los stops con owner_username solo aplican a su dueño. Sin username (contextos
+    sin usuario, p.ej. la timezone del viaje) se descartan todos: nunca se imputa
+    a una parada ajena por defecto.
+    """
     from app.db.models import Stop
     stops = (await session.execute(select(Stop).order_by(Stop.arrival_date))).scalars().all()
     if not stops:
@@ -44,21 +62,23 @@ async def _load_stops(session: AsyncSession):
         if get_settings().andiamo_url:
             await sync_stops(session)
             stops = (await session.execute(select(Stop).order_by(Stop.arrival_date))).scalars().all()
-    return list(stops)
+    u = (username or "").strip().lower() or None
+    return [s for s in stops if s.owner_username is None or s.owner_username == u]
 
 
-async def stop_for_date(session: AsyncSession, d: date):
+async def stop_for_date(session: AsyncSession, d: date, username: str | None = None):
     """Stop 'activo' (leniente) para timezone / WhatsApp hoy. Ver place_for_date para imputación."""
-    stops = await _load_stops(session)
+    stops = await visible_stops(session, username)
     return _pick_stop(stops, d) if stops else None
 
 
-async def place_for_date(session: AsyncSession, d: date):
-    """Stop para imputar un gasto a una fecha (bot backdate + API web). Estricto: fuera de rango => None."""
-    stops = await _load_stops(session)
+async def place_for_date(session: AsyncSession, d: date, username: str | None = None):
+    """Stop para imputar un gasto a una fecha (bot + API web). Estricto: fuera de rango => None."""
+    stops = await visible_stops(session, username)
     return _stop_in_range(stops, d) if stops else None
 
-async def resolve_active_stop(session: AsyncSession, wa_id: str, today: date):
+async def resolve_active_stop(session: AsyncSession, wa_id: str, today: date,
+                              username: str | None = None):
     # 1) Override de sesión (day-trips).
     st = await _get_state(session, wa_id)
     if st:
@@ -68,14 +88,18 @@ async def resolve_active_stop(session: AsyncSession, wa_id: str, today: date):
             return ov.get("stop_slug"), ov.get("city_name"), ov.get("currency_code", "USD")
 
     # 2/3) Derivar de stops por fecha.
-    current = await stop_for_date(session, today)
+    current = await stop_for_date(session, today, username)
     if current is None:
         return None, None, "USD"
     return current.slug, current.name, (current.currency_code or "USD")
 
 
-async def resolve_trip_timezone(session: AsyncSession) -> str | None:
-    """Timezone de la parada activa por fecha (para today_in_tz). None => fallback default."""
+async def resolve_trip_timezone(session: AsyncSession, username: str | None = None) -> str | None:
+    """Timezone de la parada activa por fecha (para today_in_tz). None => fallback default.
+
+    Con username, respeta su parada propia: durante Pititas (Europe/Paris) el
+    'hoy' de Katia no lo define Portugal (Europe/Lisbon), que va una hora atrás.
+    """
     from datetime import datetime, timezone as _tz
     from zoneinfo import ZoneInfo
 
@@ -83,7 +107,7 @@ async def resolve_trip_timezone(session: AsyncSession) -> str | None:
 
     # Aproximación de "hoy" con la tz default para elegir la parada (el error de ±1h no cambia la parada).
     probe = datetime.now(_tz.utc).astimezone(ZoneInfo(get_settings().trip_default_timezone)).date()
-    current = await stop_for_date(session, probe)
+    current = await stop_for_date(session, probe, username)
     return current.timezone if current else None
 
 

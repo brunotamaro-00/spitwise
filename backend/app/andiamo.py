@@ -50,6 +50,9 @@ async def sync_stops(session: AsyncSession, *, client: httpx.AsyncClient | None 
     movimientos (los gastos nunca se pierden) o se borran si no. Solo corre
     con status ok y payload no vacío: un payload vacío o parcial jamás debe
     arrasar el snapshot.
+
+    Los stops locales (is_local) viven fuera de este contrato: no existen en
+    Andiamo, así que el sync nunca los pisa ni los reconcilia.
     """
     try:
         data = await fetch_stops(client=client)
@@ -70,6 +73,9 @@ async def sync_stops(session: AsyncSession, *, client: httpx.AsyncClient | None 
             slug = item["slug"]
             payload_slugs.add(slug)
             row = existing.get(slug) or Stop(slug=slug)
+            # Un slug local homónimo nunca se pisa con datos de Andiamo.
+            if row.is_local:
+                continue
             row.order = item.get("order", 0)
             row.name = item.get("name", slug)
             row.country = item.get("country")
@@ -93,7 +99,10 @@ async def sync_stops(session: AsyncSession, *, client: httpx.AsyncClient | None 
 
     archived = deleted = 0
     if not errors and payload_slugs:
-        missing = [s for slug, s in existing.items() if slug not in payload_slugs]
+        missing = [
+            s for slug, s in existing.items()
+            if slug not in payload_slugs and not s.is_local
+        ]
         for stop in missing:
             has_movements = (
                 await session.execute(

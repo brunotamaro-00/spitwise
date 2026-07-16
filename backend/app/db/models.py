@@ -96,6 +96,10 @@ class Stop(Base):
     is_flex_margin: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     # Borrado en Andiamo pero con movimientos asociados: se conserva para agrupar.
     is_archived: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # Stop local: no existe en Andiamo, así que la reconciliación del sync lo ignora.
+    is_local: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # Si está seteado, el stop solo aplica a ese usuario al imputar por fecha.
+    owner_username: Mapped[str | None] = mapped_column(String(100))
     synced_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
 
