@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { LayoutDashboard, ListOrdered, LogOut, Map, Plus } from "lucide-react";
+import { CloudOff, LayoutDashboard, ListOrdered, LogOut, Map, Plus } from "lucide-react";
+import { motion } from "motion/react";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -8,6 +9,7 @@ import { getMe } from "@/api/users";
 import AddMovementDialog from "@/components/AddMovementDialog";
 import { Wordmark } from "@/components/ui/Brand";
 import { capitalize } from "@/lib/format";
+import { useOnline } from "@/lib/useOnline";
 
 const TABS = [
   { to: "/", label: "Dashboard", Icon: LayoutDashboard },
@@ -19,6 +21,7 @@ export default function Layout() {
   const nav = useNavigate();
   const location = useLocation();
   const [adding, setAdding] = useState(false);
+  const online = useOnline();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
 
   const avatar = me && (
@@ -103,25 +106,42 @@ export default function Layout() {
 
       {/* Contenido */}
       <div className="flex-1 lg:pl-60">
+        {!online && (
+          <div
+            role="status"
+            className="flex items-center justify-center gap-2 bg-espresso px-4 py-1.5 text-xs font-semibold text-espresso-ink"
+          >
+            <CloudOff size={14} strokeWidth={2} aria-hidden="true" />
+            Sin conexión — mostrando los últimos datos guardados
+          </div>
+        )}
         {/* pb-40: espacio para scrollear el último ítem por encima del FAB
             (bottom nav 3.5rem + FAB 3.5rem alto a 4.75rem del borde). */}
         <main className="mx-auto max-w-lg p-4 pb-40 lg:max-w-5xl lg:p-8 lg:pb-28">
           {/* key por ruta: cada cambio de tab remonta el contenido y dispara
               las animaciones de entrada de la página. */}
-          <div key={location.pathname} className="animate-fade-in">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          >
             <Outlet />
-          </div>
+          </motion.div>
         </main>
       </div>
 
       {/* FAB global: cargar gasto desde cualquier página. */}
-      <button
+      <motion.button
         onClick={() => setAdding(true)}
         aria-label="Agregar movimiento"
-        className="brick-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full text-white soft-hero transition-transform hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:bottom-8 lg:right-8"
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.9 }}
+        transition={{ type: "spring", stiffness: 500, damping: 26 }}
+        className="brick-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full text-white soft-hero focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:bottom-8 lg:right-8"
       >
         <Plus size={26} strokeWidth={2} aria-hidden="true" />
-      </button>
+      </motion.button>
 
       {/* Bottom nav (mobile) */}
       <nav
@@ -142,13 +162,18 @@ export default function Layout() {
             >
               {({ isActive }) => (
                 <>
-                  {/* Pill detrás del ícono activo: estado sólido, sin ambigüedad. */}
-                  <span
-                    className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors ${
-                      isActive ? "bg-brick-bg" : ""
-                    }`}
-                  >
-                    <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} aria-hidden="true" />
+                  {/* Pill detrás del ícono activo: estado sólido, sin ambigüedad.
+                      layoutId: el pill se desliza de un tab al otro. */}
+                  <span className="relative flex h-7 w-12 items-center justify-center">
+                    {isActive && (
+                      <motion.span
+                        layoutId="nav-pill"
+                        transition={{ type: "spring", stiffness: 480, damping: 36 }}
+                        className="absolute inset-0 rounded-full bg-brick-bg"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} className="relative" aria-hidden="true" />
                   </span>
                   {label}
                 </>

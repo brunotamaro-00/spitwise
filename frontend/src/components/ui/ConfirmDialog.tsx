@@ -20,7 +20,7 @@ export default function ConfirmDialog({
   onClose: () => void;
 }) {
   return (
-    <Modal title={title} onClose={busy ? () => undefined : onClose} size="sm">
+    <Modal title={title} onClose={onClose} size="sm" locked={busy}>
       <p className="text-[15px] text-ink-2">{message}</p>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
       <div className="mt-5 flex gap-2">

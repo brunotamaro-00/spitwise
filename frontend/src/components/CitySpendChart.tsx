@@ -1,22 +1,19 @@
-import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import Card from "@/components/ui/Card";
 import { Label } from "@/components/ui/Field";
 import { formatAmount, formatUsd, parseMoney } from "@/lib/format";
-import { TICK, cityColor } from "@/lib/chartTheme";
+import { ACCENT, TICK } from "@/lib/chartTheme";
 import type { CitySpend } from "@/types";
 
-type Row = { name: string; usd: number; total: string; color: string };
+type Row = { name: string; usd: number; total: string };
 
 function CityTooltip({ active, payload }: { active?: boolean; payload?: { payload: Row }[] }) {
   if (!active || !payload?.length) return null;
   const r = payload[0].payload;
   return (
     <div className="rounded-xl border border-border bg-surface px-3 py-2 soft-pop">
-      <div className="flex items-center gap-2">
-        <span className="h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
-        <span className="text-sm font-semibold text-ink">{r.name}</span>
-      </div>
+      <div className="text-sm font-semibold text-ink">{r.name}</div>
       <div className="mt-0.5 font-tabular text-sm text-ink-2">{formatUsd(r.total)}</div>
     </div>
   );
@@ -33,11 +30,12 @@ export default function CitySpendChart({
   data: CitySpend[];
   title?: string;
 }) {
-  const rows: Row[] = data.map((c, i) => ({
+  // Una sola medida (magnitud): un solo tono. La identidad la dan las etiquetas
+  // del eje, no el color — colorear por posición repinta al filtrar y no informa.
+  const rows: Row[] = data.map((c) => ({
     name: c.city_name || c.stop_slug || "Sin ciudad",
     usd: parseMoney(c.total_usd),
     total: c.total_usd,
-    color: cityColor(i),
   }));
   if (rows.length === 0) return null;
   const many = rows.length > 5;
@@ -76,10 +74,7 @@ export default function CitySpendChart({
               tickFormatter={(v: string) => truncate(v, 14)}
             />
             <Tooltip cursor={{ fill: "var(--color-surface-2)", opacity: 0.5 }} content={<CityTooltip />} />
-            <Bar dataKey="usd" radius={[6, 6, 6, 6]} maxBarSize={26}>
-              {rows.map((r) => (
-                <Cell key={r.name} fill={r.color} />
-              ))}
+            <Bar dataKey="usd" fill={ACCENT} radius={[6, 6, 6, 6]} maxBarSize={26} animationDuration={600}>
               {/* Solo el número: "USD" está implícito (toda la app está en USD)
                   y el prefijo hacía que el label se parta en dos líneas. */}
               <LabelList

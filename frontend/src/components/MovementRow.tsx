@@ -12,11 +12,13 @@ const SPLIT_LABEL: Record<string, string> = {
   other_only: "Solo del otro",
 };
 
-export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete, readOnly = false, preferShare = false }: {
+export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, onDelete, readOnly = false, preferShare = false }: {
   mv: Movement;
   myId?: number;
   category?: Category;
   flag?: string | null;
+  /** Tocar la fila abre el detalle (bottom sheet): el target táctil es toda la fila. */
+  onOpen?: (m: Movement) => void;
   onEdit?: (m: Movement) => void;
   onDelete?: (m: Movement) => void;
   readOnly?: boolean;
@@ -30,8 +32,8 @@ export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete
   const bg = isSettlement ? "var(--color-surface-2)" : categoryBg(category?.name ?? null);
   const showSharePrimary = preferShare && !isSettlement && myId != null;
 
-  return (
-    <div className="flex items-center gap-3 border-b border-border py-3 last:border-b-0">
+  const body = (
+    <>
       <span
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
         style={{ background: bg, color }}
@@ -70,22 +72,39 @@ export default function MovementRow({ mv, myId, category, flag, onEdit, onDelete
           )
         )}
       </div>
+    </>
+  );
 
+  return (
+    <div className="flex items-center gap-1 border-b border-border last:border-b-0">
+      {onOpen ? (
+        <button
+          onClick={() => onOpen(mv)}
+          aria-label={`Ver detalle de ${mv.description || "movimiento"}`}
+          className="-mx-2 flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-surface-2/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brick/40"
+        >
+          {body}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3 py-3">{body}</div>
+      )}
+
+      {/* Acciones inline solo en desktop; en mobile viven en el sheet de detalle. */}
       {!readOnly && (
-        <div className="-mr-2 -ml-1 flex shrink-0 items-center">
+        <div className="-mr-2 hidden shrink-0 items-center lg:flex">
           <button
             aria-label={`Editar ${mv.description || "movimiento"}`}
-            className="flex h-7 w-6 cursor-pointer items-center justify-center rounded-md text-ink-faint/50 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:h-8 lg:w-8"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-ink-faint/50 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
             onClick={() => onEdit?.(mv)}
           >
-            <Pencil size={13} strokeWidth={1.75} aria-hidden="true" />
+            <Pencil size={14} strokeWidth={1.75} aria-hidden="true" />
           </button>
           <button
             aria-label={`Borrar ${mv.description || "movimiento"}`}
-            className="flex h-7 w-6 cursor-pointer items-center justify-center rounded-md text-ink-faint/50 transition-colors hover:bg-danger-bg hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40 lg:h-8 lg:w-8"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-ink-faint/50 transition-colors hover:bg-danger-bg hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
             onClick={() => onDelete?.(mv)}
           >
-            <Trash2 size={13} strokeWidth={1.75} aria-hidden="true" />
+            <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>
       )}

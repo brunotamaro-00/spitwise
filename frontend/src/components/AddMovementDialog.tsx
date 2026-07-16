@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusCircle } from "lucide-react";
+import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
 import { listCategories } from "@/api/categories";
@@ -9,9 +10,11 @@ import Button from "@/components/ui/Button";
 import DatePicker from "@/components/ui/DatePicker";
 import { Field, Input, Label, Select } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
+import { useToast } from "@/components/ui/Toast";
 import { categoryBg, categoryColor } from "@/lib/chartTheme";
 import { categoryIcon } from "@/lib/categoryIcons";
-import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue } from "@/lib/format";
+import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue, todayLocal } from "@/lib/format";
+import { stopForDate } from "@/lib/stops";
 import type { Movement } from "@/types";
 
 const GENERAL = "__general__"; // gasto sin ciudad
@@ -31,17 +34,18 @@ function Segmented({ options, value, onChange }: {
   return (
     <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
       {options.map((o) => (
-        <button
+        <motion.button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
+          whileTap={{ scale: 0.96 }}
           className={`min-h-[38px] flex-1 cursor-pointer rounded-md px-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
             value === o.value ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink"
           }`}
         >
           {o.label}
-        </button>
+        </motion.button>
       ))}
     </div>
   );
@@ -55,6 +59,7 @@ export default function AddMovementDialog({ editing, onClose }: {
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const firstRef = useRef<HTMLInputElement>(null);
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
   const { data: stops = [] } = useQuery({ queryKey: ["stops"], queryFn: listStops, staleTime: Infinity });
@@ -63,10 +68,11 @@ export default function AddMovementDialog({ editing, onClose }: {
 
   const [amount, setAmount] = useState(toInputValue(editing?.amount));
   const [currency, setCurrency] = useState(editing?.currency ?? "USD");
+  const currencyTouched = useRef(false);
   const [description, setDescription] = useState(editing?.description ?? "");
   const [categoryId, setCategoryId] = useState<string>(editing?.category_id?.toString() ?? "");
   const [split, setSplit] = useState(editing?.split ?? "shared");
-  const [date, setDate] = useState(editing?.movement_date ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(editing?.movement_date ?? todayLocal());
   // Sin ciudad al editar (y sin parada) => se asume gasto general.
   const [stopSlug, setStopSlug] = useState<string>(
     editing?.stop_slug ?? (editing && !editing.city_name ? GENERAL : ""),
@@ -82,6 +88,15 @@ export default function AddMovementDialog({ editing, onClose }: {
   useEffect(() => {
     if (!editing && me && !paidBy) setPaidBy(String(me.id));
   }, [editing, me, paidBy]);
+
+  // Moneda default = la de la parada activa hoy (como hace el bot), no USD.
+  // Solo mientras el usuario no la haya tocado.
+  const activeCurrency = stopForDate(stops, todayLocal())?.currency_code ?? "USD";
+  useEffect(() => {
+    if (!editing && !currencyTouched.current && stops.length > 0) setCurrency(activeCurrency);
+  }, [editing, stops, activeCurrency]);
+  // La moneda de la parada activa puede no estar en la lista fija (p.ej. RON).
+  const currencyOptions = [...new Set([activeCurrency, ...CURRENCIES, currency])];
 
   useEffect(() => { firstRef.current?.focus(); }, []);
 
@@ -132,6 +147,7 @@ export default function AddMovementDialog({ editing, onClose }: {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["balance"] });
       qc.invalidateQueries({ queryKey: ["city"] });
+      toast("success", completing ? "Resto cargado" : editing ? "Cambios guardados" : "Gasto guardado");
       onClose();
     },
     onError: () => setErr("No se pudo guardar. Revisá el monto."),
@@ -176,8 +192,12 @@ export default function AddMovementDialog({ editing, onClose }: {
             />
             {/* wrapper de ancho fijo: el Select base trae w-full */}
             <div className="w-24 shrink-0">
-              <Select value={currency} onChange={(e) => setCurrency(e.target.value)} aria-label="Moneda">
-                {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
+              <Select
+                value={currency}
+                onChange={(e) => { currencyTouched.current = true; setCurrency(e.target.value); }}
+                aria-label="Moneda"
+              >
+                {currencyOptions.map((c) => <option key={c}>{c}</option>)}
               </Select>
             </div>
           </div>
@@ -196,11 +216,12 @@ export default function AddMovementDialog({ editing, onClose }: {
               const active = categoryId === String(c.id);
               const Icon = categoryIcon(c.name);
               return (
-                <button
+                <motion.button
                   key={c.id}
                   type="button"
                   onClick={() => setCategoryId(active ? "" : String(c.id))}
                   aria-pressed={active}
+                  whileTap={{ scale: 0.94 }}
                   className={`flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
                     active ? "" : "border-border bg-surface text-ink-2 hover:bg-surface-2"
                   }`}
@@ -212,7 +233,7 @@ export default function AddMovementDialog({ editing, onClose }: {
                 >
                   <Icon size={14} strokeWidth={2} aria-hidden="true" />
                   {c.name}
-                </button>
+                </motion.button>
               );
             })}
           </div>

@@ -33,6 +33,7 @@ def _help_reply() -> BotReply:
             "*Borrar*: _borrá el último_",
             "*Consultar*: _¿cuánto gastamos en Roma?_ · _¿quién debe plata?_",
         ]),
+        "⚡ Atajos al instante: *saldo* · *hoy* · *total*",
     ]
     if home:
         lines.append(f"📲 O abrí la app: {home}")
@@ -76,6 +77,15 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
         return await _handle_delete_command(session, user)
     if low in _HELP_COMMANDS:
         return _help_reply()
+    # Consultas frecuentes ('saldo', 'hoy', 'total'): respuesta instantánea sin LLM.
+    from app.bot import quick
+    quick_intent = quick.route(stripped)
+    if quick_intent == "balance":
+        return await quick.handle_balance(session, user)
+    if quick_intent == "today":
+        return await quick.handle_today(session, user, wa_id, today)
+    if quick_intent == "total":
+        return await quick.handle_total(session, user)
 
     from app.llm.parser import parse_message
     users = await all_users(session)

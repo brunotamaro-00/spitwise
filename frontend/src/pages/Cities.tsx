@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, MapPin, Receipt, TrendingUp } from "lucide-react";
-import { useMemo } from "react";
+import { motion } from "motion/react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { listCategories } from "@/api/categories";
@@ -16,6 +17,8 @@ import { getMe } from "@/api/users";
 import CategoryDonut from "@/components/CategoryDonut";
 import SpendBarChart from "@/components/SpendBarChart";
 import MovementRow from "@/components/MovementRow";
+import MovementSheet from "@/components/MovementSheet";
+import AnimatedUsd from "@/components/ui/AnimatedUsd";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
@@ -24,7 +27,7 @@ import Kpi from "@/components/ui/Kpi";
 import Skeleton from "@/components/ui/Skeleton";
 import { formatDayHeader, formatShortDate, formatUsd, parseMoney } from "@/lib/format";
 import { dayTotalShare, groupByDay } from "@/lib/groupByDay";
-import type { Category } from "@/types";
+import type { Category, Movement } from "@/types";
 
 function fmtRange(a: string | null, b: string | null): string | null {
   if (!a && !b) return null;
@@ -40,6 +43,7 @@ function shortRange(a: string | null, b: string | null): string | null {
 
 export default function Cities() {
   const [params, setParams] = useSearchParams();
+  const [viewing, setViewing] = useState<Movement | null>(null);
   const selected = params.getAll("c");
   const selectedSet = new Set(selected);
 
@@ -113,9 +117,10 @@ export default function Cities() {
         <Skeleton className="h-24" />
       ) : breakdown.length === 0 ? null : (
         <div className="animate-rise-in stagger-1 -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:-mx-8 lg:px-8">
-          <button
+          <motion.button
             onClick={() => setParams(new URLSearchParams(), { replace: true })}
             aria-pressed={selected.length === 0}
+            whileTap={{ scale: 0.96 }}
             className={`flex min-w-[7.5rem] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
               selected.length === 0
                 ? "border-brick bg-brick text-white soft-pop"
@@ -129,18 +134,19 @@ export default function Cities() {
             <span className={`text-[11px] font-medium ${selected.length === 0 ? "text-white/75" : "text-ink-faint"}`}>
               {breakdown.length} paradas
             </span>
-          </button>
+          </motion.button>
           {breakdown.map((b) => {
             const slug = b.stop_slug;
             const active = slug != null && selectedSet.has(slug);
             const stop = slug ? stopMap[slug] : undefined;
             const range = stop ? shortRange(stop.arrival_date, stop.departure_date) : null;
             return (
-              <button
+              <motion.button
                 key={slug ?? b.city_name ?? "general"}
                 onClick={() => toggle(slug)}
                 aria-pressed={active}
                 disabled={!slug}
+                whileTap={slug ? { scale: 0.96 } : undefined}
                 className={`flex min-w-[7.5rem] shrink-0 flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
                   active
                     ? "cursor-pointer border-brick bg-brick text-white soft-pop"
@@ -159,7 +165,7 @@ export default function Cities() {
                 <span className={`text-[11px] font-medium ${active ? "text-white/75" : "text-ink-faint"}`}>
                   {range ?? (slug ? `${b.movement_count} mov.` : "sin ciudad")}
                 </span>
-              </button>
+              </motion.button>
             );
           })}
         </div>
@@ -190,7 +196,7 @@ export default function Cities() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-white/70">Mi gasto</p>
               <p className="font-display text-4xl leading-none font-tabular">
-                {formatUsd(summary?.total_usd ?? "0")}
+                <AnimatedUsd value={summary?.total_usd ?? "0"} />
               </p>
             </div>
           </div>
@@ -244,6 +250,7 @@ export default function Cities() {
                       flag={m.stop_slug ? stopMap[m.stop_slug]?.country_flag : undefined}
                       readOnly
                       preferShare
+                      onOpen={setViewing}
                     />
                   ))}
                 </Card>
@@ -252,6 +259,16 @@ export default function Cities() {
           </div>
         )}
       </div>
+
+      {viewing && (
+        <MovementSheet
+          mv={viewing}
+          myId={me?.id}
+          category={viewing.category_id != null ? catMap[viewing.category_id] : undefined}
+          flag={viewing.stop_slug ? stopMap[viewing.stop_slug]?.country_flag : undefined}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </div>
   );
 }

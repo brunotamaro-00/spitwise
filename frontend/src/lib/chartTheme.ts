@@ -34,21 +34,6 @@ export const ACCENT = "#C44428"; // brick: serie única (barras, línea)
 export const GRID = "var(--color-border)"; // grilla tenue, tokenizada
 export const TICK = { fill: "var(--color-ink-3)", fontSize: 12 } as const;
 
-// Paleta cíclica para colorear series por ciudad (deriva de los accents).
-export const CITY_PALETTE = [
-  "#C44428", // brick
-  "#2E6FBF", // blue
-  "#0B8F80", // teal
-  "#A67F2A", // amber
-  "#8E3D88", // plum
-  "#55902F", // green
-  "#7A5AC4", // indigo
-] as const;
-
-export function cityColor(index: number): string {
-  return CITY_PALETTE[index % CITY_PALETTE.length];
-}
-
 export function categoryColor(name: string | null): string {
   return (name && CATEGORY_COLORS[name]) || FALLBACK_SERIES;
 }

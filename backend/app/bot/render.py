@@ -124,5 +124,40 @@ def deleted_card(summary: str, *, plural: int | None = None) -> str:
     return f"{copy.H_DELETE}\n\n{summary}"
 
 
+def balance_card(debtor: str | None, creditor: str | None, amount: Decimal) -> str:
+    """Tarjeta del fast-path 'saldo': quién le debe a quién, o a mano."""
+    if not debtor or not creditor:
+        return "⚖️ *Balance*\n\nEstán a mano 🤝"
+    return f"⚖️ *Balance*\n\n*{_cap(debtor)}* le debe *USD {ar_number(amount)}* a *{_cap(creditor)}*"
+
+
+def today_card(city: str | None, total: Decimal, mine: Decimal, count: int) -> str:
+    """Tarjeta del fast-path 'hoy': total del día + mi parte + ciudad activa."""
+    where = f" · 📍 {city}" if city else ""
+    if count == 0:
+        return f"📅 *Hoy*{where}\n\nTodavía no hay gastos cargados hoy."
+    return (
+        f"📅 *Hoy*{where}\n\n"
+        f"💸 Total: *USD {ar_number(total)}* · {count} gasto{'s' if count != 1 else ''}\n"
+        f"👤 Tu parte: USD {ar_number(mine)}"
+    )
+
+
+def trip_card(total: Decimal, mine: Decimal, count: int, days: int, avg: Decimal,
+              link: str | None) -> str:
+    """Tarjeta del fast-path 'total': resumen de todo el viaje."""
+    lines = [
+        "🧳 *Total del viaje*",
+        "",
+        f"💸 Total: *USD {ar_number(total)}* · {count} gasto{'s' if count != 1 else ''}",
+        f"👤 Tu parte: USD {ar_number(mine)}",
+    ]
+    if days > 0:
+        lines.append(f"📅 {days} días · promedio *USD {ar_number(avg)}* por día")
+    if link:
+        lines.append(f"📲 {link}")
+    return "\n".join(lines)
+
+
 def unknown_reply() -> BotReply:
     return text_reply(copy.NOT_UNDERSTOOD)
