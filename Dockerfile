@@ -1,8 +1,8 @@
 # --- Stage 1: frontend (Vite build) ---
 FROM node:22-slim AS frontend
 WORKDIR /fe
-COPY frontend/package*.json frontend/.npmrc ./
-RUN npm ci
+COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
+RUN npm ci --ignore-scripts
 COPY frontend/ ./
 RUN npm run build
 
