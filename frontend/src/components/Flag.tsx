@@ -5,9 +5,9 @@ import { countryCodeFromFlag } from "@/lib/countryCodeFromFlag";
  *
  * Windows system fonts don't include regional-indicator flag glyphs, so raw
  * flag emoji render as two letters ("ES") or a black flag. We convert the
- * stored emoji to an ISO code and draw an SVG flag via the `flag-icons` CSS
- * (imported once in `main.tsx`). Non-flag emoji (🌍, etc.) render verbatim —
- * those glyphs exist on every platform.
+ * stored emoji to an ISO code and serve a local SVG from `/flags` (only the
+ * trip countries — importing full `flag-icons` CSS made Vite hash ~500 SVGs
+ * and ballooned the Docker image). Non-flag emoji render verbatim.
  */
 export default function Flag({
   flag,
@@ -26,13 +26,13 @@ export default function Flag({
     ) : null;
   }
 
-  // `.fi` is a 4:3 inline-block sized by font-size, so text-* utilities from the
-  // caller (e.g. `text-4xl`) scale it just like the emoji it replaces.
+  // Sized by font-size like flag-icons `.fi` (4:3), so text-* utilities scale it.
   return (
-    <span
-      className={`fi fi-${code} rounded-[2px] align-[-0.15em] ${className}`}
-      role="img"
+    <img
+      src={`/flags/${code}.svg`}
+      alt=""
       aria-hidden="true"
+      className={`inline-block h-[1em] w-[1.333em] shrink-0 rounded-[2px] align-[-0.15em] object-cover ${className}`}
     />
   );
 }
