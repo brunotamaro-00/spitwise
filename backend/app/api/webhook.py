@@ -49,6 +49,14 @@ async def _notify_user(meta: MetaClient, wa_id: str, text: str) -> None:
         logger.exception("webhook_notify_failed wa_id=%s", wa_id)
 
 
+async def _react(meta: MetaClient, wa_id: str, wamid: str, emoji: str) -> None:
+    """Best-effort: la reacción es cosmética, nunca voltea el flujo."""
+    try:
+        await meta.send_reaction(wa_id, wamid, emoji)
+    except Exception:
+        logger.warning("reaction_failed wamid=%s emoji=%r", wamid, emoji)
+
+
 async def process_message(m: IncomingMessage) -> None:
     """Corre en background: LLM + FX + respuesta por Graph, fuera del camino del 200."""
     s = get_settings()
@@ -60,6 +68,8 @@ async def process_message(m: IncomingMessage) -> None:
             await meta.send_typing(m.wamid)
         except Exception:
             logger.warning("typing_indicator_failed wamid=%s", m.wamid)
+        # Reloj de arena mientras procesamos: feedback instantáneo en el chat.
+        await _react(meta, m.wa_id, m.wamid, "⏳")
         async with _lock(m.wa_id):
             async with maker() as session:
                 await ensure_stops_fresh(session)  # lazy TTL, no bloquea
@@ -70,8 +80,11 @@ async def process_message(m: IncomingMessage) -> None:
                 await meta.send_buttons(m.wa_id, reply.text or "", reply.buttons)
             elif reply.text:
                 await meta.send_text(m.wa_id, reply.text)
+            # Respuesta enviada: el reloj pasa a tick verde.
+            await _react(meta, m.wa_id, m.wamid, "✅")
         except Exception:
             logger.exception("webhook_send_failed wamid=%s", m.wamid)
+            await _react(meta, m.wa_id, m.wamid, "")  # sin tick: no confirmamos de mentira
             # El gasto/acción pudo haberse persistido: avisamos para no reenviar a ciegas.
             home = copy.link_home()
             msg = copy.SAVED_BUT_UNCONFIRMED
@@ -80,6 +93,7 @@ async def process_message(m: IncomingMessage) -> None:
             await _notify_user(meta, m.wa_id, msg)
     except Exception:
         logger.exception("webhook_background_error wamid=%s", m.wamid)
+        await _react(meta, m.wa_id, m.wamid, "")  # limpiar el reloj: esto falló
         # Meta ya recibió 200 + wamid claimed: sin este aviso el mensaje se pierde en silencio.
         await _notify_user(meta, m.wa_id, copy.SOMETHING_FAILED)
     finally:

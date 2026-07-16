@@ -22,6 +22,13 @@ class MetaClient:
             "typing_indicator": {"type": "text"},
         })
 
+    async def send_reaction(self, wa_id: str, message_id: str, emoji: str) -> None:
+        """Reacciona al mensaje del usuario (emoji="" quita la reacción)."""
+        await self._post({
+            "messaging_product": "whatsapp", "to": wa_id, "type": "reaction",
+            "reaction": {"message_id": message_id, "emoji": emoji},
+        })
+
     async def send_text(self, wa_id: str, text: str) -> None:
         await self._post({
             "messaging_product": "whatsapp", "to": wa_id, "type": "text",
