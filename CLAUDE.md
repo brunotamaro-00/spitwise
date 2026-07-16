@@ -127,8 +127,9 @@ Auth JWT Bearer salvo lo indicado.
 | Categories | `GET /categories` |
 | Dashboard | `/dashboard/summary`, `/by-city`, `/by-category`, `/timeseries` |
 | City analytics | `/dashboard/city/*` filtrado por `slugs` |
-| Stops | `GET /stops` |
-| Integration | `GET /cities/spend` (`X-Api-Key`), `POST /andiamo/sync` (JWT) |
+| Stops | `GET /stops` (excluye candidatas y archivadas) |
+| Config | `GET /config` (JWT) — `andiamo_url` para deep links del frontend |
+| Integration | `GET /cities/spend`, `GET /cities/spend-detail?slug=`, `GET /trip/spend`, `POST /andiamo/sync-hook` (todos `X-Api-Key`), `POST /andiamo/sync` (JWT) |
 | Webhook | `GET/POST /webhooks/whatsapp` |
 | Health | `GET /health` |
 
@@ -206,6 +207,7 @@ Producción / features (ver `config.py` y `DEPLOY.md`):
 ## Antes de cambiar cosas sensibles
 
 - Webhook: Meta timeout ~5s → el 200 **siempre** antes del LLM.
-- Multi-worker / horarios de process → rompe locks y pending del bot.
+- Multi-worker / horarios de process → rompe locks y pending del bot **y** las guardas del sync de Andiamo (`_refresh_running`/`_dirty` en `andiamo.py`).
+- Sync de stops: Andiamo pushea `POST /andiamo/sync-hook` en cada alta/edición/borrado (patrón pull-on-ping); el TTL 6h queda como fallback. La reconciliación **archiva** (`Stop.is_archived`) los stops borrados en Andiamo que tienen movimientos y borra los que no; payload vacío o parcial nunca toca el snapshot.
 - Catálogo de categorías: afecta prompts del parser; no agregar sin actualizar seed + tests.
 - Contrato Andiamo (`/cities/spend`, sync de stops): coordinar key `TRIP_SHARED_API_KEY` en ambos servicios.

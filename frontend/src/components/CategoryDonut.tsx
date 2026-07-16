@@ -13,7 +13,7 @@ function DonutTooltip({ active, payload }: { active?: boolean; payload?: { paylo
   if (!active || !payload?.length) return null;
   const r = payload[0].payload;
   return (
-    <div className="rounded-xl border border-border bg-surface px-3 py-2 soft-pop">
+    <div className="relative z-20 rounded-xl border border-border bg-surface px-3 py-2 soft-pop">
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
         <span className="text-sm font-semibold text-ink">{r.name}</span>
@@ -58,34 +58,36 @@ export default function CategoryDonut({
         role="img"
         aria-label={`${title}: total ${formatUsd(total.toFixed(2))} en ${rows.length} categorías`}
       >
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Tooltip content={<DonutTooltip />} />
-            <Pie
-              data={rows}
-              dataKey="usd"
-              nameKey="name"
-              innerRadius="62%"
-              outerRadius="94%"
-              paddingAngle={rows.length > 1 ? 2 : 0}
-              stroke="var(--color-surface)"
-              strokeWidth={3}
-              startAngle={90}
-              endAngle={-270}
-              animationDuration={650}
-            >
-              {rows.map((r) => (
-                <Cell key={r.name} fill={r.color} />
-              ))}
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
-        {/* Total centrado */}
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+        {/* Total detrás del chart para que el tooltip quede por encima */}
+        <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
           <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Total</span>
           <span className="font-display text-2xl leading-none text-ink font-tabular">
             {formatUsd(total.toFixed(2))}
           </span>
+        </div>
+        <div className="relative z-10 h-full w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Tooltip content={<DonutTooltip />} wrapperStyle={{ zIndex: 20 }} />
+              <Pie
+                data={rows}
+                dataKey="usd"
+                nameKey="name"
+                innerRadius="62%"
+                outerRadius="94%"
+                paddingAngle={rows.length > 1 ? 2 : 0}
+                stroke="var(--color-surface)"
+                strokeWidth={3}
+                startAngle={90}
+                endAngle={-270}
+                animationDuration={650}
+              >
+                {rows.map((r) => (
+                  <Cell key={r.name} fill={r.color} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       </div>
 

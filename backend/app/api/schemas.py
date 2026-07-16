@@ -143,6 +143,8 @@ class CityBreakdownOut(BaseModel):
     total_usd: str
     movement_count: int
     days: int
+    # None cuando el movimiento no tiene stop asociado ("Sin ciudad").
+    is_archived: bool | None = None
 
 
 class CitySummaryOut(BaseModel):
@@ -165,3 +167,46 @@ class StopOut(BaseModel):
     arrival_date: date | None
     departure_date: date | None
     order: int
+    is_archived: bool = False
+
+
+class SpendDetailCategoryOut(BaseModel):
+    category_id: int | None
+    name: str | None
+    icon: str | None
+    total_usd: str
+
+
+class SpendDetailMovementOut(BaseModel):
+    description: str | None
+    amount: str
+    currency: str
+    amount_usd: str
+    date: date
+    category_id: int | None
+    paid_by_name: str | None
+
+
+class SpendDetailOut(BaseModel):
+    """Contrato para Andiamo (X-Api-Key). Totales gross del hogar,
+    misma regla que /cities/spend."""
+
+    slug: str
+    city_name: str | None
+    total_usd: str
+    movement_count: int
+    itinerary_days: int
+    avg_per_day_usd: str
+    by_category: list[SpendDetailCategoryOut]
+    last_movements: list[SpendDetailMovementOut]
+    generated_at: datetime
+
+
+class TripSpendOut(BaseModel):
+    total_usd: str
+    today_usd: str
+    movement_count: int
+
+
+class ConfigOut(BaseModel):
+    andiamo_url: str | None

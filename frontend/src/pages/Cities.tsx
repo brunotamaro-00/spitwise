@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, MapPin, Receipt, TrendingUp } from "lucide-react";
+import { Archive, CalendarDays, ExternalLink, MapPin, Receipt, TrendingUp } from "lucide-react";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -26,6 +26,7 @@ import ErrorState from "@/components/ui/ErrorState";
 import Kpi from "@/components/ui/Kpi";
 import Skeleton from "@/components/ui/Skeleton";
 import { formatDayHeader, formatShortDate, formatUsd, parseMoney } from "@/lib/format";
+import { useAndiamoUrl } from "@/lib/useConfig";
 import { dayTotalShare, groupByDay } from "@/lib/groupByDay";
 import type { Category, Movement } from "@/types";
 
@@ -54,6 +55,7 @@ export default function Cities() {
   const { data: stops = [] } = useQuery({ queryKey: ["stops"], queryFn: getStops, staleTime: 60_000 });
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
+  const andiamoUrl = useAndiamoUrl();
 
   const key = selected.slice().sort();
   const { data: summary, isError: errSummary, refetch: refetchSummary } = useQuery({ queryKey: ["city", "summary", key], queryFn: () => getCitySummary(selected) });
@@ -158,12 +160,22 @@ export default function Cities() {
                 <span className="flex max-w-full items-center gap-1.5 text-sm font-bold">
                   {b.country_flag && <span aria-hidden="true">{b.country_flag}</span>}
                   <span className="truncate">{b.city_name ?? "Generales"}</span>
+                  {b.is_archived && (
+                    <Archive
+                      size={12}
+                      strokeWidth={2}
+                      aria-label="Ciudad archivada"
+                      className={`shrink-0 ${active ? "text-white/70" : "text-ink-faint"}`}
+                    />
+                  )}
                 </span>
                 <span className={`font-display text-lg leading-none font-tabular ${active ? "text-white" : "text-ink"}`}>
                   {formatUsd(b.total_usd)}
                 </span>
                 <span className={`text-[11px] font-medium ${active ? "text-white/75" : "text-ink-faint"}`}>
-                  {range ?? (slug ? `${b.movement_count} mov.` : "sin ciudad")}
+                  {b.is_archived
+                    ? "archivada"
+                    : range ?? (slug ? `${b.movement_count} mov.` : "sin ciudad")}
                 </span>
               </motion.button>
             );
@@ -191,6 +203,17 @@ export default function Cities() {
                 </p>
               )}
             </div>
+            {single && andiamoUrl && (
+              <a
+                href={`${andiamoUrl}/stops/${single.slug}`}
+                target="_blank"
+                rel="noopener"
+                className="ml-auto flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-white/40 px-3 text-[11px] font-semibold uppercase tracking-wide text-white/90 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              >
+                Andiamo
+                <ExternalLink size={12} strokeWidth={2} aria-hidden="true" />
+              </a>
+            )}
           </div>
           <div className="mt-5 flex items-end justify-between">
             <div>

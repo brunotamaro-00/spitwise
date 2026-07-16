@@ -52,7 +52,7 @@ async def _itinerary_days(session: AsyncSession, slugs: list[str] | None) -> int
     if slugs:
         stmt = stmt.where(Stop.slug.in_(slugs))
     else:
-        stmt = stmt.where(Stop.is_candidate.is_(False))
+        stmt = stmt.where(Stop.is_candidate.is_(False), Stop.is_archived.is_(False))
     total = 0
     for s in (await session.execute(stmt)).scalars().all():
         if s.arrival_date and s.departure_date:
@@ -149,10 +149,11 @@ async def city_breakdown(
     session: AsyncSession = Depends(get_session),
 ) -> list[CityBreakdownOut]:
     """Una fila por ciudad (todas), ordenada por el itinerario (Stop.order).
-    Las ciudades sin stop asociado (p.ej. "Sin ciudad") van al final."""
+    Archivadas después de las activas; sin stop asociado ("Sin ciudad") al final."""
     stops = (await session.execute(select(Stop))).scalars().all()
     flags = {s.slug: s.country_flag for s in stops}
     order = {s.slug: s.order for s in stops}
+    archived = {s.slug: s.is_archived for s in stops}
     agg: dict[tuple[str | None, str | None], dict] = {}
     for m in await _expenses_for(session, None):
         share = user_share(m, user.id)
@@ -166,7 +167,14 @@ async def city_breakdown(
         row["count"] += 1
         row["days"].add(m.movement_date)
     _LAST = 10**9
-    items = sorted(agg.items(), key=lambda kv: order.get(kv[0][0], _LAST))
+
+    def _sort_key(kv):
+        slug = kv[0][0]
+        if slug is None:
+            return (2, _LAST)
+        return (1 if archived.get(slug) else 0, order.get(slug, _LAST))
+
+    items = sorted(agg.items(), key=_sort_key)
     return [
         CityBreakdownOut(
             stop_slug=slug,
@@ -175,6 +183,7 @@ async def city_breakdown(
             total_usd=_money(row["total"]),
             movement_count=row["count"],
             days=len(row["days"]),
+            is_archived=archived.get(slug) if slug else None,
         )
         for (slug, name), row in items
     ]

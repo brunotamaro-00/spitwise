@@ -94,6 +94,8 @@ class Stop(Base):
     is_transit: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     is_candidate: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     is_flex_margin: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # Borrado en Andiamo pero con movimientos asociados: se conserva para agrupar.
+    is_archived: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     synced_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
 

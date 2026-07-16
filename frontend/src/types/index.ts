@@ -21,7 +21,10 @@ export type Stop = {
   arrival_date: string | null;
   departure_date: string | null;
   order: number;
+  is_archived: boolean;
 };
+
+export type AppConfig = { andiamo_url: string | null };
 
 export type CityDaily = { date: string; total_usd: string };
 export type CityBreakdown = {
@@ -31,6 +34,7 @@ export type CityBreakdown = {
   total_usd: string;
   movement_count: number;
   days: number;
+  is_archived: boolean | null;
 };
 export type CitySummary = {
   total_usd: string;
