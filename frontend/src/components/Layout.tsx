@@ -1,4 +1,4 @@
-import { CloudOff, LayoutDashboard, ListOrdered, LogOut, Map, Plus } from "lucide-react";
+import { CloudOff, Compass, LayoutDashboard, ListOrdered, LogOut, Map, Plus, RefreshCw } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
@@ -9,9 +9,11 @@ import { Wordmark } from "@/components/ui/Brand";
 import { capitalize } from "@/lib/format";
 import { useMe } from "@/lib/useMe";
 import { useOnline } from "@/lib/useOnline";
+import { usePullToRefresh } from "@/lib/usePullToRefresh";
 
 const TABS = [
   { to: "/", label: "Dashboard", Icon: LayoutDashboard },
+  { to: "/viaje", label: "Viaje", Icon: Compass },
   { to: "/ciudades", label: "Ciudades", Icon: Map },
   { to: "/movimientos", label: "Movimientos", Icon: ListOrdered },
 ];
@@ -21,6 +23,7 @@ export default function Layout() {
   const [adding, setAdding] = useState(false);
   const online = useOnline();
   const { data: me } = useMe();
+  const { pull, refreshing } = usePullToRefresh();
 
   const avatar = me && (
     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 text-sm font-bold text-ink-2">
@@ -113,6 +116,23 @@ export default function Layout() {
             Sin conexión — mostrando los últimos datos guardados
           </div>
         )}
+        {/* Indicador de pull-to-refresh (solo aparece al tirar o refrescar). */}
+        {(pull > 0 || refreshing) && (
+          <div
+            role="status"
+            aria-label="Actualizando datos"
+            className="flex justify-center overflow-hidden lg:hidden"
+            style={{ height: refreshing ? 44 : pull * 0.4 }}
+          >
+            <RefreshCw
+              size={18}
+              strokeWidth={2}
+              className={`mt-3 text-brick ${refreshing ? "animate-spin" : ""}`}
+              style={refreshing ? undefined : { transform: `rotate(${pull * 2.5}deg)`, opacity: Math.min(pull / 72, 1) }}
+              aria-hidden="true"
+            />
+          </div>
+        )}
         {/* pb-40: espacio para scrollear el último ítem por encima del FAB
             (bottom nav 3.5rem + FAB 3.5rem alto a 4.75rem del borde). */}
         <main className="mx-auto max-w-lg p-4 pb-40 lg:max-w-5xl lg:p-8 lg:pb-28">
@@ -131,7 +151,10 @@ export default function Layout() {
 
       {/* FAB global: cargar gasto desde cualquier página. */}
       <motion.button
-        onClick={() => setAdding(true)}
+        onClick={() => {
+          if ("vibrate" in navigator) navigator.vibrate?.(10);
+          setAdding(true);
+        }}
         aria-label="Agregar movimiento"
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.9 }}

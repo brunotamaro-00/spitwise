@@ -7,6 +7,7 @@ import Cities from "@/pages/Cities";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import Movements from "@/pages/Movements";
+import Trip from "@/pages/Trip";
 
 function Guard({ children }: { children: React.ReactNode }) {
   return isAuthenticated() ? <>{children}</> : <Navigate to="/login" replace />;
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route element={<Guard><Layout /></Guard>}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/viaje" element={<Trip />} />
           <Route path="/ciudades" element={<Cities />} />
           <Route path="/movimientos" element={<Movements />} />
         </Route>
