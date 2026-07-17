@@ -1,25 +1,4 @@
-import {
-  BedDouble,
-  Bus,
-  type LucideIcon,
-  ShoppingBag,
-  Tag,
-  Ticket,
-  UtensilsCrossed,
-  Wine,
-} from "lucide-react";
-
-/** Nombre de categoría (catálogo backend) -> ícono Lucide. Fallback: Tag. */
-const MAP: Record<string, LucideIcon> = {
-  Alojamiento: BedDouble,
-  Comida: UtensilsCrossed,
-  Transporte: Bus,
-  Actividades: Ticket,
-  Compras: ShoppingBag,
-  "Bebidas/Salidas": Wine,
-  Otros: Tag,
-};
-
-export function categoryIcon(name: string | null | undefined): LucideIcon {
-  return (name && MAP[name]) || Tag;
-}
+/** El ícono por categoría vive en CATEGORY_META (chartTheme.ts), junto al color y
+ *  al fondo — una sola entrada por categoría. Se mantiene este módulo porque es
+ *  el import que ya usan los componentes. */
+export { categoryIcon } from "@/lib/chartTheme";

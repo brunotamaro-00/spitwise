@@ -46,7 +46,7 @@ spitwise/
 │   │   ├── llm/              # parser + chat tool-use
 │   │   ├── qa/tools.py       # tools del agente Q&A
 │   │   ├── whatsapp/         # Meta client, dedupe, signature
-│   │   ├── categories/       # catálogo fijo de 7 categorías
+│   │   ├── categories/       # catálogo fijo de 10 categorías
 │   │   ├── andiamo.py        # sync de stops
 │   │   ├── balance.py        # neto puro (sin I/O)
 │   │   ├── spend.py          # user_share para analytics
@@ -97,7 +97,7 @@ Definido en `backend/app/db/models.py`. Tipos API en `api/schemas.py`; mirror TS
 | Entidad | Rol |
 |---------|-----|
 | **User** | Login web + `whatsapp_wa_id` |
-| **Category** | 7 fijas: Alojamiento, Comida, Transporte, Actividades, Compras, Bebidas/Salidas, Otros |
+| **Category** | 10 fijas: Alojamiento, Comida, Supermercado, Transporte, Actividades, Compras, Bebidas/Salidas, Regalos, Salud, Otros |
 | **Movement** | `expense` \| `settlement`; `split`: `shared` \| `payer_only` \| `other_only`; FX + ciudad |
 | **Stop** | Parada de itinerario cacheada desde Andiamo (+ locales: ver `is_local`) |
 | **FxRate** | Cache diario de tasas |
@@ -211,6 +211,9 @@ Producción / features (ver `config.py` y `DEPLOY.md`):
 - Webhook: Meta timeout ~5s → el 200 **siempre** antes del LLM.
 - Multi-worker / horarios de process → rompe locks y pending del bot **y** las guardas del sync de Andiamo (`_refresh_running`/`_dirty` en `andiamo.py`).
 - Sync de stops: Andiamo pushea `POST /andiamo/sync-hook` en cada alta/edición/borrado (patrón pull-on-ping); el TTL 6h queda como fallback. La reconciliación **archiva** (`Stop.is_archived`) los stops borrados en Andiamo que tienen movimientos y borra los que no; payload vacío o parcial nunca toca el snapshot.
-- Catálogo de categorías: afecta prompts del parser; no agregar sin actualizar seed + tests.
+- Catálogo de categorías (`categories/catalog.py`): el orden es `sort_order` y `Otros` va último. Todo lo demás es derivado (seed, prompt del parser vía `load_categories`, emojis del bot, API) — sumar una categoría son **3 lugares**: la tupla acá, una entrada en `CATEGORY_META` (`frontend/src/lib/chartTheme.ts`: ícono + color + fondo, más su token `--color-accent-*` en `index.css`) y el `MAP` de `andiamo/src/lib/categoryIcons.ts`. Los tres frontends degradan solos (ícono Tag + gris), así que olvidarse no rompe: se ve feo.
+  - La **descripción es el clasificador**, no documentación: se inyecta en el prompt del parser. Si dos se pisan (p. ej. "supermercado" viviendo en Comida y en Supermercado), el LLM elige mal. Mantenerlas mutuamente excluyentes y marcar el borde explícito.
+  - Color nuevo: correr `scripts/validate_palette.js` de la skill dataviz sobre los 10 hex antes de commitear. La paleta está validada a **pares adyacentes** (no all-pairs, que no pasa ni con los 6 originales); el peor caso CVD está en la banda 6–8, legal porque el color siempre viene con ícono + label.
+  - Actualizar `tests/test_categories_seed.py` (lista exacta + count).
 - Contrato Andiamo (`/cities/spend`, sync de stops): coordinar key `TRIP_SHARED_API_KEY` en ambos servicios.
 - `?user=` en `/cities/spend-detail` y `/trip/spend`: filtra a la parte de esa persona vía `user_share` (mitad de un compartido, entero de uno propio) y **omite los privados del otro** — Andiamo lo usa para que cada uno vea solo sus gastos. `amount` se escala junto al share para que la moneda local cierre con el USD. Sin el param, gross del hogar (contrato original intacto). Un username desconocido es **400, nunca fallback a gross**: degradar le filtraría a uno los gastos privados del otro. `/cities/spend` sigue siendo gross-only.
