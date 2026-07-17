@@ -84,7 +84,13 @@ async def sync_stops(session: AsyncSession, *, client: httpx.AsyncClient | None 
             row.departure_date = _parse_date(item.get("departureDate"))
             row.currency_code = item.get("currencyCode")
             row.timezone = item.get("timezone")
-            row.is_transit = bool(item.get("isTransit"))
+            # Andiamo ya no expone isTransit: tránsito es implícito (0 noches).
+            # departure es exclusivo, así que noches = departure - arrival.
+            row.is_transit = (
+                row.arrival_date is not None
+                and row.departure_date is not None
+                and (row.departure_date - row.arrival_date).days == 0
+            )
             row.is_candidate = bool(item.get("isCandidate"))
             row.is_flex_margin = bool(item.get("isFlexMargin"))
             # Si reaparece un slug archivado (recreado en Andiamo), se desarchiva.
