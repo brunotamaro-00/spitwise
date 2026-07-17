@@ -23,8 +23,11 @@ def _fold(s: str) -> str:
 
 
 def _score(mv: Movement, ref_tokens: set[str]) -> int:
-    hay = _fold(f"{mv.description or ''} {mv.city_name or ''} {mv.raw_message or ''}")
-    return sum(1 for t in ref_tokens if t in hay)
+    """La descripción pesa más que ciudad/raw: los hermanos de un batch comparten
+    raw_message ('cena 40, taxi 12…') y empatarían solo por él."""
+    desc = _fold(mv.description or "")
+    rest = _fold(f"{mv.city_name or ''} {mv.raw_message or ''}")
+    return sum(3 if t in desc else (1 if t in rest else 0) for t in ref_tokens)
 
 
 async def find_candidates(session: AsyncSession, *, ref_last: bool, ref_text: str | None,

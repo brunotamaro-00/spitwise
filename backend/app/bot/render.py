@@ -101,6 +101,95 @@ def expense_card(mv, cat_name: str | None, payer_name: str, other_name: str) -> 
     return "\n".join(lines)
 
 
+@dataclass
+class BatchRow:
+    """Un movimiento recién guardado de un mensaje multi-gasto, listo para render."""
+    mv: object
+    cat_name: str | None
+    payer_name: str
+    uncertain: bool = False  # categoría dudosa => ❓ (sin botones en batch)
+
+
+def _batch_owes_line(rows: list[BatchRow], usernames: list[str]) -> str | None:
+    """Neto entre los dos por ESTE batch, misma aritmética por ítem que _owes_line
+    (shared → mitad, other_only → todo, payer_only → nada; settlement acredita
+    el total al que paga)."""
+    if len(usernames) != 2:
+        return None
+    owed = {u: Decimal(0) for u in usernames}  # cuánto le deben A ese usuario
+    for r in rows:
+        mv = r.mv
+        if mv.amount_usd is None or r.payer_name not in owed:
+            continue
+        if mv.type == "settlement":
+            owed[r.payer_name] += Decimal(mv.amount_usd)
+            continue
+        factor = {"shared": Decimal("0.5"), "other_only": Decimal("1")}.get(mv.split)
+        if factor:
+            owed[r.payer_name] += Decimal(mv.amount_usd) * factor
+    a, b = usernames
+    net = owed[a] - owed[b]
+    if net == 0:
+        return None
+    debtor, amt = (b, net) if net > 0 else (a, -net)
+    return f"⚖️ *{_cap(debtor)}* le debe *USD {ar_number(amt)}* por esto"
+
+
+def batch_card(rows: list[BatchRow], usernames: list[str]) -> str:
+    """Confirmación única de un mensaje multi-gasto: header con lo común a todos,
+    una línea por ítem (con sufijos solo donde difiere), total y neto."""
+    dates = [r.mv.movement_date for r in rows]
+    cities = [r.mv.city_name for r in rows if r.mv.type != "settlement"]
+    payers = [r.payer_name for r in rows]
+    common_date = dates[0] if len(set(dates)) == 1 else None
+    common_city = cities[0] if cities and all(c == cities[0] for c in cities) else None
+    common_payer = payers[0] if len(set(payers)) == 1 else None
+
+    meta = []
+    if common_date:
+        meta.append(f"📅 {fmt_date(common_date)}")
+    if common_city:
+        meta.append(f"📍 {common_city}")
+    if common_payer:
+        meta.append(f"👤 Pagó {_cap(common_payer)}")
+    head = copy.H_BATCH.format(n=len(rows))
+    if meta:
+        head += " · " + " · ".join(meta)
+
+    lines = [head, ""]
+    for r in rows:
+        mv = r.mv
+        if mv.type == "settlement":
+            line = f"- 💸 Saldo · {fmt_money(mv.amount, mv.currency, mv.amount_usd)}"
+        else:
+            emoji = _CAT_EMOJI.get(r.cat_name or "Otros", "📦")
+            desc = mv.description or (r.cat_name or "gasto").lower()
+            flag = " ❓" if r.uncertain else ""
+            line = f"- {emoji} {desc}{flag} · {fmt_money(mv.amount, mv.currency, mv.amount_usd)}"
+            if mv.split != "shared":
+                other = next((u for u in usernames if u != r.payer_name), "el otro")
+                line += f" · {split_label(mv.split, _cap(r.payer_name), _cap(other))}"
+        if not common_date:
+            line += f" · {fmt_date(mv.movement_date)}"
+        if not common_city and mv.city_name:
+            line += f" · {mv.city_name}"
+        if not common_payer:
+            line += f" · pagó {_cap(r.payer_name)}"
+        lines.append(line)
+
+    total = sum((Decimal(r.mv.amount_usd) for r in rows
+                 if r.mv.type != "settlement" and r.mv.amount_usd is not None), Decimal(0))
+    if total > 0:
+        lines.append("")
+        lines.append(f"💰 Total: *USD {ar_number(total)}*")
+    owes = _batch_owes_line(rows, usernames)
+    if owes:
+        lines.append(owes)
+    if any(r.uncertain for r in rows):
+        lines.append(copy.BATCH_CAT_HINT)
+    return "\n".join(lines)
+
+
 def settlement_card(mv, payer_name: str, other_name: str) -> str:
     return (
         f"{copy.H_SETTLEMENT}\n\n"

@@ -55,6 +55,15 @@ _SYSTEM = (
     "('10 usd roma en helados' → city 'Roma', description 'helados').\n"
     "- confidence: 0..1, qué tan clara es la categoría.\n"
     "- candidates: si confidence < 0.6, 2-3 categorías candidatas de la lista; si no, [].\n\n"
+    "Multi-gasto: si el mensaje carga MÁS DE UN gasto con montos separados "
+    "('cena 40, taxi 12, helado 5'), intent='expense' y llená `expenses` con TODOS "
+    "los ítems, con los mismos campos y reglas de arriba. kind='expense', o "
+    "'settlement' si ese ítem es un pago entre ustedes (category null). Cada ítem "
+    "va COMPLETO y autocontenido: los calificativos a nivel mensaje ('ayer', "
+    "'en Roma', 'pagó katia') se replican en cada ítem, salvo que un ítem diga "
+    "otra cosa. Los campos sueltos (amount, category, …) llevan el PRIMER ítem. "
+    "Con UN solo gasto, `expenses` queda VACÍO. NO inventes ítems: partí SOLO "
+    "cuando hay montos separados; 'cena 40 con vino' es UN gasto de 40.\n\n"
     "Para edit/delete extraé la referencia al movimiento:\n"
     "- ref_last: true si se refiere al último movimiento o no da ninguna referencia.\n"
     "- ref_text: palabras que identifican el movimiento ('cena', 'museo'), o null.\n"
@@ -64,6 +73,22 @@ _SYSTEM = (
     "new_description, new_split (shared/payer_only/other_only), new_paid_by (username).\n\n"
     "No inventes categorías fuera de la lista. Hablan castellano rioplatense."
 )
+
+
+class ExpenseItemSchema(BaseModel):
+    """Un gasto dentro de un mensaje multi-gasto. Mismos campos/semántica que el flat."""
+
+    kind: str  # expense | settlement
+    amount: str | None
+    currency: str | None
+    description: str | None
+    category: str | None
+    split: str | None
+    paid_by: str | None
+    date: str | None
+    city: str | None
+    confidence: float
+    candidates: list[str]
 
 
 class ParsedMessageSchema(BaseModel):
@@ -89,6 +114,8 @@ class ParsedMessageSchema(BaseModel):
     new_description: str | None
     new_split: str | None
     new_paid_by: str | None
+    # Vacío salvo mensaje con 2+ gastos; ahí lleva TODOS (flat = primer ítem).
+    expenses: list[ExpenseItemSchema]
 
 
 def _render_system(usernames: list[str], sender: str) -> str:

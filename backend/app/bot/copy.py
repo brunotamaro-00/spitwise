@@ -10,6 +10,7 @@ from app.config import get_settings
 
 # --- Encabezados estándar por tipo de respuesta (una sola fuente de verdad) ---
 H_EXPENSE = "✅ *Gasto guardado*"
+H_BATCH = "✅ *{n} gastos guardados*"
 H_SETTLEMENT = "💸 *Pago de saldo*"
 H_EDIT = "✏️ *Editado*"
 H_DELETE = "🗑️ *Borrado*"
@@ -34,6 +35,7 @@ SAVED_BUT_UNCONFIRMED = (
     "Revisá la app por las dudas."
 )
 EMPTY_MESSAGE = "Mandame un gasto, ej: _cena 20 euros_."
+BATCH_CAT_HINT = '_Los ❓ son categorías dudosas: corregime como siempre ("el helado es Comida")._'
 
 
 def bullets(items) -> str:

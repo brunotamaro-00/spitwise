@@ -1,3 +1,4 @@
+import secrets
 from datetime import date
 from decimal import Decimal
 
@@ -8,13 +9,15 @@ from app.bot import copy
 from app.bot.active_stop import get_state_payload, place_for_date
 from app.bot.pending import close_pending, create_pending, load_pending
 from app.bot.render import (
-    BotReply, buttons_reply, cat_label, expense_card, fmt_money, settlement_card, text_reply,
+    BatchRow, BotReply, batch_card, buttons_reply, cat_label, expense_card, fmt_money,
+    settlement_card, text_reply,
 )
 from app.categories.catalog import CATEGORIES
 from app.db.models import Category, Movement, User
 from app.fx import convert_to_usd
 
 _CONF_THRESHOLD = 0.6
+_BATCH_MAX = 10  # más que esto huele a alucinación del parser (y revienta el mensaje)
 
 
 def _cat_names() -> list[str]:
@@ -137,6 +140,9 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
             city_names=await load_city_names(session),
         )
 
+    if parsed.batch:
+        return await handle_capture_batch(session, user, wa_id, text, today, items=parsed.batch)
+
     if parsed.amount is None:
         return text_reply(f"{copy.H_WARN} No le pesqué el *monto*. Probá: _cena 20 euros_.")
 
@@ -189,6 +195,58 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
     else:
         reply = text_reply(expense_card(mv, parsed.category_name, payer.username, other_name))
     reply.movement_id = mv.id
+    return reply
+
+
+async def handle_capture_batch(session, user: User, wa_id: str, text: str, today: date,
+                               *, items) -> BotReply:
+    """N movimientos de un mensaje multi-gasto, en UNA transacción (o entran todos
+    o ninguno; si algo falla, el borde de dispatch descarta y el usuario reintenta).
+
+    Sin pendings acá: la categoría dudosa se guarda igual (marcada ❓ en el card) y
+    se corrige por el flujo edit de siempre — WhatsApp da 3 botones por mensaje y
+    encadenar pendings deja gastos en el limbo.
+    """
+    items = items[:_BATCH_MAX]
+    batch_key = secrets.token_hex(8)
+    users = await all_users(session)
+    usernames = [u.username for u in users]
+
+    movements: list[Movement] = []
+    rows: list[BatchRow] = []
+    for item in items:
+        movement_date = item.movement_date or today
+        stop_slug, city_name, place_currency = await resolve_place(
+            session, wa_id, movement_date, today, item.city, user.username
+        )
+        currency = item.currency or place_currency
+        if item.is_settlement:
+            stop_slug, city_name = None, None
+        payer = user
+        if item.paid_by and item.paid_by != user.username:
+            payer = (await user_by_username(session, item.paid_by)) or user
+        # Regla: el TC es siempre el de la fecha de CARGA, no la del gasto.
+        amount_usd, rate, src = await convert_to_usd(session, item.amount, currency, today)
+        cat_name = None if item.is_settlement else item.category_name
+        cat_id = None if item.is_settlement else await _category_id(session, cat_name)
+        mv = Movement(
+            type="settlement" if item.is_settlement else "expense",
+            amount=item.amount, currency=currency, amount_usd=amount_usd,
+            fx_rate=rate, fx_source=_map_source(src, currency), paid_by=payer.id,
+            split=item.split, description=item.description, category_id=cat_id,
+            stop_slug=stop_slug, city_name=city_name, movement_date=movement_date,
+            created_by=user.id, raw_message=text, batch_key=batch_key,
+        )
+        uncertain = (not item.is_settlement and item.confidence < _CONF_THRESHOLD
+                     and len(item.category_candidates) >= 2)
+        movements.append(mv)
+        rows.append(BatchRow(mv=mv, cat_name=cat_name, payer_name=payer.username,
+                             uncertain=uncertain))
+
+    session.add_all(movements)
+    await session.commit()
+    reply = text_reply(batch_card(rows, usernames))
+    reply.movement_id = movements[-1].id
     return reply
 
 

@@ -46,6 +46,34 @@ async def _handle_delete_command(session, user: User) -> BotReply:
     )).scalars().first()
     if last is None:
         return text_reply(f"{copy.H_WARN} Nada que borrar: no hay movimientos cargados.")
+
+    # "borrar" justo después de un mensaje multi-gasto casi siempre significa
+    # "me equivoqué con ese mensaje" → ofrecer el batch entero (con confirmación).
+    if last.batch_key:
+        siblings = (await session.execute(
+            select(Movement).where(Movement.batch_key == last.batch_key).order_by(Movement.id)
+        )).scalars().all()
+        if len(siblings) > 1:
+            from app.bot.interactive import _summary_lines
+            from app.bot.pending import create_pending
+            summary = await _summary_lines(session, siblings)
+            token_all = await create_pending(
+                session, owner=user.username,
+                payload={"ids": [m.id for m in siblings]}, kind="del_confirm",
+            )
+            token_last = await create_pending(
+                session, owner=user.username, payload={"ids": [last.id]}, kind="del_confirm",
+            )
+            return buttons_reply(
+                f"{copy.H_WARN} Eso entró como *{len(siblings)} gastos juntos*. "
+                f"¿Borrar? Es irreversible.\n{summary}",
+                [
+                    (f"del_confirm:{token_all}", f"Borrar los {len(siblings)} 🗑️"),
+                    (f"del_confirm:{token_last}", "Solo el último"),
+                    ("del_cancel:0", "Cancelar"),
+                ],
+            )
+
     desc = last.description or last.type
     return buttons_reply(
         f"{copy.H_WARN} ¿Borrar *{desc}* ({fmt_money(last.amount, last.currency, last.amount_usd)})?\n"

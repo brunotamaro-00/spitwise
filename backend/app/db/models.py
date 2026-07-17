@@ -70,6 +70,9 @@ class Movement(Base):
     city_name: Mapped[str | None] = mapped_column(String(120))
     movement_date: Mapped[date] = mapped_column(Date, nullable=False)
     raw_message: Mapped[str | None] = mapped_column(Text)
+    # Los movimientos nacidos de un mismo mensaje multi-gasto comparten clave
+    # (interno del bot: habilita "borrar" del batch completo).
+    batch_key: Mapped[str | None] = mapped_column(String(16))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

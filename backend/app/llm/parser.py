@@ -39,6 +39,9 @@ class ParsedMessage:
     ref_text: str | None = None
     ref_date: date | None = None
     changes: dict = field(default_factory=dict)  # campo -> valor nuevo, ya normalizado
+    # Mensaje multi-gasto: 2+ ítems normalizados (cada uno un ParsedMessage
+    # expense/settlement autocontenido). Vacío => single, camino de siempre.
+    batch: list["ParsedMessage"] = field(default_factory=list)
 
     @property
     def is_settlement(self) -> bool:
@@ -98,6 +101,31 @@ def normalize_changes(raw: dict, category_names, usernames) -> dict:
     return changes
 
 
+def _normalize_expense(raw: dict, category_names, usernames) -> ParsedMessage:
+    """Normaliza un gasto/settlement (flat o ítem de `expenses`) a ParsedMessage."""
+    intent = "settlement" if raw.get("kind") == "settlement" else "expense"
+    category = raw.get("category")
+    if category not in category_names:
+        category = "Otros"
+    split = raw.get("split")
+    if split not in _VALID_SPLIT:
+        split = "shared"
+    paid_by = str(raw.get("paid_by") or "").strip().lower()
+    return ParsedMessage(
+        intent=intent,
+        amount=_to_decimal(raw.get("amount")),
+        currency=_norm_currency(raw.get("currency")),
+        description=(raw.get("description") or None),
+        category_name=category,
+        split=split,
+        paid_by=paid_by if paid_by in usernames else None,
+        movement_date=_to_date(raw.get("date")),
+        city=(str(raw.get("city")).strip() if raw.get("city") else None),
+        confidence=float(raw.get("confidence", 1.0)),
+        category_candidates=[c for c in (raw.get("candidates") or []) if c in category_names],
+    )
+
+
 async def parse_message(
     text, *, today: date, category_names: list[str] | None = None, usernames: list[str],
     sender: str, client=None, categories: list[tuple[str, str | None]] | None = None,
@@ -126,28 +154,20 @@ async def parse_message(
         # Compat: payloads viejos sin intent usaban is_settlement; resto => unknown.
         intent = "settlement" if raw.get("is_settlement") else "unknown"
 
-    category = raw.get("category")
-    if category not in category_names:
-        category = "Otros"
-    split = raw.get("split")
-    if split not in _VALID_SPLIT:
-        split = "shared"
-    paid_by = str(raw.get("paid_by") or "").strip().lower()
+    parsed = _normalize_expense(raw, category_names, usernames)
+    parsed.intent = intent
+    parsed.ref_last = bool(raw.get("ref_last"))
+    parsed.ref_text = raw.get("ref_text") or None
+    parsed.ref_date = _to_date(raw.get("ref_date"))
+    parsed.changes = normalize_changes(raw, category_names, usernames)
 
-    return ParsedMessage(
-        intent=intent,
-        amount=_to_decimal(raw.get("amount")),
-        currency=_norm_currency(raw.get("currency")),
-        description=(raw.get("description") or None),
-        category_name=category,
-        split=split,
-        paid_by=paid_by if paid_by in usernames else None,
-        movement_date=_to_date(raw.get("date")),
-        city=(str(raw.get("city")).strip() if raw.get("city") else None),
-        confidence=float(raw.get("confidence", 1.0)),
-        category_candidates=[c for c in (raw.get("candidates") or []) if c in category_names],
-        ref_last=bool(raw.get("ref_last")),
-        ref_text=(raw.get("ref_text") or None),
-        ref_date=_to_date(raw.get("ref_date")),
-        changes=normalize_changes(raw, category_names, usernames),
-    )
+    # Multi-gasto: 2+ ítems válidos (con monto) => batch; con 1 alcanza el flat
+    # (el prompt pide flat = primer ítem), y otros intents lo ignoran.
+    if intent == "expense":
+        items = [
+            p for it in (raw.get("expenses") or [])
+            if (p := _normalize_expense(it, category_names, usernames)).amount is not None
+        ]
+        if len(items) >= 2:
+            parsed.batch = items
+    return parsed
