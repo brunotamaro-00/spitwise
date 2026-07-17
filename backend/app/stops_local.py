@@ -54,6 +54,52 @@ async def _order_near_portugal(session: AsyncSession) -> int:
     return row if row is not None else _FALLBACK_ORDER
 
 
+async def _sync_counterpart_owner(session: AsyncSession, owner: str) -> None:
+    """El reverso de Pititas: mientras Katia está allá, las paradas del
+    itinerario común que caen enteras en ese tramo son solo de Bruno.
+
+    Sin esto la asimetría era rara: Bruno no veía Pititas, pero Katia sí veía
+    Portugal, donde nunca estuvo. La ventana sale de las fechas de Pititas, así
+    que si Andiamo mueve el itinerario esto se recalcula solo en el próximo
+    arranque (mismo criterio que `_order_near_portugal`).
+
+    Contención total, no solapamiento: una parada que arranca antes del 4 o
+    termina después del 11 la vivieron los dos (aunque sea un día), y ocultársela
+    a Katia le borraría noches propias. En esas puntas alcanza con la prioridad
+    por dueño de `active_stop._by_priority` para imputar bien por fecha.
+    """
+    from app.users import get_trip_users
+
+    try:
+        a, b = await get_trip_users(session)
+    except Exception:
+        # Menos de 2 usuarios (arranque en frío): sin contraparte que imputar.
+        logger.warning("counterpart_owner_skipped: no hay 2 usuarios todavía")
+        return
+    other = next((u.username for u in (a, b) if (u.username or "").lower() != owner), None)
+    if not other:
+        return
+    other = other.lower()
+
+    start, end = _PITITAS["arrival_date"], _PITITAS["departure_date"]
+    stops = (
+        await session.execute(select(Stop).where(Stop.is_local.is_(False)))
+    ).scalars().all()
+    for s in stops:
+        contained = bool(
+            s.arrival_date
+            and s.departure_date
+            and s.arrival_date >= start
+            and s.departure_date <= end
+        )
+        if contained:
+            s.owner_username = other
+        elif (s.owner_username or "").lower() == other:
+            # Ya no solapa (fechas movidas en Andiamo): vuelve a ser compartida.
+            s.owner_username = None
+    await session.commit()
+
+
 async def seed_local_stops(session: AsyncSession) -> None:
     """Idempotente: crea/actualiza el stop Pititas si hay owner configurado."""
     owner = (get_settings().pititas_owner or "").strip().lower()
@@ -81,3 +127,4 @@ async def seed_local_stops(session: AsyncSession) -> None:
     row.is_archived = False
     await session.commit()
     logger.info("local_stop_seeded slug=%s owner=%s", PITITAS_SLUG, owner)
+    await _sync_counterpart_owner(session, owner)

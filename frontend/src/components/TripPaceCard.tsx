@@ -7,14 +7,14 @@ import { formatUsd, isZeroMoney } from "@/lib/format";
 import type { TripPace } from "@/types";
 
 /** "Ritmo del viaje": el $/día que importa según el estado del viaje.
- *  Pre-viaje: lo comprometido repartido en las noches (sin proyección).
- *  En viaje: run-rate real (devengado / noches vividas) + proyección suave.
- *  El alojamiento entra prorrateado por noche y los generales por todo el
- *  viaje, así el número no pica el día que se paga una reserva. */
+ *  Pre-viaje: lo comprometido en ciudades repartido en las noches.
+ *  En viaje: run-rate real (devengado / noches vividas) + proyección.
+ *  El alojamiento entra prorrateado por noche, así el número no pica el día que
+ *  se paga una reserva. Los generales quedan fuera del ritmo — no pasan por
+ *  ninguna ciudad — y se muestran aparte; solo la proyección los suma. */
 export default function TripPaceCard({ pace }: { pace: TripPace }) {
   const t = pace.trip;
   const perDay = t.status === "not_started" ? t.avg_per_day_usd : t.run_rate_usd ?? t.avg_per_day_usd;
-  const progress = t.total_nights > 0 ? Math.min(t.elapsed_nights / t.total_nights, 1) : 0;
   const showProjection = t.status === "in_progress" && t.elapsed_nights >= 3 && t.projected_total_usd;
 
   return (
@@ -34,20 +34,6 @@ export default function TripPaceCard({ pace }: { pace: TripPace }) {
           {t.status === "not_started" ? "/día previsto" : "/día"}
         </span>
       </div>
-
-      {t.status === "in_progress" && (
-        <div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
-            <div
-              className="h-full rounded-full bg-brick transition-[width] duration-700"
-              style={{ width: `${Math.round(progress * 100)}%` }}
-            />
-          </div>
-          <p className="mt-1.5 text-xs font-medium text-ink-3">
-            Noche {t.elapsed_nights} de {t.total_nights}
-          </p>
-        </div>
-      )}
 
       <div className="flex flex-col gap-1 text-sm text-ink-2">
         {t.status === "not_started" && (
@@ -71,7 +57,7 @@ export default function TripPaceCard({ pace }: { pace: TripPace }) {
         )}
         {!isZeroMoney(t.general_usd) && t.general_per_day_usd && (
           <span className="text-xs text-ink-3">
-            Generales (vuelos, pases, seguros):{" "}
+            + Generales aparte:{" "}
             <span className="font-tabular font-semibold">{formatUsd(t.general_usd)}</span> ≈{" "}
             <span className="font-tabular">{formatUsd(t.general_per_day_usd)}</span>/día
           </span>

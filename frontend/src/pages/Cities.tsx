@@ -173,7 +173,7 @@ export default function Cities() {
             onClick={() => setParams(new URLSearchParams(), { replace: true })}
             aria-pressed={selected.length === 0}
             whileTap={{ scale: 0.96 }}
-            className={`flex min-w-[7.5rem] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+            className={`flex w-[9.5rem] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
               selected.length === 0
                 ? "border-brick bg-brick text-white soft-pop"
                 : "border-border bg-surface text-ink-2 soft-card hover:bg-surface-2"
@@ -196,7 +196,7 @@ export default function Cities() {
                 onClick={() => toggle(c.stop_slug)}
                 aria-pressed={active}
                 whileTap={{ scale: 0.96 }}
-                className={`flex min-w-[7.5rem] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+                className={`flex w-[9.5rem] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
                   active
                     ? "border-brick bg-brick text-white soft-pop"
                     : c.status === "future"
@@ -205,8 +205,10 @@ export default function Cities() {
                 }`}
               >
                 <span className="flex max-w-full items-center gap-1.5 text-sm font-bold">
-                  {c.country_flag && <Flag flag={c.country_flag} className="text-sm leading-none" />}
-                  <span className="truncate">{c.city_name}</span>
+                  {c.country_flag && <Flag flag={c.country_flag} className="shrink-0 text-sm leading-none" />}
+                  {/* min-w-0: sin esto el flex item no baja de su ancho de
+                      contenido y `truncate` nunca llega a cortar. */}
+                  <span className="min-w-0 truncate">{c.city_name}</span>
                   {c.is_archived && (
                     <Archive
                       size={12}
@@ -278,17 +280,16 @@ export default function Cities() {
       {/* KPIs: con una ciudad seleccionada, el modelo prorrateado (ritmo,
           dormir/noche, vivir/día); si no, los agregados de la selección. */}
       {singlePace && singlePace.nights > 0 ? (
-        <div className="animate-rise-in stagger-2 flex flex-col gap-2">
-          <div className="grid grid-cols-3 gap-3">
-            <Kpi icon={TrendingUp} tint="brick" label={singlePace.status === "current" ? "$/día (en curso)" : "$/día"} value={formatUsd(singlePace.per_day_usd ?? "0")} />
-            <Kpi icon={BedDouble} tint="blue" label="Dormir /noche" value={formatUsd(singlePace.lodging_per_night_usd ?? "0")} />
-            <Kpi icon={UtensilsCrossed} tint="teal" label="Vivir /día" value={formatUsd(singlePace.other_per_day_usd ?? "0")} />
-          </div>
-          {singlePace.delta_vs_trip_pct != null && (
-            <div className="px-1">
-              <DeltaBadge pct={singlePace.delta_vs_trip_pct} />
-            </div>
-          )}
+        <div className="animate-rise-in stagger-2 grid grid-cols-3 gap-3">
+          <Kpi
+            icon={TrendingUp}
+            tint="brick"
+            label={singlePace.status === "current" ? "$/día · hoy" : "$/día"}
+            value={formatUsd(singlePace.per_day_usd ?? "0")}
+            badge={<DeltaBadge pct={singlePace.delta_vs_trip_pct} compact />}
+          />
+          <Kpi icon={BedDouble} tint="blue" label="Dormir /noche" value={formatUsd(singlePace.lodging_per_night_usd ?? "0")} />
+          <Kpi icon={UtensilsCrossed} tint="teal" label="Vivir /día" value={formatUsd(singlePace.other_per_day_usd ?? "0")} />
         </div>
       ) : (
         <div className="animate-rise-in stagger-2 grid grid-cols-3 gap-3">

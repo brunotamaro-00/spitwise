@@ -68,7 +68,7 @@ async def test_pace_pre_trip(app_client, monkeypatch):
     assert t["general_per_day_usd"] == "5.00"
     assert t["run_rate_usd"] is None
     assert t["projected_total_usd"] is None
-    assert t["avg_per_day_usd"] == "15.00"  # 90 / 6
+    assert t["avg_per_day_usd"] == "10.00"  # sin generales: 60 (ciudades) / 6
 
     cities = {c["stop_slug"]: c for c in j["cities"]}
     assert list(cities) == ["londres", "paris"]  # itinerario completo, aun sin gastos
@@ -92,17 +92,21 @@ async def test_pace_mid_stay(app_client, monkeypatch):
     t = j["trip"]
     assert t["status"] == "in_progress"
     assert t["elapsed_nights"] == 2
-    # Devengado: alojamiento 15/noche x2 + comida 15 + general 30*2/6 = 55.
+    # Devengado total: alojamiento 15/noche x2 + comida 15 + general 30*2/6 = 55.
     assert t["accrued_usd"] == "55.00"
-    assert t["run_rate_usd"] == "27.50"
-    assert t["projected_total_usd"] == "165.00"
+    # Ritmo sin generales: (55 - 10) / 2 = 22,50.
+    assert t["run_rate_usd"] == "22.50"
+    # Londres está en curso y no hay ciudad cerrada: sin proyección.
+    assert t["projected_total_usd"] is None
 
     lon = {c["stop_slug"]: c for c in j["cities"]}["londres"]
     assert lon["status"] == "current"
     assert lon["elapsed_nights"] == 2
     assert lon["per_day_usd"] == "22.50"    # (15*2 + 15) / 2
+    # Londres es la única ciudad y el ritmo ya no lleva generales: es el
+    # promedio mismo, así que el delta es 0 (antes daba -18% por los generales).
     assert lon["delta_vs_trip_pct"] is not None
-    assert abs(lon["delta_vs_trip_pct"] - (-18.18)) < 0.1
+    assert abs(lon["delta_vs_trip_pct"]) < 0.1
 
 
 async def test_pace_total_matches_summary(app_client, monkeypatch):

@@ -4,8 +4,10 @@ Funciones puras (sin I/O), estilo balance.py/spend.py. El modelo:
 
 - El alojamiento de una parada se prorratea entre sus noches (departure
   exclusivo), así el $/día es "all-in" y no pica el día que se paga.
-- Los gastos generales (sin parada) se prorratean entre todas las noches
-  del viaje: suman al ritmo global, nunca a una ciudad.
+- El ritmo (global y por ciudad) es *sin generales*: los vuelos, pases y
+  seguros no pasan por ninguna ciudad, así que meterlos en la media dejaba a
+  todas las ciudades debajo de la línea por construcción. Van aparte, en
+  `general_usd` / `general_per_day_usd`, y solo entran en la proyección.
 - Todo es personal (`user_share`): la parte del usuario, no el gross.
 """
 
@@ -67,6 +69,26 @@ def itinerary_dates(stops) -> set[date]:
 def _visible(stops, username: str | None):
     u = (username or "").strip().lower() or None
     return [s for s in stops if s.owner_username is None or s.owner_username == u]
+
+
+def _project(cities, total_nights: int, general: Decimal) -> Decimal | None:
+    """Proyección del viaje entero = generales + noches × ritmo de lo cerrado.
+
+    Solo se miran las ciudades ya terminadas: la que está en curso todavía no tiene
+    todos sus gastos cargados y las futuras solo tienen reservas adelantadas, así
+    que incluirlas mezclaba plata comprometida con ritmo real y hundía el número.
+    Sin ninguna ciudad cerrada (primeros días) no hay proyección: None.
+    """
+    spent = _ZERO
+    nights = 0
+    for c in cities:
+        if c["status"] != "past" or c["is_archived"] or c["nights"] <= 0:
+            continue
+        spent += c["total_usd"]
+        nights += c["nights"]
+    if not nights or not total_nights:
+        return None
+    return general + (spent / nights) * total_nights
 
 
 def build_trip_pace(
@@ -175,6 +197,9 @@ def build_trip_pace(
         )
 
     general_per_day = general / total_nights if total_nights else None
+    # `accrued` venía solo de ciudades: ese es el ritmo que se compara contra
+    # las barras. El devengado total suma aparte los generales prorrateados.
+    accrued_cities = accrued
     if total_nights and elapsed_nights:
         accrued += general * elapsed_nights / total_nights
 
@@ -187,14 +212,17 @@ def build_trip_pace(
     else:
         trip_status = "in_progress"
 
-    run_rate = accrued / elapsed_nights if elapsed_nights else None
-    projected = run_rate * total_nights if run_rate is not None else None
-    # Baseline de comparación: el ritmo real si el viaje arrancó; si no, el
-    # "previsto" (todo lo comprometido repartido en las noches del viaje).
+    # Ritmo y baseline: siempre sin generales, para que sea la misma unidad que
+    # el $/día de cada ciudad. Con generales adentro, ninguna ciudad podía
+    # llegar a la media y todas las comparaciones daban negativas.
+    run_rate = accrued_cities / elapsed_nights if elapsed_nights else None
     if run_rate is not None:
         avg_per_day = run_rate
     else:
-        avg_per_day = total / total_nights if total_nights else None
+        # Pre-viaje: lo comprometido en ciudades repartido en las noches.
+        avg_per_day = (total - general) / total_nights if total_nights else None
+
+    projected = _project(cities, total_nights, general)
 
     for c in cities:
         if c["status"] == "future" or c["per_day_usd"] is None or not avg_per_day:

@@ -53,7 +53,8 @@ def test_mid_stay_prorates_lodging():
     assert c["per_day_usd"] == Decimal("70")  # (50*4 + 80) / 4
     assert data["trip"]["accrued_usd"] == Decimal("280")
     assert data["trip"]["run_rate_usd"] == Decimal("70")
-    assert data["trip"]["projected_total_usd"] == Decimal("700")
+    # Sin ciudades cerradas todavía (Roma está en curso): no se proyecta.
+    assert data["trip"]["projected_total_usd"] is None
 
 
 def test_past_city_uses_all_nights():
@@ -100,6 +101,27 @@ def test_general_expenses_prorated_globally():
     assert t["accrued_usd"] == Decimal("255")
 
 
+def test_projection_uses_closed_cities_plus_generals():
+    """Proyección = generales + noches × ritmo de lo cerrado. Roma (10 noches,
+    cerrada) gastó 500; la ciudad en curso y los prepagos futuros no cuentan."""
+    stops = [
+        _stop("roma", order=1, arrival=date(2026, 8, 1), departure=date(2026, 8, 11)),
+        _stop("paris", order=2, arrival=date(2026, 8, 11), departure=date(2026, 8, 16)),
+        _stop("niza", order=3, arrival=date(2026, 9, 1), departure=date(2026, 9, 6)),
+    ]
+    movs = [
+        _mov("roma", "1000", cat=LODGING),   # share 500, ciudad cerrada
+        _mov("paris", "200"),                # share 100, en curso (no cuenta)
+        _mov("niza", "600", cat=LODGING),    # share 300, prepago futuro (no cuenta)
+        _mov(None, "400"),                   # generales: share 200
+    ]
+    data = _pace(stops, movs, today=date(2026, 8, 13))  # día 3 de París
+    t = data["trip"]
+    # 20 noches totales; ritmo cerrado = 500/10 = 50; 50*20 + 200 generales.
+    assert t["total_nights"] == 20
+    assert t["projected_total_usd"] == Decimal("1200")
+
+
 def test_pre_trip_baseline_is_committed_over_nights():
     stops = [_stop("roma", arrival=date(2026, 8, 1), departure=date(2026, 8, 11))]
     movs = [_mov("roma", "1000", cat=LODGING), _mov(None, "200")]
@@ -109,7 +131,8 @@ def test_pre_trip_baseline_is_committed_over_nights():
     assert t["elapsed_nights"] == 0
     assert t["run_rate_usd"] is None
     assert t["projected_total_usd"] is None
-    assert t["avg_per_day_usd"] == Decimal("60")  # (500 + 100) / 10
+    # Baseline sin generales: solo lo comprometido en ciudades / noches.
+    assert t["avg_per_day_usd"] == Decimal("50")  # 500 (roma) / 10
     assert t["accrued_usd"] == Decimal("0")
 
 
