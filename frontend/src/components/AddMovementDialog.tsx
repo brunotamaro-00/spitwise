@@ -257,7 +257,7 @@ export default function AddMovementDialog({ editing, onClose }: {
         <div className="grid grid-cols-[1fr_1.4fr] gap-2.5">
           <Field label="Ciudad">
             <Select value={stopSlug} onChange={(e) => setStopSlug(e.target.value)}>
-              <option value="">Auto (por fecha)</option>
+              <option value="">Automática</option>
               <option value={GENERAL}>General (sin ciudad)</option>
               {stops.map((s) => (
                 <option key={s.slug} value={s.slug}>{s.name}</option>
