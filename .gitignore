@@ -3,3 +3,6 @@
 .env.*
 !.env.example
 .playwright-mcp/
+
+# Logs locales
+*.log

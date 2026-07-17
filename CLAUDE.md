@@ -90,6 +90,37 @@ cd backend && pytest
 cd frontend && npm test
 ```
 
+## Demo local (datos dummy, mid-trip)
+
+`backend/scripts/seed_demo_data.py` construye una DB SQLite local lista para
+navegar la app **como si estuvieras en el medio del viaje**: itinerario de **100
+noches** (UK → Europa) donde **HOY cae en el día 40** (faltan 60). Las fechas se
+derivan de `date.today()`, así que siempre luce mid-trip. Es self-bootstrapping
+(crea tablas + siembra categorías y usuarios), idempotente, y deja `backend/demo.db`
+(gitignoreada). Sirve para probar `/viaje`, `/ciudades` (mano a mano) y `/movimientos`
+con paradas pasadas / en curso / futuras (estas últimas solo con la reserva de
+alojamiento → estado "reservado").
+
+```bash
+cd backend
+# 1) Reconstruir la DB dummy
+DATABASE_URL="sqlite+aiosqlite:///$(pwd)/demo.db" \
+SECRET_KEY=demo-secret-key-local-only \
+AUTH_USERS="bruno:demo:5491111,katia:demo:5492222" \
+ENVIRONMENT=dev \
+.venv/bin/python scripts/seed_demo_data.py
+
+# 2) Levantar el backend contra esa DB (login: bruno/demo o katia/demo)
+DATABASE_URL="sqlite+aiosqlite:///$(pwd)/demo.db" \
+SECRET_KEY=demo-secret-key-local-only ENVIRONMENT=dev \
+AUTH_USERS="bruno:demo:5491111,katia:demo:5492222" \
+CORS_ORIGINS=http://localhost:5173 \
+.venv/bin/uvicorn app.main:app --port 8000
+```
+
+Sin `--reload` ni `--workers` (el demo comparte las reglas de proceso único del bot).
+Al agregar endpoints nuevos, ojo con el caché HTTP del browser sobre `/api/*`.
+
 ## Modelo de dominio
 
 Definido en `backend/app/db/models.py`. Tipos API en `api/schemas.py`; mirror TS en `frontend/src/types/index.ts`.

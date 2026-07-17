@@ -4,3 +4,5 @@ __pycache__/
 .env
 .pytest_cache/
 *.egg-info/
+# DB local del demo (reconstruible con scripts/seed_demo_data.py)
+demo.db
