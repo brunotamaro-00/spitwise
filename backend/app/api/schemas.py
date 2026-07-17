@@ -164,6 +164,19 @@ class TripPaceOut(BaseModel):
     cities: list[CityPaceOut]
 
 
+class TimelineDayOut(BaseModel):
+    date: date
+    total_usd: str
+    movement_count: int
+    # Categoría con más gasto del día (sabor visual del timeline).
+    top_category_id: int | None
+
+
+class TimelineOut(BaseModel):
+    as_of: date
+    days: list[TimelineDayOut]
+
+
 class CitySpendPublicOut(BaseModel):
     slug: str | None
     name: str | None

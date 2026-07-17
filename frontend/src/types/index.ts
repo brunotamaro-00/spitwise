@@ -51,6 +51,15 @@ export type CityPace = {
 };
 
 export type TripPace = { as_of: string; trip: TripBlock; cities: CityPace[] };
+
+/** Un día con gasto (parte personal) para el timeline de la tab Viaje. */
+export type TimelineDay = {
+  date: string;
+  total_usd: string;
+  movement_count: number;
+  top_category_id: number | null;
+};
+export type Timeline = { as_of: string; days: TimelineDay[] };
 export type Category = { id: number; name: string; icon: string | null; sort_order: number };
 export type User = { id: number; username: string };
 export type Stop = {

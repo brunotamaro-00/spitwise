@@ -82,3 +82,15 @@ async def test_list_stops(app_client):
         await s.commit()
     r = await app_client.get("/api/v1/stops", headers=h)
     assert [x["slug"] for x in r.json()] == ["londres", "paris"]
+
+
+async def test_timeline_daily_series(app_client):
+    h = await _seed_and_auth(app_client)
+    r = await app_client.get("/api/v1/dashboard/timeline", headers=h)
+    days = r.json()["days"]
+    # Dos fechas con gasto, ordenadas; parte personal (mitad de cada shared).
+    assert [d["date"] for d in days] == ["2026-08-06", "2026-08-30"]
+    assert days[0]["total_usd"] == "25.00"
+    assert days[1]["total_usd"] == "15.00"
+    assert days[0]["movement_count"] == 1
+    assert days[0]["top_category_id"] is not None

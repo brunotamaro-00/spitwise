@@ -1,12 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { Receipt, TrendingUp } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, Receipt, TrendingUp } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
+import { listCategories } from "@/api/categories";
+import { getStops } from "@/api/cities";
 import { listUsers } from "@/api/users";
 import { getBalance, getByCategory, getPace, getSummary } from "@/api/dashboard";
+import { listMovements } from "@/api/movements";
 import BalanceHero from "@/components/BalanceHero";
 import CategoryDonut from "@/components/CategoryDonut";
 import CityPaceChart from "@/components/CityPaceChart";
+import MovementRow from "@/components/MovementRow";
+import MovementSheet from "@/components/MovementSheet";
 import SettleDialog from "@/components/SettleDialog";
 import TripPaceCard from "@/components/TripPaceCard";
 import AnimatedUsd from "@/components/ui/AnimatedUsd";
@@ -16,15 +22,30 @@ import ErrorState from "@/components/ui/ErrorState";
 import Skeleton from "@/components/ui/Skeleton";
 import { capitalize, formatUsd } from "@/lib/format";
 import { useMe } from "@/lib/useMe";
+import type { Category, Movement } from "@/types";
 
 export default function Dashboard() {
   const [settle, setSettle] = useState(false);
+  const [viewing, setViewing] = useState<Movement | null>(null);
   const balance = useQuery({ queryKey: ["balance"], queryFn: getBalance });
   const summary = useQuery({ queryKey: ["dashboard", "summary"], queryFn: getSummary });
   const byCat = useQuery({ queryKey: ["dashboard", "cat"], queryFn: getByCategory });
   const pace = useQuery({ queryKey: ["dashboard", "pace"], queryFn: getPace });
   const users = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
+  const recent = useQuery({ queryKey: ["movements", "created"], queryFn: () => listMovements("created") });
+  const categories = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
+  const stops = useQuery({ queryKey: ["stops"], queryFn: getStops, staleTime: 60_000 });
   const me = useMe();
+
+  const catMap = useMemo(
+    () => Object.fromEntries((categories.data ?? []).map((c) => [c.id, c])) as Record<number, Category>,
+    [categories.data],
+  );
+  const stopFlags = useMemo(
+    () => Object.fromEntries((stops.data ?? []).map((s) => [s.slug, s.country_flag])),
+    [stops.data],
+  );
+  const lastMovs = (recent.data ?? []).slice(0, 4);
 
   const names: Record<number, string> = Object.fromEntries(
     (users.data ?? []).map((u) => [u.id, capitalize(u.username)]),
@@ -112,6 +133,45 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Lo último que entró (por carga, no por fecha): el pulso del ledger
+          sin salir del dashboard. */}
+      {lastMovs.length > 0 && (
+        <div className="animate-rise-in stagger-5">
+          <Card className="px-5 py-1">
+            <div className="flex items-center justify-between py-3">
+              <h2 className="text-sm font-bold text-ink">Últimos movimientos</h2>
+              <Link
+                to="/movimientos"
+                className="flex items-center gap-1 text-[12px] font-semibold text-brick transition-colors hover:text-brick-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 rounded-md"
+              >
+                Ver todos
+                <ArrowRight size={13} strokeWidth={2.25} aria-hidden="true" />
+              </Link>
+            </div>
+            {lastMovs.map((m) => (
+              <MovementRow
+                key={m.id}
+                mv={m}
+                myId={me.data?.id}
+                category={m.category_id != null ? catMap[m.category_id] : undefined}
+                flag={m.stop_slug ? stopFlags[m.stop_slug] : undefined}
+                readOnly
+                onOpen={setViewing}
+              />
+            ))}
+          </Card>
+        </div>
+      )}
+
+      {viewing && (
+        <MovementSheet
+          mv={viewing}
+          myId={me.data?.id}
+          category={viewing.category_id != null ? catMap[viewing.category_id] : undefined}
+          flag={viewing.stop_slug ? stopFlags[viewing.stop_slug] : undefined}
+          onClose={() => setViewing(null)}
+        />
+      )}
       {settle && <SettleDialog balance={balance.data} onClose={() => setSettle(false)} />}
     </div>
   );
