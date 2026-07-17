@@ -18,6 +18,7 @@ from app.api.schemas import (
 from app.config import get_settings
 from app.db.engine import get_session
 from app.db.models import Category, Movement, Stop, User
+from app.spend import user_share
 from app.trip_time import today_in_tz
 
 router = APIRouter(tags=["integration"])
@@ -32,6 +33,30 @@ def _money(v) -> str:
 async def require_api_key(x_api_key: str = Header(...)) -> None:
     if not secrets.compare_digest(x_api_key, get_settings().trip_shared_api_key):
         raise HTTPException(status_code=401, detail="API key inválida")
+
+
+async def _resolve_user(session: AsyncSession, username: str | None) -> User | None:
+    """`?user=` opcional: sin él, totales gross del hogar (contrato original).
+    Un username desconocido es 400, nunca un fallback silencioso a gross —
+    si Andiamo manda basura tiene que romper, no mostrarle a uno los gastos
+    privados del otro."""
+    if username is None:
+        return None
+    found = (
+        await session.execute(select(User).where(User.username == username.strip().lower()))
+    ).scalar_one_or_none()
+    if found is None:
+        raise HTTPException(status_code=400, detail="Usuario desconocido")
+    return found
+
+
+def _shares(movements: list[Movement], user: User | None) -> list[tuple[Movement, Decimal]]:
+    """Empareja cada movimiento con el monto que le corresponde al usuario.
+    Sin usuario => monto gross. Los que no lo tocan (share 0) se descartan:
+    un payer_only del otro no debe aparecer ni siquiera con importe 0."""
+    if user is None:
+        return [(m, m.amount_usd) for m in movements]
+    return [(m, s) for m in movements if (s := user_share(m, user.id)) > 0]
 
 
 async def _local_slugs(session: AsyncSession) -> list[str]:
@@ -74,20 +99,26 @@ async def cities_spend(
 async def cities_spend_detail(
     slug: str = Query(...),
     limit: int = Query(default=5, ge=1, le=10),
+    user: str | None = Query(default=None),
     _: None = Depends(require_api_key),
     session: AsyncSession = Depends(get_session),
 ) -> SpendDetailOut:
-    """Detalle de gasto de una ciudad para Andiamo. Totales gross del hogar.
+    """Detalle de gasto de una ciudad para Andiamo. Sin `?user=`, totales gross
+    del hogar; con él, la parte de esa persona (`user_share`: mitad de un
+    compartido, entero de un payer_only/other_only suyo) y los gastos privados
+    del otro quedan afuera.
     Siempre 200: slug desconocido => ceros y arrays vacíos (nunca 404).
     Un stop local se trata como desconocido: para Andiamo no existe."""
+    who = await _resolve_user(session, user)
     is_local = slug in await _local_slugs(session)
     movements: list[Movement] = []
     if not is_local:
         base = select(Movement).where(_EXPENSE, Movement.stop_slug == slug)
         movements = list((await session.execute(base)).scalars().all())
 
-    total = sum((m.amount_usd for m in movements), Decimal("0"))
-    city_name = movements[0].city_name if movements else None
+    shares = _shares(movements, who)
+    total = sum((s for _m, s in shares), Decimal("0"))
+    city_name = shares[0][0].city_name if shares else None
 
     stop = None if is_local else (
         await session.execute(select(Stop).where(Stop.slug == slug))
@@ -101,8 +132,8 @@ async def cities_spend_detail(
 
     cats = {c.id: c for c in (await session.execute(select(Category))).scalars().all()}
     agg: dict[int | None, Decimal] = {}
-    for m in movements:
-        agg[m.category_id] = agg.get(m.category_id, Decimal("0")) + m.amount_usd
+    for m, share in shares:
+        agg[m.category_id] = agg.get(m.category_id, Decimal("0")) + share
     by_category = [
         SpendDetailCategoryOut(
             category_id=cid,
@@ -115,25 +146,28 @@ async def cities_spend_detail(
     ]
 
     users = {u.id: u.username for u in (await session.execute(select(User))).scalars().all()}
-    recent = sorted(movements, key=lambda m: (m.movement_date, m.id), reverse=True)[:limit]
+    recent = sorted(shares, key=lambda t: (t[0].movement_date, t[0].id), reverse=True)[:limit]
     last_movements = [
         SpendDetailMovementOut(
             description=m.description,
-            amount=_money(m.amount),
+            # `amount` se escala en la misma proporción que el share: mostrar el
+            # importe original en moneda local al lado de medio importe en USD
+            # no cerraría por ningún lado.
+            amount=_money(m.amount * share / m.amount_usd if m.amount_usd else 0),
             currency=m.currency,
-            amount_usd=_money(m.amount_usd),
+            amount_usd=_money(share),
             date=m.movement_date,
             category_id=m.category_id,
             paid_by_name=users.get(m.paid_by),
         )
-        for m in recent
+        for m, share in recent
     ]
 
     return SpendDetailOut(
         slug=slug,
         city_name=city_name,
         total_usd=_money(total),
-        movement_count=len(movements),
+        movement_count=len(shares),
         itinerary_days=days,
         avg_per_day_usd=_money(avg),
         by_category=by_category,
@@ -144,23 +178,42 @@ async def cities_spend_detail(
 
 @router.get("/trip/spend", response_model=TripSpendOut)
 async def trip_spend(
+    user: str | None = Query(default=None),
     _: None = Depends(require_api_key),
     session: AsyncSession = Depends(get_session),
 ) -> TripSpendOut:
-    """Totales gross del viaje para el strip de /hoy en Andiamo."""
-    total, count = (
-        await session.execute(
-            select(func.coalesce(func.sum(Movement.amount_usd), 0), func.count()).where(_EXPENSE)
-        )
-    ).one()
-    today = today_in_tz(None)
-    today_total = (
-        await session.execute(
-            select(func.coalesce(func.sum(Movement.amount_usd), 0)).where(
-                _EXPENSE, Movement.movement_date == today
+    """Totales del viaje para el strip de /hoy en Andiamo. Sin `?user=`, gross
+    del hogar; con él, la parte de esa persona."""
+    who = await _resolve_user(session, user)
+    if who is None:
+        total, count = (
+            await session.execute(
+                select(func.coalesce(func.sum(Movement.amount_usd), 0), func.count()).where(
+                    _EXPENSE
+                )
             )
+        ).one()
+        today = today_in_tz(None)
+        today_total = (
+            await session.execute(
+                select(func.coalesce(func.sum(Movement.amount_usd), 0)).where(
+                    _EXPENSE, Movement.movement_date == today
+                )
+            )
+        ).scalar_one()
+    else:
+        # user_share() vive en Python (mira split y paid_by), así que el share
+        # se agrega acá. Son dos personas y un viaje: el volumen no justifica
+        # portar la lógica a SQL.
+        shares = _shares(
+            list((await session.execute(select(Movement).where(_EXPENSE))).scalars().all()), who
         )
-    ).scalar_one()
+        total = sum((s for _m, s in shares), Decimal("0"))
+        count = len(shares)
+        today = today_in_tz(None)
+        today_total = sum(
+            (s for m, s in shares if m.movement_date == today), Decimal("0")
+        )
     return TripSpendOut(
         total_usd=_money(total), today_usd=_money(today_total), movement_count=count
     )
