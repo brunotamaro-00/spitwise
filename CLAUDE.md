@@ -113,7 +113,8 @@ Definido en `backend/app/db/models.py`. Tipos API en `api/schemas.py`; mirror TS
 4. **Fecha FX = hoy (load date)**, no la fecha del movimiento.
 5. **PATCH con `fx_rate` manual** → `fx_source=manual`; editar descripción después **no** debe pisar la tasa.
 6. **Itinerario** no se hardcodea: usar filas `Stop` sincronizadas.
-7. **Stops locales** (`Stop.is_local`, hoy solo *Pititas*): existen solo en Spitwise. El sync de Andiamo **no** los reconcilia y las APIs de integración **no** los exponen. Un `Stop.owner_username` seteado imputa solo a ese usuario, **por remitente** (no por `paid_by`). Ver `app/stops_local.py` y la sección *Stop local Pititas* de `DEPLOY.md`.
+7. **Stops locales** (`Stop.is_local`, hoy solo *Pititas*): existen solo en Spitwise. El sync de Andiamo **no** los reconcilia y las APIs de integración **no** los exponen. Un `Stop.owner_username` seteado imputa **por fecha** solo a ese usuario, y **por remitente** (no por `paid_by`). Nombrar la parada es intención explícita y matchea para **los dos** (Bruno puede mandar un gasto a Pititas si le pagó algo de ese tramo); lo que no cambia es el default por fecha. Ver `app/stops_local.py` y la sección *Stop local Pititas* de `DEPLOY.md`.
+8. **El parser recibe el catálogo de paradas** (`load_city_names`): sin él, el LLM solo reconoce ciudades por cultura general y se pierde las de nombre propio (*Pititas*, *Highlands*). Si agregás una parada de nombre raro, no hace falta tocar el prompt — sale de la DB.
 
 ## API (prefijo `/api/v1`)
 

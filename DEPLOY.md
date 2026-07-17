@@ -86,6 +86,7 @@ Pititas es un **stop local** (`Stop.is_local`): existe solo en Spitwise.
 
 - **Andiamo no la conoce ni la debe conocer.** El sync la excluye de la reconciliación (si no, el primer `sync-hook` la borraría) y `/cities/spend` + `/cities/spend-detail` no la exponen. `/trip/spend` sí la suma: es plata gastada.
 - **Se siembra sola** en el arranque (`app/stops_local.py`), después del sync, y es idempotente. Con `PITITAS_OWNER` vacío no se crea nada.
-- **La imputación es por remitente**, no por pagador: si Katia carga "pagó bruno 30", el gasto igual cae en Pititas porque ella es la que está ahí.
+- **La imputación por fecha es por remitente**, no por pagador: si Katia carga "pagó bruno 30", el gasto igual cae en Pititas porque ella es la que está ahí.
+- **Nombrar la parada la imputa para los dos**: "cena 30 en Pititas" desde el teléfono de Bruno va a Pititas (útil si le paga algo de ese tramo). Solo el default por fecha es exclusivo de ella.
 - En la web la ven **los dos** (el balance ya mezcla esa plata; ocultarla dejaría un neto sin explicación), pero a Bruno nunca se le imputa ahí.
 - **Para desactivarla:** borrar `PITITAS_OWNER` y redeploy. La fila queda en la DB con los gastos ya cargados; para que deje de imputar, borrar la fila `stops` con slug `pititas` (los movimientos conservan `city_name`).

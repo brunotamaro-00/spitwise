@@ -86,8 +86,10 @@ async def test_katia_cargando_un_gasto_que_pago_bruno_sigue_en_pititas(db_sessio
     assert mv.stop_slug == "pititas"
 
 
-async def test_bruno_no_puede_imputar_a_pititas_por_nombre(db_session):
-    """Una parada ajena nunca matchea, ni nombrándola: cae a texto libre."""
+async def test_bruno_puede_imputar_a_pititas_nombrandola(db_session):
+    """Nombrar la parada es intención explícita y matchea para los dos: Bruno
+    puede mandar un gasto a Pititas si le pagó algo de ese tramo. Antes caía a
+    texto libre y la tarjeta decía "📍 Pititas" sin agrupar con las de Katia."""
     bruno, _ = await _setup(db_session)
     fake = FakeLLM(_payload(amount="30", currency="EUR", description="cena",
                             category="Comida", city="Pititas"))
@@ -95,8 +97,17 @@ async def test_bruno_no_puede_imputar_a_pititas_por_nombre(db_session):
     await handle_capture(db_session, bruno, "549111", "cena 30 en pititas", TODAY, llm_client=fake)
 
     mv = await _last_movement(db_session)
-    assert mv.stop_slug is None
-    assert mv.city_name == "Pititas"  # texto libre, no la parada de Katia
+    assert (mv.stop_slug, mv.city_name) == ("pititas", "Pititas")
+
+
+async def test_bruno_sin_nombrarla_sigue_cayendo_en_portugal(db_session):
+    """El default por fecha no cambia: solo la mención explícita lo manda a Pititas."""
+    bruno, _ = await _setup(db_session)
+    fake = FakeLLM(_payload(amount="30", currency="EUR", description="cena", category="Comida"))
+
+    await handle_capture(db_session, bruno, "549111", "cena 30 euros", TODAY, llm_client=fake)
+
+    assert (await _last_movement(db_session)).stop_slug == "portugal"
 
 
 async def test_settlement_de_katia_no_lleva_ciudad(db_session):
