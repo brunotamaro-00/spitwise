@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import { resetSessionCache } from "@/lib/queryClient";
+
 export function authHeader(): Record<string, string> {
   const t = localStorage.getItem("auth_token");
   return t ? { Authorization: `Bearer ${t}` } : {};
@@ -16,8 +18,10 @@ api.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err?.response?.status === 401) {
-      localStorage.removeItem("auth_token");
-      if (location.pathname !== "/login") location.assign("/login");
+      void resetSessionCache().finally(() => {
+        localStorage.removeItem("auth_token");
+        if (location.pathname !== "/login") location.assign("/login");
+      });
     }
     return Promise.reject(err);
   },

@@ -13,7 +13,6 @@ import {
   getCitySummary,
   getStops,
 } from "@/api/cities";
-import { getMe } from "@/api/users";
 import CategoryDonut from "@/components/CategoryDonut";
 import Flag from "@/components/Flag";
 import SpendBarChart from "@/components/SpendBarChart";
@@ -29,6 +28,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import { formatDayHeader, formatShortDate, formatUsd, parseMoney } from "@/lib/format";
 import { useAndiamoUrl } from "@/lib/useConfig";
 import { dayTotalShare, groupByDay } from "@/lib/groupByDay";
+import { useMe } from "@/lib/useMe";
 import type { Category, Movement } from "@/types";
 
 function fmtRange(a: string | null, b: string | null): string | null {
@@ -55,7 +55,7 @@ export default function Cities() {
   });
   const { data: stops = [] } = useQuery({ queryKey: ["stops"], queryFn: getStops, staleTime: 60_000 });
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
-  const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
+  const { data: me } = useMe();
   const andiamoUrl = useAndiamoUrl();
 
   const key = selected.slice().sort();

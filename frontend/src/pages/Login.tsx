@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 import { login } from "@/api/auth";
 import { Wordmark } from "@/components/ui/Brand";
@@ -8,7 +7,6 @@ import Card from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Field";
 
 export default function Login() {
-  const nav = useNavigate();
   const [u, setU] = useState("");
   const [p, setP] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -20,7 +18,8 @@ export default function Login() {
     setBusy(true);
     try {
       await login(u, p);
-      nav("/");
+      // Full reload: remonta PersistQueryClient con buster del JWT nuevo.
+      window.location.assign("/");
     } catch {
       setErr("Usuario o contraseña inválidos");
     } finally {

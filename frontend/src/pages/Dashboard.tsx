@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Receipt, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
-import { getMe, listUsers } from "@/api/users";
+import { listUsers } from "@/api/users";
 import { getBalance, getByCategory, getByCity, getSummary } from "@/api/dashboard";
 import { getCityDaily, getCitySummary } from "@/api/cities";
 import BalanceHero from "@/components/BalanceHero";
@@ -16,6 +16,7 @@ import Card from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
 import Skeleton from "@/components/ui/Skeleton";
 import { capitalize, formatUsd } from "@/lib/format";
+import { useMe } from "@/lib/useMe";
 
 export default function Dashboard() {
   const [settle, setSettle] = useState(false);
@@ -27,7 +28,7 @@ export default function Dashboard() {
   // Promedio por día del viaje (base itinerario): dato económico del hero.
   const trip = useQuery({ queryKey: ["city", "summary", []], queryFn: () => getCitySummary([]) });
   const users = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
-  const me = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
+  const me = useMe();
 
   const names: Record<number, string> = Object.fromEntries(
     (users.data ?? []).map((u) => [u.id, capitalize(u.username)]),

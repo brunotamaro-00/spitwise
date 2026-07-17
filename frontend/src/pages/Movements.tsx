@@ -6,7 +6,6 @@ import { useSearchParams } from "react-router-dom";
 import { listCategories } from "@/api/categories";
 import { getStops } from "@/api/cities";
 import { deleteMovement, listMovements } from "@/api/movements";
-import { getMe } from "@/api/users";
 import AddMovementDialog from "@/components/AddMovementDialog";
 import MovementRow from "@/components/MovementRow";
 import MovementSheet from "@/components/MovementSheet";
@@ -21,6 +20,7 @@ import { useToast } from "@/components/ui/Toast";
 import { formatAmount, formatDayHeader, formatUsd } from "@/lib/format";
 import { dayTotalShare, dayTotalUsd, groupByDay } from "@/lib/groupByDay";
 import { involvesMe, myShare } from "@/lib/share";
+import { useMe } from "@/lib/useMe";
 import type { Category, Movement } from "@/types";
 
 const EMPTY = { onlyMine: false, city: "", categoryId: "", from: "", to: "", q: "" };
@@ -67,7 +67,7 @@ export default function Movements() {
   });
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
   const { data: stops = [] } = useQuery({ queryKey: ["stops"], queryFn: getStops, staleTime: 60_000 });
-  const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
+  const { data: me } = useMe();
 
   const catMap = useMemo(
     () => Object.fromEntries(categories.map((c) => [c.id, c])) as Record<number, Category>,

@@ -1,14 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
 import { CloudOff, LayoutDashboard, ListOrdered, LogOut, Map, Plus } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { logout } from "@/api/auth";
-import { getMe } from "@/api/users";
 import AddMovementDialog from "@/components/AddMovementDialog";
 import { Wordmark } from "@/components/ui/Brand";
 import { capitalize } from "@/lib/format";
+import { useMe } from "@/lib/useMe";
 import { useOnline } from "@/lib/useOnline";
 
 const TABS = [
@@ -18,11 +17,10 @@ const TABS = [
 ];
 
 export default function Layout() {
-  const nav = useNavigate();
   const location = useLocation();
   const [adding, setAdding] = useState(false);
   const online = useOnline();
-  const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
+  const { data: me } = useMe();
 
   const avatar = me && (
     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 text-sm font-bold text-ink-2">
@@ -33,7 +31,7 @@ export default function Layout() {
     <button
       aria-label="Cerrar sesión"
       className="flex min-h-[40px] min-w-[40px] cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
-      onClick={() => { logout(); nav("/login"); }}
+      onClick={() => { void logout().then(() => { window.location.assign("/login"); }); }}
     >
       <LogOut size={18} strokeWidth={1.75} aria-hidden="true" />
     </button>

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { listCategories } from "@/api/categories";
 import { createMovement, updateMovement } from "@/api/movements";
-import { getMe, listStops, listUsers } from "@/api/users";
+import { listStops, listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
 import DatePicker from "@/components/ui/DatePicker";
 import { Field, Input, Label, Select } from "@/components/ui/Field";
@@ -15,6 +15,7 @@ import { categoryBg, categoryColor } from "@/lib/chartTheme";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue, todayLocal } from "@/lib/format";
 import { stopForDate } from "@/lib/stops";
+import { useMe } from "@/lib/useMe";
 import type { Movement } from "@/types";
 
 const GENERAL = "__general__"; // gasto sin ciudad
@@ -64,7 +65,7 @@ export default function AddMovementDialog({ editing, onClose }: {
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
   const { data: stops = [] } = useQuery({ queryKey: ["stops"], queryFn: listStops, staleTime: Infinity });
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
-  const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: Infinity });
+  const { data: me } = useMe();
 
   const [amount, setAmount] = useState(toInputValue(editing?.amount));
   const [currency, setCurrency] = useState(editing?.currency ?? "USD");
