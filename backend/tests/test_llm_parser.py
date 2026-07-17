@@ -5,7 +5,7 @@ from app.llm.parser import parse_message
 
 CATS = [
     "Alojamiento", "Comida", "Supermercado", "Transporte", "Actividades",
-    "Compras", "Bebidas/Salidas", "Regalos", "Salud", "Otros",
+    "Compras", "Salidas", "Regalos", "Salud", "Otros",
 ]
 USERS = ["bruno", "katia"]
 TODAY = date(2026, 8, 6)
@@ -127,3 +127,71 @@ async def test_invalid_intent_defaults_to_unknown():
 async def test_legacy_payload_without_intent_defaults_to_unknown():
     got = await _parse({"amount": "10", "confidence": 0.9})
     assert got.intent == "unknown"
+
+
+# --- multi-gasto: lista `expenses` → ParsedMessage.batch ---
+
+def _item(**over):
+    base = {
+        "kind": "expense", "amount": None, "currency": None, "description": None,
+        "category": None, "split": "shared", "paid_by": None, "date": None, "city": None,
+        "confidence": 0.9, "candidates": [],
+    }
+    base.update(over)
+    return base
+
+
+async def test_batch_of_three_normalized():
+    got = await _parse(_payload(amount="40", category="Comida", description="cena", expenses=[
+        _item(amount="40", category="Comida", description="cena"),
+        _item(amount="12", category="Transporte", description="taxi"),
+        _item(amount="5", category="Museos", description="helado"),  # inválida → Otros
+    ]))
+    assert len(got.batch) == 3
+    assert [p.amount for p in got.batch] == [Decimal("40"), Decimal("12"), Decimal("5")]
+    assert got.batch[2].category_name == "Otros"
+    assert all(p.intent == "expense" for p in got.batch)
+    # El flat sigue siendo el primer ítem (fallback para código single).
+    assert got.amount == Decimal("40")
+
+
+async def test_batch_settlement_item_keeps_kind():
+    got = await _parse(_payload(amount="40", expenses=[
+        _item(amount="40", category="Comida", description="cena"),
+        _item(kind="settlement", amount="50"),
+    ]))
+    assert len(got.batch) == 2
+    assert got.batch[1].is_settlement is True
+
+
+async def test_batch_items_without_amount_are_dropped():
+    got = await _parse(_payload(amount="40", expenses=[
+        _item(amount="40", description="cena", category="Comida"),
+        _item(amount=None, description="propina"),
+    ]))
+    assert got.batch == []  # quedó 1 válido → single por el flat
+
+
+async def test_single_item_list_stays_single():
+    got = await _parse(_payload(amount="40", expenses=[_item(amount="40")]))
+    assert got.batch == []
+
+
+async def test_expenses_ignored_for_non_expense_intent():
+    got = await _parse(_payload(intent="question", expenses=[
+        _item(amount="1"), _item(amount="2"),
+    ]))
+    assert got.batch == []
+
+
+async def test_batch_item_fields_normalized_like_flat():
+    got = await _parse(_payload(amount="10", expenses=[
+        _item(amount="10", currency="euros", paid_by="KATIA", date="2026-08-05",
+              city="Roma", split="other_only"),
+        _item(amount="3,5", currency="£", paid_by="fulano", split="mitad"),
+    ]))
+    a, b = got.batch
+    assert a.currency == "EUR" and a.paid_by == "katia" and a.split == "other_only"
+    assert a.movement_date == date(2026, 8, 5) and a.city == "Roma"
+    assert b.amount == Decimal("3.5") and b.currency == "GBP"
+    assert b.paid_by is None and b.split == "shared"

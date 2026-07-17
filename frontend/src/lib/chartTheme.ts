@@ -42,7 +42,7 @@ export const CATEGORY_META = {
   Transporte: { icon: Bus, color: "#A67F2A", bg: "var(--color-accent-amber-bg)" },
   Actividades: { icon: Ticket, color: "#0B8F80", bg: "var(--color-accent-teal-bg)" },
   Compras: { icon: ShoppingBag, color: "#8E3D88", bg: "var(--color-accent-plum-bg)" },
-  "Bebidas/Salidas": { icon: Wine, color: "#55902F", bg: "var(--color-accent-green-bg)" },
+  Salidas: { icon: Wine, color: "#55902F", bg: "var(--color-accent-green-bg)" },
   Regalos: { icon: Gift, color: "#96530D", bg: "var(--color-accent-brown-bg)" },
   Salud: { icon: HeartPulse, color: "#0F86B0", bg: "var(--color-accent-cyan-bg)" },
   Otros: { icon: Tag, color: "#7A5AC4", bg: "var(--color-accent-indigo-bg)" },

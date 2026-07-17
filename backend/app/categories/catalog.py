@@ -21,8 +21,9 @@ CATEGORIES: list[tuple[str, str, str]] = [
     ("Compras", "🛍️",
      "para uno mismo: ropa, calzado, electrónica, artículos personales, equipaje. "
      "Si es para regalar a otro, va en Regalos"),
-    ("Bebidas/Salidas", "🍷",
-     "bares, pubs, birras, vinos, tragos, boliches, salidas nocturnas"),
+    ("Salidas", "🍷",
+     "salir a tomar algo: bares, pubs, cervezas/birras, vinos, tragos, "
+     "boliches, salidas nocturnas. Cualquier bebida alcohólica va acá"),
     ("Regalos", "🎁",
      "para otros: regalos, souvenirs para llevar de vuelta, postales. "
      "NO compras personales, eso va en Compras"),

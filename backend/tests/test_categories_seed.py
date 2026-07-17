@@ -14,7 +14,7 @@ def test_catalog_has_ten():
         "Transporte",
         "Actividades",
         "Compras",
-        "Bebidas/Salidas",
+        "Salidas",
         "Regalos",
         "Salud",
         "Otros",
