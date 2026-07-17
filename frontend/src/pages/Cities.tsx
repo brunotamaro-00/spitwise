@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, BedDouble, ExternalLink, MapPin, Receipt, TrendingUp, UtensilsCrossed } from "lucide-react";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
@@ -7,7 +7,10 @@ import { useSearchParams } from "react-router-dom";
 import { listCategories } from "@/api/categories";
 import { getCityByCategory, getCityMovements, getCitySummary, getStops } from "@/api/cities";
 import { getPace } from "@/api/dashboard";
+import { deleteMovement } from "@/api/movements";
+import AddMovementDialog from "@/components/AddMovementDialog";
 import CategoryDonut from "@/components/CategoryDonut";
+import CityCompare from "@/components/CityCompare";
 import DeltaBadge from "@/components/DeltaBadge";
 import Flag from "@/components/Flag";
 import MovementRow from "@/components/MovementRow";
@@ -15,12 +18,14 @@ import MovementSheet from "@/components/MovementSheet";
 import AnimatedUsd from "@/components/ui/AnimatedUsd";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import { Label } from "@/components/ui/Field";
 import Kpi from "@/components/ui/Kpi";
 import Skeleton from "@/components/ui/Skeleton";
-import { formatDayHeader, formatShortDate, formatUsd, parseMoney } from "@/lib/format";
+import { useToast } from "@/components/ui/Toast";
+import { formatAmount, formatDayHeader, formatShortDate, formatUsd, parseMoney } from "@/lib/format";
 import { useAndiamoUrl } from "@/lib/useConfig";
 import { dayTotalShare, groupByDay } from "@/lib/groupByDay";
 import { useMe } from "@/lib/useMe";
@@ -93,10 +98,30 @@ function SleepVsLiveCard({ city }: { city: CityPace }) {
 }
 
 export default function Cities() {
+  const qc = useQueryClient();
+  const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [viewing, setViewing] = useState<Movement | null>(null);
+  const [editing, setEditing] = useState<Movement | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<Movement | null>(null);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const selected = params.getAll("c");
   const selectedSet = new Set(selected);
+
+  const del = useMutation({
+    mutationFn: (m: Movement) => deleteMovement(m.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["movements"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["balance"] });
+      qc.invalidateQueries({ queryKey: ["city"] });
+      setToDelete(null);
+      setDeleteErr(null);
+      toast("success", "Movimiento borrado");
+    },
+    onError: () => setDeleteErr("No se pudo borrar. Probá de nuevo."),
+  });
 
   const { data: pace, isLoading: loadingPace, isError: errPace, refetch: refetchPace } = useQuery({
     queryKey: ["dashboard", "pace"],
@@ -304,6 +329,8 @@ export default function Cities() {
       <div className="animate-rise-in stagger-3 grid items-stretch gap-5 lg:grid-cols-2">
         {byCat.length > 0 && <CategoryDonut data={byCat} />}
         {singlePace && singlePace.nights > 0 && <SleepVsLiveCard city={singlePace} />}
+        {/* Vista agregada: el comparador entre ciudades ya vividas. */}
+        {selected.length === 0 && pace && <CityCompare cities={cities} trip={pace.trip} />}
       </div>
 
       {/* Detalle de movimientos */}
@@ -337,9 +364,10 @@ export default function Cities() {
                       myId={me?.id}
                       category={m.category_id != null ? catMap[m.category_id] : undefined}
                       flag={m.stop_slug ? stopMap[m.stop_slug]?.country_flag : undefined}
-                      readOnly
                       preferShare
                       onOpen={setViewing}
+                      onEdit={(mv) => { setEditing(mv); setEditOpen(true); }}
+                      onDelete={(mv) => { setDeleteErr(null); setToDelete(mv); }}
                     />
                   ))}
                 </Card>
@@ -355,7 +383,20 @@ export default function Cities() {
           myId={me?.id}
           category={viewing.category_id != null ? catMap[viewing.category_id] : undefined}
           flag={viewing.stop_slug ? stopMap[viewing.stop_slug]?.country_flag : undefined}
+          onEdit={(mv) => { setViewing(null); setEditing(mv); setEditOpen(true); }}
+          onDelete={(mv) => { setViewing(null); setDeleteErr(null); setToDelete(mv); }}
           onClose={() => setViewing(null)}
+        />
+      )}
+      {editOpen && <AddMovementDialog editing={editing} onClose={() => setEditOpen(false)} />}
+      {toDelete && (
+        <ConfirmDialog
+          title="Borrar movimiento"
+          message={`¿Borrar "${toDelete.description || toDelete.type}" (${toDelete.currency} ${formatAmount(toDelete.amount)})?`}
+          busy={del.isPending}
+          error={deleteErr}
+          onConfirm={() => del.mutate(toDelete)}
+          onClose={() => { if (!del.isPending) { setToDelete(null); setDeleteErr(null); } }}
         />
       )}
     </div>
