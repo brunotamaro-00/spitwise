@@ -168,7 +168,7 @@ export default function AddMovementDialog({ editing, onClose }: {
 
   return (
     <Modal title={title} onClose={onClose}>
-      <form onSubmit={submit} className="flex flex-col gap-4">
+      <form onSubmit={submit} className="flex flex-col gap-3">
         {completing && (
           <p className="rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-[13px] leading-snug text-ink-2">
             Se carga un <span className="font-semibold text-ink">movimiento nuevo</span> por la parte que falta.
@@ -179,7 +179,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           </p>
         )}
         {/* El monto manda: input display grande + moneda al lado. */}
-        <div className="rounded-xl border border-border bg-surface-2/50 p-4">
+        <div className="rounded-xl border border-border bg-surface-2/50 p-3.5">
           <Label>Monto</Label>
           <div className="mt-1 flex items-center gap-3">
             <input
@@ -212,7 +212,7 @@ export default function AddMovementDialog({ editing, onClose }: {
         {/* Categoría: chips con ícono, un toque; tocar de nuevo deselecciona. */}
         <div className="flex flex-col gap-1.5">
           <Label>Categoría</Label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {categories.map((c) => {
               const active = categoryId === String(c.id);
               const Icon = categoryIcon(c.name);
@@ -223,7 +223,7 @@ export default function AddMovementDialog({ editing, onClose }: {
                   onClick={() => setCategoryId(active ? "" : String(c.id))}
                   aria-pressed={active}
                   whileTap={{ scale: 0.94 }}
-                  className={`flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+                  className={`flex min-h-[34px] cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
                     active ? "" : "border-border bg-surface text-ink-2 hover:bg-surface-2"
                   }`}
                   style={active ? {
@@ -254,7 +254,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           <Segmented options={SPLITS} value={split} onChange={setSplit} />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-[1fr_1.4fr] gap-2.5">
           <Field label="Ciudad">
             <Select value={stopSlug} onChange={(e) => setStopSlug(e.target.value)}>
               <option value="">Auto (por fecha)</option>

@@ -127,11 +127,14 @@ export default function DatePicker({
         aria-expanded={open}
         className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 text-[15px] font-medium text-ink transition-colors hover:bg-surface-2 focus:border-brick focus:outline-none focus-visible:ring-2 focus-visible:ring-brick/30"
       >
-        <span className="flex items-center gap-2">
-          {value ? capitalizeDay(formatDayHeader(value)) : "Elegir fecha"}
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="whitespace-nowrap">
+            {value ? capitalizeDay(formatDayHeader(value)) : "Elegir fecha"}
+          </span>
           {derived && (
-            <span className="inline-flex items-center gap-1 text-ink-faint" aria-hidden="true">
-              · <Flag flag={derived.country_flag} className="text-sm" /> {derived.name}
+            <span className="inline-flex min-w-0 items-center gap-1 text-ink-faint" aria-hidden="true">
+              · <Flag flag={derived.country_flag} className="text-sm" />
+              <span className="truncate">{derived.name}</span>
             </span>
           )}
         </span>
