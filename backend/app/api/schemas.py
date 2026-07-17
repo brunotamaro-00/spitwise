@@ -106,12 +106,6 @@ class SummaryOut(BaseModel):
     movement_count: int
 
 
-class CitySpendOut(BaseModel):
-    stop_slug: str | None
-    city_name: str | None
-    total_usd: str
-
-
 class CategorySpendOut(BaseModel):
     category_id: int | None
     name: str | None
@@ -119,9 +113,55 @@ class CategorySpendOut(BaseModel):
     total_usd: str
 
 
-class TimePointOut(BaseModel):
-    date: date
-    cumulative_usd: str
+TripStatus = Literal["not_started", "in_progress", "finished"]
+StopPaceStatus = Literal["past", "current", "future"]
+
+
+class TripBlockOut(BaseModel):
+    """Ritmo global del viaje: alojamiento prorrateado por noches y generales
+    (sin ciudad) prorrateados en todas las noches del itinerario."""
+
+    status: TripStatus
+    start: date | None
+    end: date | None
+    total_nights: int
+    elapsed_nights: int
+    total_usd: str
+    general_usd: str
+    general_per_day_usd: str | None
+    avg_per_day_usd: str | None
+    run_rate_usd: str | None
+    accrued_usd: str
+    projected_total_usd: str | None
+
+
+class CityPaceOut(BaseModel):
+    stop_slug: str
+    city_name: str
+    country_flag: str | None
+    order: int
+    status: StopPaceStatus
+    is_archived: bool
+    is_transit: bool
+    arrival_date: date | None
+    departure_date: date | None
+    nights: int
+    elapsed_nights: int
+    movement_count: int
+    total_usd: str
+    lodging_usd: str
+    other_usd: str
+    per_day_usd: str | None
+    lodging_per_night_usd: str | None
+    other_per_day_usd: str | None
+    # None para futuras (el prepago no debe "gritar" sobre el promedio).
+    delta_vs_trip_pct: float | None
+
+
+class TripPaceOut(BaseModel):
+    as_of: date
+    trip: TripBlockOut
+    cities: list[CityPaceOut]
 
 
 class CitySpendPublicOut(BaseModel):
@@ -129,22 +169,6 @@ class CitySpendPublicOut(BaseModel):
     name: str | None
     total_usd: str
     movement_count: int
-
-
-class CityDailyOut(BaseModel):
-    date: date
-    total_usd: str
-
-
-class CityBreakdownOut(BaseModel):
-    stop_slug: str | None
-    city_name: str | None
-    country_flag: str | None
-    total_usd: str
-    movement_count: int
-    days: int
-    # None cuando el movimiento no tiene stop asociado ("Sin ciudad").
-    is_archived: bool | None = None
 
 
 class CitySummaryOut(BaseModel):

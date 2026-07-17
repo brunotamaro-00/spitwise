@@ -5,19 +5,17 @@ Todos los endpoints son *personales*: reflejan la parte del usuario logueado
 para filtrar a 1+ ciudades; sin `slugs` = todas las ciudades.
 """
 
-from datetime import date, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analytics import itinerary_dates
 from app.api.auth import get_current_user
 from app.bot.active_stop import visible_stops
 from app.api.schemas import (
     CategorySpendOut,
-    CityBreakdownOut,
-    CityDailyOut,
     CitySummaryOut,
     MovementOut,
 )
@@ -34,14 +32,11 @@ def _money(v) -> str:
 
 
 async def _expenses_for(
-    session: AsyncSession, slugs: list[str] | None, *, only_cities: bool = False
+    session: AsyncSession, slugs: list[str] | None
 ) -> list[Movement]:
     stmt = select(Movement).where(_EXPENSE)
     if slugs:
         stmt = stmt.where(Movement.stop_slug.in_(slugs))
-    elif only_cities:
-        # Sin filtro explícito, excluir los gastos generales (sin ciudad).
-        stmt = stmt.where(Movement.stop_slug.is_not(None))
     return list((await session.execute(stmt)).scalars().all())
 
 
@@ -69,16 +64,7 @@ async def _itinerary_days(
             s for s in await visible_stops(session, username)
             if not s.is_candidate and not s.is_archived
         ]
-
-    days: set[date] = set()
-    for s in stops:
-        if not (s.arrival_date and s.departure_date):
-            continue
-        d = s.arrival_date
-        while d < s.departure_date:  # departure exclusivo: noches, no fechas
-            days.add(d)
-            d += timedelta(days=1)
-    return len(days)
+    return len(itinerary_dates(stops))
 
 
 @router.get("/summary", response_model=CitySummaryOut)
@@ -141,72 +127,6 @@ async def city_by_category(
             total_usd=_money(v),
         )
         for cid, v in items
-    ]
-
-
-@router.get("/daily", response_model=list[CityDailyOut])
-async def city_daily(
-    slugs: list[str] | None = Query(default=None),
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> list[CityDailyOut]:
-    """Gasto por día (no acumulado) para las ciudades filtradas.
-
-    Excluye siempre los gastos generales (sin ciudad): suman al total del viaje
-    pero no son gasto "diario en destino", que es lo que muestra este gráfico.
-    """
-    by_date: dict[date, Decimal] = {}
-    for m in await _expenses_for(session, slugs, only_cities=True):
-        share = user_share(m, user.id)
-        if share <= 0:
-            continue
-        by_date[m.movement_date] = by_date.get(m.movement_date, Decimal("0")) + share
-    return [CityDailyOut(date=d, total_usd=_money(by_date[d])) for d in sorted(by_date)]
-
-
-@router.get("/breakdown", response_model=list[CityBreakdownOut])
-async def city_breakdown(
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> list[CityBreakdownOut]:
-    """Una fila por ciudad (todas), ordenada por el itinerario (Stop.order).
-    Archivadas después de las activas; sin stop asociado ("Sin ciudad") al final."""
-    stops = (await session.execute(select(Stop))).scalars().all()
-    flags = {s.slug: s.country_flag for s in stops}
-    order = {s.slug: s.order for s in stops}
-    archived = {s.slug: s.is_archived for s in stops}
-    agg: dict[tuple[str | None, str | None], dict] = {}
-    for m in await _expenses_for(session, None):
-        share = user_share(m, user.id)
-        if share <= 0:
-            continue
-        key = (m.stop_slug, m.city_name)
-        row = agg.setdefault(
-            key, {"total": Decimal("0"), "count": 0, "days": set()}
-        )
-        row["total"] += share
-        row["count"] += 1
-        row["days"].add(m.movement_date)
-    _LAST = 10**9
-
-    def _sort_key(kv):
-        slug = kv[0][0]
-        if slug is None:
-            return (2, _LAST)
-        return (1 if archived.get(slug) else 0, order.get(slug, _LAST))
-
-    items = sorted(agg.items(), key=_sort_key)
-    return [
-        CityBreakdownOut(
-            stop_slug=slug,
-            city_name=name,
-            country_flag=flags.get(slug) if slug else None,
-            total_usd=_money(row["total"]),
-            movement_count=row["count"],
-            days=len(row["days"]),
-            is_archived=archived.get(slug) if slug else None,
-        )
-        for (slug, name), row in items
     ]
 
 

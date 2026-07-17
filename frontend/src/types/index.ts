@@ -7,9 +7,50 @@ export type Movement = {
 };
 export type Balance = { debtor_id: number | null; creditor_id: number | null; amount_usd: string };
 export type Summary = { total_usd: string; movement_count: number };
-export type CitySpend = { stop_slug: string | null; city_name: string | null; total_usd: string };
 export type CategorySpend = { category_id: number | null; name: string | null; icon: string | null; total_usd: string };
-export type TimePoint = { date: string; cumulative_usd: string };
+
+export type TripStatus = "not_started" | "in_progress" | "finished";
+export type StopPaceStatus = "past" | "current" | "future";
+
+/** Ritmo global: alojamiento prorrateado por noches, generales por todo el viaje. */
+export type TripBlock = {
+  status: TripStatus;
+  start: string | null;
+  end: string | null;
+  total_nights: number;
+  elapsed_nights: number;
+  total_usd: string;
+  general_usd: string;
+  general_per_day_usd: string | null;
+  avg_per_day_usd: string | null;
+  run_rate_usd: string | null;
+  accrued_usd: string;
+  projected_total_usd: string | null;
+};
+
+export type CityPace = {
+  stop_slug: string;
+  city_name: string;
+  country_flag: string | null;
+  order: number;
+  status: StopPaceStatus;
+  is_archived: boolean;
+  is_transit: boolean;
+  arrival_date: string | null;
+  departure_date: string | null;
+  nights: number;
+  elapsed_nights: number;
+  movement_count: number;
+  total_usd: string;
+  lodging_usd: string;
+  other_usd: string;
+  per_day_usd: string | null;
+  lodging_per_night_usd: string | null;
+  other_per_day_usd: string | null;
+  delta_vs_trip_pct: number | null;
+};
+
+export type TripPace = { as_of: string; trip: TripBlock; cities: CityPace[] };
 export type Category = { id: number; name: string; icon: string | null; sort_order: number };
 export type User = { id: number; username: string };
 export type Stop = {
@@ -26,16 +67,6 @@ export type Stop = {
 
 export type AppConfig = { andiamo_url: string | null };
 
-export type CityDaily = { date: string; total_usd: string };
-export type CityBreakdown = {
-  stop_slug: string | null;
-  city_name: string | null;
-  country_flag: string | null;
-  total_usd: string;
-  movement_count: number;
-  days: number;
-  is_archived: boolean | null;
-};
 export type CitySummary = {
   total_usd: string;
   movement_count: number;

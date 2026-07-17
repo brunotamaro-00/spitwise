@@ -3,13 +3,12 @@ import { Receipt, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
 import { listUsers } from "@/api/users";
-import { getBalance, getByCategory, getByCity, getSummary } from "@/api/dashboard";
-import { getCityDaily, getCitySummary } from "@/api/cities";
+import { getBalance, getByCategory, getPace, getSummary } from "@/api/dashboard";
 import BalanceHero from "@/components/BalanceHero";
 import CategoryDonut from "@/components/CategoryDonut";
-import CitySpendChart from "@/components/CitySpendChart";
+import CityPaceChart from "@/components/CityPaceChart";
 import SettleDialog from "@/components/SettleDialog";
-import SpendBarChart from "@/components/SpendBarChart";
+import TripPaceCard from "@/components/TripPaceCard";
 import AnimatedUsd from "@/components/ui/AnimatedUsd";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
@@ -22,11 +21,8 @@ export default function Dashboard() {
   const [settle, setSettle] = useState(false);
   const balance = useQuery({ queryKey: ["balance"], queryFn: getBalance });
   const summary = useQuery({ queryKey: ["dashboard", "summary"], queryFn: getSummary });
-  const byCity = useQuery({ queryKey: ["dashboard", "city"], queryFn: getByCity });
   const byCat = useQuery({ queryKey: ["dashboard", "cat"], queryFn: getByCategory });
-  const daily = useQuery({ queryKey: ["dashboard", "daily"], queryFn: () => getCityDaily([]) });
-  // Promedio por día del viaje (base itinerario): dato económico del hero.
-  const trip = useQuery({ queryKey: ["city", "summary", []], queryFn: () => getCitySummary([]) });
+  const pace = useQuery({ queryKey: ["dashboard", "pace"], queryFn: getPace });
   const users = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
   const me = useMe();
 
@@ -34,10 +30,7 @@ export default function Dashboard() {
     (users.data ?? []).map((u) => [u.id, capitalize(u.username)]),
   );
 
-  // No mostrar el bucket "Sin ciudad" (gastos generales) en el gráfico por ciudad.
-  const cityRows = (byCity.data ?? []).filter((c) => c.stop_slug || c.city_name);
-
-  const queries = [balance, summary, byCity, byCat, daily, trip];
+  const queries = [balance, summary, byCat, pace];
   if (queries.some((q) => q.isError)) {
     return (
       <div className="flex flex-col gap-5">
@@ -46,6 +39,9 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  const trip = pace.data?.trip;
+  const preTrip = trip?.status === "not_started";
 
   return (
     <div className="flex flex-col gap-5">
@@ -70,10 +66,13 @@ export default function Dashboard() {
                   <Receipt size={15} strokeWidth={2} aria-hidden="true" />
                   {summary.data.movement_count} movimiento{summary.data.movement_count === 1 ? "" : "s"}
                 </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <TrendingUp size={15} strokeWidth={2} aria-hidden="true" />
-                  <span className="font-tabular">{formatUsd(trip.data?.avg_per_day_usd ?? "0")}</span> por día
-                </span>
+                {trip?.avg_per_day_usd && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <TrendingUp size={15} strokeWidth={2} aria-hidden="true" />
+                    <span className="font-tabular">{formatUsd(trip.avg_per_day_usd)}</span>
+                    {preTrip ? " previsto/día" : " por día"}
+                  </span>
+                )}
               </div>
             </div>
           </Card>
@@ -90,9 +89,13 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* items-stretch + grid 12: el donut (denso) va angosto, las barras por
-          ciudad respiran en la columna ancha; nadie deja huecos. */}
-      <div className="animate-rise-in stagger-3 grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
+      <div className="animate-rise-in stagger-3">
+        {pace.data ? <TripPaceCard pace={pace.data} /> : <Skeleton className="h-40" />}
+      </div>
+
+      {/* items-stretch + grid 12: el donut (denso) va angosto, el ritmo por
+          ciudad respira en la columna ancha; nadie deja huecos. */}
+      <div className="animate-rise-in stagger-4 grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
         <div className="lg:col-span-5">
           {byCat.data ? (
             <CategoryDonut data={byCat.data} subtitle="Todo el viaje" />
@@ -101,15 +104,12 @@ export default function Dashboard() {
           )}
         </div>
         <div className="lg:col-span-7">
-          {byCity.data ? <CitySpendChart data={cityRows} /> : <Skeleton className="h-64" />}
+          {pace.data ? (
+            <CityPaceChart cities={pace.data.cities} trip={pace.data.trip} />
+          ) : (
+            <Skeleton className="h-64" />
+          )}
         </div>
-      </div>
-      <div className="animate-rise-in stagger-4">
-        {daily.data ? (
-          <SpendBarChart data={daily.data} granularity="week" subtitle="Gastos con ciudad" />
-        ) : (
-          <Skeleton className="h-60" />
-        )}
       </div>
 
       {settle && <SettleDialog balance={balance.data} onClose={() => setSettle(false)} />}

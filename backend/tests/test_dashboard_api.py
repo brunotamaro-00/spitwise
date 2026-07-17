@@ -35,16 +35,12 @@ async def test_categories_endpoint(app_client):
     assert [c["name"] for c in r.json()][0] == "Alojamiento"
 
 
-async def test_summary_and_by_city(app_client):
+async def test_summary(app_client):
     # bruno logueado; ambos gastos son shared => su parte es la mitad de cada uno.
     h = await _seed_and_auth(app_client)
     summ = await app_client.get("/api/v1/dashboard/summary", headers=h)
     assert summ.json()["total_usd"] == "40.00"
     assert summ.json()["movement_count"] == 2
-    by_city = await app_client.get("/api/v1/dashboard/by-city", headers=h)
-    cities = {c["city_name"]: c["total_usd"] for c in by_city.json()}
-    assert cities["Londres"] == "25.00"
-    assert cities["París"] == "15.00"
 
 
 async def test_by_category(app_client):
@@ -52,13 +48,6 @@ async def test_by_category(app_client):
     by_cat = await app_client.get("/api/v1/dashboard/by-category", headers=h)
     rows = by_cat.json()
     assert rows[0]["total_usd"] == "40.00"
-
-
-async def test_timeseries(app_client):
-    h = await _seed_and_auth(app_client)
-    ts = await app_client.get("/api/v1/dashboard/timeseries", headers=h)
-    pts = ts.json()
-    assert pts[-1]["cumulative_usd"] == "40.00"
 
 
 async def test_summary_excludes_other_only_paid_by_other(app_client):

@@ -85,49 +85,6 @@ async def test_by_category_scoped_to_city(app_client):
     assert rows[0]["total_usd"] == "15.00"
 
 
-async def test_daily_is_not_cumulative(app_client):
-    h = await _seed_and_auth(app_client)
-    r = await app_client.get("/api/v1/dashboard/city/daily?slugs=londres", headers=h)
-    pts = r.json()
-    assert [p["total_usd"] for p in pts] == ["25.00", "10.00"]
-
-
-async def test_daily_excludes_general_expenses(app_client):
-    """Sin filtro de ciudad, /daily no suma los gastos generales (sin stop):
-    cuentan para el total del viaje pero no son gasto diario en destino."""
-    from datetime import date as d
-    from app.db.models import Movement, User
-
-    h = await _seed_and_auth(app_client)
-    async with app_client._maker() as s:
-        u1 = (await s.execute(select(User).where(User.username == "bruno"))).scalar_one()
-        s.add(Movement(type="expense", amount=Decimal("100"), currency="USD",
-                       amount_usd=Decimal("100"), fx_rate=Decimal("1"),
-                       fx_source="frankfurter", paid_by=u1.id, split="shared",
-                       category_id=None, stop_slug=None, city_name=None,
-                       movement_date=d(2026, 8, 6), created_by=u1.id))
-        await s.commit()
-
-    r = await app_client.get("/api/v1/dashboard/city/daily", headers=h)
-    pts = {p["date"]: p["total_usd"] for p in r.json()}
-    # El 6 de agosto solo cuenta el gasto de Londres (50/2), no el general (100/2).
-    assert pts["2026-08-06"] == "25.00"
-    assert sum(Decimal(v) for v in pts.values()) == Decimal("50.00")
-
-
-async def test_breakdown_all_cities(app_client):
-    h = await _seed_and_auth(app_client)
-    r = await app_client.get("/api/v1/dashboard/city/breakdown", headers=h)
-    rows = {row["city_name"]: row for row in r.json()}
-    assert rows["Londres"]["total_usd"] == "35.00"
-    assert rows["Londres"]["movement_count"] == 2
-    assert rows["Londres"]["days"] == 2
-    assert rows["Londres"]["country_flag"] == "🇬🇧"
-    assert rows["París"]["total_usd"] == "15.00"
-    # Ordenado por total desc.
-    assert [row["city_name"] for row in r.json()][0] == "Londres"
-
-
 async def test_movements_filtered_by_city(app_client):
     h = await _seed_and_auth(app_client)
     r = await app_client.get("/api/v1/dashboard/city/movements?slugs=londres", headers=h)

@@ -127,8 +127,8 @@ Auth JWT Bearer salvo lo indicado.
 | Movements | CRUD + `?sort=date\|created` |
 | Balance | `GET /balance` |
 | Categories | `GET /categories` |
-| Dashboard | `/dashboard/summary`, `/by-city`, `/by-category`, `/timeseries` |
-| City analytics | `/dashboard/city/*` filtrado por `slugs` |
+| Dashboard | `/dashboard/summary`, `/by-category`, `/pace` (ritmo $/día: alojamiento prorrateado por noches, generales por todo el viaje — ver `app/analytics.py`) |
+| City analytics | `/dashboard/city/summary\|by-category\|movements` filtrado por `slugs` |
 | Stops | `GET /stops` (excluye candidatas y archivadas) |
 | Config | `GET /config` (JWT) — `andiamo_url` para deep links del frontend |
 | Integration | `GET /cities/spend`, `GET /cities/spend-detail?slug=`, `GET /trip/spend`, `POST /andiamo/sync-hook` (todos `X-Api-Key`), `POST /andiamo/sync` (JWT) |
