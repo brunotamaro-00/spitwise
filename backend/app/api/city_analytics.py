@@ -5,7 +5,7 @@ Todos los endpoints son *personales*: reflejan la parte del usuario logueado
 para filtrar a 1+ ciudades; sin `slugs` = todas las ciudades.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
+from app.bot.active_stop import visible_stops
 from app.api.schemas import (
     CategorySpendOut,
     CityBreakdownOut,
@@ -44,20 +45,40 @@ async def _expenses_for(
     return list((await session.execute(stmt)).scalars().all())
 
 
-async def _itinerary_days(session: AsyncSession, slugs: list[str] | None) -> int:
-    """Días de estadía según el itinerario de Andiamo (departure - arrival),
-    de los stops seleccionados (o todos los reales si no hay filtro). Es la base
-    para el promedio por día: refleja los días del viaje, no los días con gastos."""
-    stmt = select(Stop)
+async def _itinerary_days(
+    session: AsyncSession, slugs: list[str] | None, username: str | None = None
+) -> int:
+    """Días de estadía según el itinerario de Andiamo. Es la base del promedio
+    por día: refleja los días del viaje, no los días con gastos.
+
+    Cuenta días **distintos**, no la suma de duraciones: hay paradas que ocurren
+    a la vez (Katia en Pititas mientras Bruno está en Portugal) y sumarlas
+    contaría dos veces el mismo día del viaje.
+
+    Sin filtro de ciudades, el itinerario es el del usuario: a Katia no le suma
+    Portugal, porque en ese tramo ella está en Pititas.
+    """
     if slugs:
-        stmt = stmt.where(Stop.slug.in_(slugs))
+        # Drill-down explícito: los días son los de las ciudades pedidas, aunque
+        # sean del otro (Bruno puede ver Pititas si pagó algo de ese tramo).
+        stops = (
+            await session.execute(select(Stop).where(Stop.slug.in_(slugs)))
+        ).scalars().all()
     else:
-        stmt = stmt.where(Stop.is_candidate.is_(False), Stop.is_archived.is_(False))
-    total = 0
-    for s in (await session.execute(stmt)).scalars().all():
-        if s.arrival_date and s.departure_date:
-            total += max((s.departure_date - s.arrival_date).days, 0)
-    return total
+        stops = [
+            s for s in await visible_stops(session, username)
+            if not s.is_candidate and not s.is_archived
+        ]
+
+    days: set[date] = set()
+    for s in stops:
+        if not (s.arrival_date and s.departure_date):
+            continue
+        d = s.arrival_date
+        while d < s.departure_date:  # departure exclusivo: noches, no fechas
+            days.add(d)
+            d += timedelta(days=1)
+    return len(days)
 
 
 @router.get("/summary", response_model=CitySummaryOut)
@@ -75,7 +96,7 @@ async def city_summary(
         total += share
         count += 1
     # Días del itinerario (Andiamo), no días con gastos cargados.
-    n_days = await _itinerary_days(session, slugs)
+    n_days = await _itinerary_days(session, slugs, user.username)
     avg = total / n_days if n_days else Decimal("0")
 
     arrival = departure = None
