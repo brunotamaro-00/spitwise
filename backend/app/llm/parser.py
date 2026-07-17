@@ -101,9 +101,14 @@ def normalize_changes(raw: dict, category_names, usernames) -> dict:
 async def parse_message(
     text, *, today: date, category_names: list[str] | None = None, usernames: list[str],
     sender: str, client=None, categories: list[tuple[str, str | None]] | None = None,
+    city_names: list[str] | None = None,
 ) -> ParsedMessage:
     """`categories` = [(nombre, descripción)] para enriquecer el prompt; si no viene,
-    alcanza con `category_names` (API vieja, usada en tests)."""
+    alcanza con `category_names` (API vieja, usada en tests).
+
+    `city_names` = paradas del itinerario: sin ellas el LLM solo reconoce ciudades
+    por cultura general y se pierde las de nombre propio (Pititas, Highlands…).
+    """
     if categories is not None:
         category_names = [n for n, _ in categories]
     if category_names is None:
@@ -113,7 +118,7 @@ async def parse_message(
         client = make_llm()
     raw = await client.parse(
         text, today=today, category_names=category_names, usernames=usernames,
-        sender=sender, categories=categories,
+        sender=sender, categories=categories, city_names=city_names,
     )
 
     intent = raw.get("intent")

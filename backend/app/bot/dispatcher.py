@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import copy, resolve_user_by_wa_id
-from app.bot.capture import all_users, handle_capture, load_categories
+from app.bot.capture import all_users, handle_capture, load_categories, load_city_names
 from app.bot.editor import handle_delete, handle_edit
 from app.bot.interactive import handle_interactive
 from app.bot.render import BotReply, buttons_reply, fmt_money, text_reply, unknown_reply
@@ -92,6 +92,7 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
     parsed = await parse_message(
         stripped, today=today, categories=await load_categories(session),
         usernames=[u.username for u in users], sender=user.username, client=llm_client,
+        city_names=await load_city_names(session),
     )
 
     if parsed.intent == "edit":

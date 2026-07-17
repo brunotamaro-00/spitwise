@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import copy
-from app.bot.active_stop import get_state_payload, place_for_date, visible_stops
+from app.bot.active_stop import get_state_payload, place_for_date
 from app.bot.pending import close_pending, create_pending, load_pending
 from app.bot.render import (
     BotReply, buttons_reply, cat_label, expense_card, fmt_money, settlement_card, text_reply,
@@ -28,6 +28,19 @@ async def load_categories(session: AsyncSession) -> list[tuple[str, str | None]]
     )).all()
     # Sin seed todavía (tests con FakeLLM): caer al catálogo.
     return [(n, d) for n, d in rows] or [(n, d) for n, _, d in CATEGORIES]
+
+
+async def load_city_names(session: AsyncSession) -> list[str]:
+    """Paradas del itinerario para el prompt del parser, en orden del recorrido.
+    Incluye las locales (Pititas): nombrar una parada es intención explícita y
+    vale para los dos, aunque la imputación por fecha siga siendo por remitente."""
+    from app.db.models import Stop
+    rows = (await session.execute(
+        select(Stop.name)
+        .where(Stop.is_candidate.is_(False), Stop.is_archived.is_(False))
+        .order_by(Stop.order)
+    )).scalars().all()
+    return list(rows)
 
 
 async def _category_id(session: AsyncSession, name: str | None) -> int | None:
@@ -73,11 +86,14 @@ async def resolve_place(session, wa_id: str, movement_date: date, today: date,
       post-viaje => sin ciudad (General).
     - Fecha = hoy: respeta override de sesión (day-trips) antes de imputar.
 
-    `username` es el remitente: define qué paradas propias ve (p.ej. Pititas solo
-    para su dueña). Una parada ajena nunca matchea, ni por nombre explícito.
+    `username` es el remitente: define qué paradas propias imputa la fecha (p.ej.
+    Pititas solo a su dueña). Nombrar una parada es intención explícita y matchea
+    para cualquiera de los dos: Bruno puede mandar un gasto a Pititas si le pagó
+    algo de ese tramo. Sin mencionarla, él sigue cayendo en Portugal.
     """
     if explicit_city:
-        stops = await visible_stops(session, username)
+        from app.db.models import Stop
+        stops = (await session.execute(select(Stop))).scalars().all()
         wanted = explicit_city.strip().casefold()
         for s in stops:
             if (s.name or "").casefold() == wanted:
@@ -118,6 +134,7 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
         parsed = await parse_message(
             text, today=today, category_names=_cat_names(),
             usernames=[u.username for u in users], sender=user.username, client=llm_client,
+            city_names=await load_city_names(session),
         )
 
     if parsed.amount is None:

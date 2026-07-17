@@ -26,19 +26,33 @@ _SYSTEM = (
     "- description: string corta en minúsculas.\n"
     "- category: exactamente una de la lista dada (null para settlement).\n"
     "- split: SIEMPRE 'shared' por defecto. Usá payer_only/other_only SOLO si el "
-    "mensaje dice EXPLÍCITAMENTE que el gasto es de una sola persona: "
-    "'solo mío'→payer_only, 'solo de ella/él' (del que NO pagó)→other_only. "
-    "Que alguien haya hecho o pagado el gasto NO lo hace individual: "
-    "'gasté 100 en el teleférico'→shared. Es relativo a quien pagó.\n"
+    "mensaje dice EXPLÍCITAMENTE que el gasto es de una sola persona "
+    "('solo mío', 'solo katia', 'solo para bruno'). Que alguien haya hecho o "
+    "pagado el gasto NO lo hace individual: 'gasté 100 en el teleférico'→shared.\n"
+    "  'solo <nombre>' dice DE QUIÉN ES el gasto, NUNCA quién lo pagó: "
+    "'solo katia' NO significa que pagó Katia. Si el mensaje no dice quién pagó, "
+    "paga {sender} igual.\n"
+    "  El valor es RELATIVO A QUIEN PAGÓ: si el gasto es de quien pagó → "
+    "'payer_only'; si es de la otra persona → 'other_only'. Ejemplos con "
+    "{sender} escribiendo y sin decir quién pagó (⇒ paga {sender}): "
+    "'solo {sender}'/'solo mío' → payer_only; 'solo {other}'/'solo de {other}' → "
+    "other_only.\n"
     "- paid_by: username de quien pagó SOLO si el texto lo dice "
-    "('pagó {other}', 'pagué yo'→{sender}); si no lo dice, null.\n"
+    "('pagó {other}', 'pagué yo'→{sender}); si no lo dice, null. "
+    "'solo {other}' NO dice quién pagó ⇒ null.\n"
     "- date: fecha del gasto en ISO (YYYY-MM-DD) SOLO si el texto menciona una fecha "
     "('ayer', 'el 23 de septiembre', 'el martes'); resolvela usando la fecha de hoy dada; "
     "si no menciona fecha, null.\n"
-    "- city: nombre de ciudad SOLO si el texto menciona literalmente una ciudad "
+    "- city: nombre de ciudad SOLO si el texto menciona literalmente una parada "
     "('en Londres', 'Roma'); si no, null. Nunca infieras ciudad por el destino "
     "del viaje, la primera parada, ni por ítems previos (seguro de viaje, pasajes, "
     "visa, equipaje). Sin ciudad explícita => null (queda General).\n"
+    "  Abajo va la lista de paradas del itinerario: algunas NO son ciudades "
+    "conocidas (apodos, regiones, nombres propios del viaje) y aun así son "
+    "paradas válidas. Si el mensaje nombra una, devolvé el nombre EXACTO de la "
+    "lista y sacala de la descripción. Ojo con el orden de las palabras: la "
+    "parada puede venir antes de lo comprado y sin 'en' delante "
+    "('10 usd roma en helados' → city 'Roma', description 'helados').\n"
     "- confidence: 0..1, qué tan clara es la categoría.\n"
     "- candidates: si confidence < 0.6, 2-3 categorías candidatas de la lista; si no, [].\n\n"
     "Para edit/delete extraé la referencia al movimiento:\n"
@@ -94,12 +108,21 @@ def _render_categories(category_names: list[str], categories) -> str:
     return f"Categorías válidas: {', '.join(category_names)}."
 
 
+def _render_cities(city_names) -> str:
+    """Paradas del itinerario. Sin esto el LLM solo reconoce ciudades por cultura
+    general y se pierde las de nombre propio (Pititas, Highlands, Jungfrau…)."""
+    if not city_names:
+        return ""
+    return f"Paradas del itinerario: {', '.join(city_names)}.\n"
+
+
 def _render_user(text: str, today: date, category_names: list[str], usernames: list[str],
-                 sender: str, categories=None) -> str:
+                 sender: str, categories=None, city_names=None) -> str:
     other = next((u for u in usernames if u != sender), sender)
     return (
         f"Hoy es {today.isoformat()}.\n"
         f"{_render_categories(category_names, categories)}\n"
+        f"{_render_cities(city_names)}"
         f"Escribe: {sender}. La otra persona es {other} "
         f"('yo'→{sender}; 'él'→bruno, 'ella'→katia si existen esos usuarios).\n"
         f"Mensaje: {text}"
@@ -126,7 +149,8 @@ class AnthropicLLM:
         )
         self._model = s.anthropic_model  # claude-haiku-4-5
 
-    async def parse(self, text, *, today, category_names, usernames, sender, categories=None) -> dict:
+    async def parse(self, text, *, today, category_names, usernames, sender, categories=None,
+                    city_names=None) -> dict:
         resp = await self._client.messages.parse(
             model=self._model,
             max_tokens=1024,
@@ -134,7 +158,7 @@ class AnthropicLLM:
             system=[{"type": "text", "text": _render_system(usernames, sender),
                      "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": _render_user(
-                text, today, category_names, usernames, sender, categories
+                text, today, category_names, usernames, sender, categories, city_names
             )}],
             output_format=ParsedMessageSchema,
         )
@@ -155,13 +179,14 @@ class OpenAILLM:
         )
         self._model = s.openai_model
 
-    async def parse(self, text, *, today, category_names, usernames, sender, categories=None) -> dict:
+    async def parse(self, text, *, today, category_names, usernames, sender, categories=None,
+                    city_names=None) -> dict:
         resp = await self._client.chat.completions.parse(
             model=self._model,
             messages=[
                 {"role": "system", "content": _render_system(usernames, sender)},
                 {"role": "user", "content": _render_user(
-                    text, today, category_names, usernames, sender, categories
+                    text, today, category_names, usernames, sender, categories, city_names
                 )},
             ],
             response_format=ParsedMessageSchema,
