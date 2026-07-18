@@ -112,6 +112,30 @@ async def resolve_place(session, ref_date: date, explicit_city: str | None,
     return stop.slug, stop.name, (stop.currency_code or "USD")
 
 
+async def owner_split(session, stop_slug: str | None, payer: User, split: str) -> str:
+    """Split efectivo según el dueño de la parada.
+
+    Una parada con `owner_username` (Pititas→Katia, Portugal→Bruno) implica que
+    sus gastos son, por default, de esa persona: no se reparten 50/50 como en el
+    resto del viaje. Sin necesidad de aclararlo en el mensaje.
+
+    Solo pisa el default: si el usuario pidió explícitamente un split individual
+    (`payer_only`/`other_only`), se respeta — `shared` es la señal de "no aclaró".
+    El valor es relativo al pagador: si paga el dueño → `payer_only`; si paga el
+    otro → `other_only` (en un libro de 2, el no-pagador es el dueño). Vale para
+    los dos remitentes: si Bruno manda un gasto a Pititas, igual queda de Katia.
+    """
+    if not stop_slug or split != "shared":
+        return split
+    from app.db.models import Stop
+    owner = (
+        await session.execute(select(Stop.owner_username).where(Stop.slug == stop_slug))
+    ).scalar_one_or_none()
+    if not owner:
+        return split
+    return "payer_only" if owner.lower() == payer.username.lower() else "other_only"
+
+
 async def _persist(session, *, payer, parsed, amount_usd, rate, src, stop_slug, city_name,
                    cat_id, created_by, raw):
     mv = Movement(
@@ -160,6 +184,10 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
     if parsed.paid_by and parsed.paid_by != user.username:
         payer = (await user_by_username(session, parsed.paid_by)) or user
     other = await other_user(session, payer)
+
+    # Gastos en paradas con dueño (Pititas/Portugal) van al dueño por default.
+    if not parsed.is_settlement:
+        parsed.split = await owner_split(session, stop_slug, payer, parsed.split)
 
     # Regla: el TC es siempre el de la fecha de CARGA, no la del gasto.
     amount_usd, rate, src = await convert_to_usd(session, parsed.amount, parsed.currency, today)
@@ -221,6 +249,10 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
         payer = user
         if item.paid_by and item.paid_by != user.username:
             payer = (await user_by_username(session, item.paid_by)) or user
+        # Gastos en paradas con dueño (Pititas/Portugal) van al dueño por default.
+        split = item.split if item.is_settlement else await owner_split(
+            session, stop_slug, payer, item.split
+        )
         # Regla: el TC es siempre el de la fecha de CARGA, no la del gasto.
         amount_usd, rate, src = await convert_to_usd(session, item.amount, currency, today)
         cat_name = None if item.is_settlement else item.category_name
@@ -229,7 +261,7 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
             type="settlement" if item.is_settlement else "expense",
             amount=item.amount, currency=currency, amount_usd=amount_usd,
             fx_rate=rate, fx_source=_map_source(src, currency), paid_by=payer.id,
-            split=item.split, description=item.description, category_id=cat_id,
+            split=split, description=item.description, category_id=cat_id,
             stop_slug=stop_slug, city_name=city_name,
             created_by=user.id, raw_message=text, batch_key=batch_key,
         )
