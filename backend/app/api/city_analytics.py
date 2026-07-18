@@ -140,5 +140,5 @@ async def city_movements(
     stmt = select(Movement).where(_EXPENSE)
     if slugs:
         stmt = stmt.where(Movement.stop_slug.in_(slugs))
-    stmt = stmt.order_by(Movement.movement_date.desc(), Movement.id.desc())
+    stmt = stmt.order_by(Movement.created_at.desc(), Movement.id.desc())
     return list((await session.execute(stmt)).scalars().all())

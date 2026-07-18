@@ -35,17 +35,17 @@ async def _seed_and_auth(app_client):
                      amount_usd=Decimal("90"), fx_rate=Decimal("1"), fx_source="frankfurter",
                      paid_by=u1.id, split="shared", category_id=lodging,
                      stop_slug="londres", city_name="Londres",
-                     movement_date=date(2026, 8, 5), created_by=u1.id),
+                      created_by=u1.id),
             Movement(type="expense", amount=Decimal("30"), currency="USD",
                      amount_usd=Decimal("30"), fx_rate=Decimal("1"), fx_source="frankfurter",
                      paid_by=u2.id, split="shared", category_id=comida,
                      stop_slug="londres", city_name="Londres",
-                     movement_date=date(2026, 8, 6), created_by=u2.id),
+                      created_by=u2.id),
             Movement(type="expense", amount=Decimal("60"), currency="USD",
                      amount_usd=Decimal("60"), fx_rate=Decimal("1"), fx_source="frankfurter",
                      paid_by=u1.id, split="shared", category_id=None,
                      stop_slug=None, city_name=None,
-                     movement_date=date(2026, 7, 10), created_by=u1.id),
+                      created_by=u1.id),
         ])
         await s.commit()
     r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
@@ -127,7 +127,7 @@ async def test_pace_excludes_other_only_consumption(app_client, monkeypatch):
                        amount_usd=Decimal("10"), fx_rate=Decimal("1"),
                        fx_source="frankfurter", paid_by=bruno.id, split="other_only",
                        stop_slug="paris", city_name="París",
-                       movement_date=date(2026, 8, 30), created_by=bruno.id))
+                        created_by=bruno.id))
         await s.commit()
     _freeze_today(monkeypatch, date(2026, 7, 1))
     j = (await app_client.get("/api/v1/dashboard/pace", headers=h)).json()
@@ -155,7 +155,7 @@ async def test_pace_pititas_visible_for_both(app_client, monkeypatch):
                      amount_usd=Decimal("40"), fx_rate=Decimal("1"), fx_source="frankfurter",
                      paid_by=katia.id, split="shared", category_id=None,
                      stop_slug="pititas", city_name="Pititas",
-                     movement_date=date(2026, 9, 6), created_by=katia.id),
+                      created_by=katia.id),
         ])
         await s.commit()
     _freeze_today(monkeypatch, date(2026, 7, 1))

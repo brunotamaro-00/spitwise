@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from sqlalchemy import select
 
 from app.api.auth import hash_password
-from app.bot.active_stop import get_state_payload, resolve_active_stop, set_active_stop_override
+from app.bot.active_stop import get_state_payload, update_state_payload
 from app.bot.dispatcher import dispatch
 from app.bot.qa import handle_question
 from app.db.models import Movement, User
@@ -83,18 +83,17 @@ async def test_question_history_persists_and_feeds_followup(db_session):
     assert len(payload["qa_history"]) == 4
 
 
-async def test_history_survives_active_stop_override_and_viceversa(db_session):
+async def test_history_survives_other_session_keys(db_session):
     u1, _ = await _setup(db_session)
     await handle_question(db_session, u1, "549111", "hola", TODAY, chat_client=FakeChat())
-    await set_active_stop_override(db_session, "549111", "roma", "Roma", "EUR")
+    await update_state_payload(db_session, "549111", other_key={"foo": "bar"})
     payload = await get_state_payload(db_session, "549111")
     assert payload["qa_history"]  # no fue pisada
-    assert payload["active_stop"]["stop_slug"] == "roma"
-    assert (await resolve_active_stop(db_session, "549111", TODAY))[0] == "roma"
-    # Y una nueva pregunta no pisa el override.
+    assert payload["other_key"]["foo"] == "bar"
+    # Y una nueva pregunta no pisa las otras claves.
     await handle_question(db_session, u1, "549111", "otra", TODAY, chat_client=FakeChat())
     payload = await get_state_payload(db_session, "549111")
-    assert payload["active_stop"]["stop_slug"] == "roma"
+    assert payload["other_key"]["foo"] == "bar"
 
 
 def _tool(handler):
@@ -223,10 +222,10 @@ async def _seed_movements(db_session, u1):
     from app.db.models import Movement
     m1 = Movement(type="expense", amount=Decimal("100"), currency="CHF", amount_usd=Decimal("112"),
                   fx_rate=Decimal("1.12"), fx_source="fallback", paid_by=u1.id, split="payer_only",
-                  description="teleferico", movement_date=date(2026, 9, 22), created_by=u1.id)
+                  description="teleferico", created_by=u1.id)
     m2 = Movement(type="expense", amount=Decimal("100"), currency="CHF", amount_usd=Decimal("112"),
                   fx_rate=Decimal("1.12"), fx_source="fallback", paid_by=u1.id, split="shared",
-                  description="teleferico", movement_date=date(2026, 9, 22), created_by=u1.id)
+                  description="teleferico", created_by=u1.id)
     db_session.add_all([m1, m2])
     await db_session.commit()
     return m1, m2

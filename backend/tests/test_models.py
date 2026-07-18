@@ -26,7 +26,7 @@ async def test_insert_movement_roundtrip(db_session):
         category_id=cat.id,
         stop_slug="londres",
         city_name="Londres",
-        movement_date=date(2026, 8, 6),
+
         created_by=u1.id,
     )
     db_session.add(mv)

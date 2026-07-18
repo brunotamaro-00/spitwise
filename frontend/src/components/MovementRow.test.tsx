@@ -7,7 +7,7 @@ const mv = {
   id: 1, type: "expense", amount: "45.00", currency: "GBP", amount_usd: "57.15",
   fx_rate: "1.27", fx_source: "frankfurter", paid_by: 1, split: "shared",
   description: "cena", category_id: 2, stop_slug: "londres", city_name: "Londres",
-  movement_date: "2026-08-06", created_at: "2026-08-06T12:00:00Z",
+  created_at: "2026-08-06T12:00:00Z",
 };
 
 describe("MovementRow", () => {

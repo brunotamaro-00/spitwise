@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from app.andiamo import sync_stops
-from app.bot.active_stop import place_for_date, resolve_active_stop
+from app.bot.active_stop import place_for_date, stop_for_date
 from app.db.models import Movement, Stop, User
 
 PORTUGAL = dict(
@@ -89,8 +89,8 @@ async def test_gap_sin_itinerario_desempata_por_dueño(db_session):
 
 async def test_active_stop_de_katia_es_pititas(db_session):
     await _seed(db_session)
-    slug, city, cur = await resolve_active_stop(db_session, "549122", date(2026, 9, 6), "katia")
-    assert (slug, city, cur) == ("pititas", "Pititas", "EUR")
+    stop = await stop_for_date(db_session, date(2026, 9, 6), "katia")
+    assert (stop.slug, stop.name, stop.currency_code) == ("pititas", "Pititas", "EUR")
 
 
 async def test_timezone_por_usuario(db_session):
@@ -161,7 +161,6 @@ async def test_sync_sigue_archivando_stops_de_andiamo(db_session):
     db_session.add(Movement(
         type="expense", amount=10, currency="EUR", amount_usd=11, fx_rate=1.1,
         paid_by=1, created_by=1, stop_slug="estrasburgo", city_name="Estrasburgo",
-        movement_date=date(2026, 9, 13),
     ))
     await db_session.commit()
 

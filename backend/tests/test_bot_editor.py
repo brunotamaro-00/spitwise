@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -32,9 +32,11 @@ def _payload(**over):
 
 
 def _mv(u, desc, amount, d, city=None, slug=None):
+    # d = día de carga (created_at): la referencia "de ayer" filtra por este día.
     return Movement(type="expense", amount=Decimal(amount), currency="USD",
                     amount_usd=Decimal(amount), fx_rate=Decimal("1"), fx_source="frankfurter",
-                    paid_by=u.id, split="shared", description=desc, movement_date=d,
+                    paid_by=u.id, split="shared", description=desc,
+                    created_at=datetime.combine(d, time(12)),
                     city_name=city, stop_slug=slug, created_by=u.id)
 
 
@@ -70,13 +72,13 @@ async def test_edit_amount_by_reference(db_session):
 
 
 async def test_edit_date_recalculates_city(db_session):
+    # "era del 23/9": la fecha no se guarda; solo re-imputa la ciudad por itinerario.
     u1, _ = await _setup(db_session)
     db_session.add(_mv(u1, "cena", "10", date(2026, 8, 5), "Londres", "londres"))
     await db_session.commit()
     fake = FakeLLM(_payload(ref_last=True, new_date="2026-09-23"))
     reply = await dispatch(db_session, "549111", "text", "la fecha era el 23/9", None, TODAY, llm_client=fake)
     mv = (await db_session.execute(select(Movement))).scalar_one()
-    assert mv.movement_date == date(2026, 9, 23)
     assert mv.city_name == "Roma" and mv.stop_slug == "roma"
     assert "Londres → *Roma*" in (reply.text or "")
 

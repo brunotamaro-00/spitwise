@@ -18,11 +18,11 @@ async def _seed_and_auth(app_client):
             Movement(type="expense", amount=Decimal("50"), currency="USD", amount_usd=Decimal("50"),
                      fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=u1.id, split="shared",
                      category_id=cat.id, stop_slug="londres", city_name="Londres",
-                     movement_date=date(2026, 8, 6), created_by=u1.id),
+                      created_by=u1.id),
             Movement(type="expense", amount=Decimal("30"), currency="USD", amount_usd=Decimal("30"),
                      fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=u2.id, split="shared",
                      category_id=cat.id, stop_slug="paris", city_name="París",
-                     movement_date=date(2026, 8, 30), created_by=u2.id),
+                      created_by=u2.id),
         ])
         await s.commit()
     r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
@@ -62,7 +62,7 @@ async def test_summary_excludes_other_only_paid_by_other(app_client):
             Movement(type="expense", amount=Decimal("10"), currency="USD", amount_usd=Decimal("10"),
                      fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=bruno.id, split="other_only",
                      stop_slug="paris", city_name="París",
-                     movement_date=date(2026, 8, 30), created_by=bruno.id),
+                      created_by=bruno.id),
         )
         await s.commit()
     summ = await app_client.get("/api/v1/dashboard/summary", headers=h)
@@ -83,14 +83,3 @@ async def test_list_stops(app_client):
     r = await app_client.get("/api/v1/stops", headers=h)
     assert [x["slug"] for x in r.json()] == ["londres", "paris"]
 
-
-async def test_timeline_daily_series(app_client):
-    h = await _seed_and_auth(app_client)
-    r = await app_client.get("/api/v1/dashboard/timeline", headers=h)
-    days = r.json()["days"]
-    # Dos fechas con gasto, ordenadas; parte personal (mitad de cada shared).
-    assert [d["date"] for d in days] == ["2026-08-06", "2026-08-30"]
-    assert days[0]["total_usd"] == "25.00"
-    assert days[1]["total_usd"] == "15.00"
-    assert days[0]["movement_count"] == 1
-    assert days[0]["top_category_id"] is not None

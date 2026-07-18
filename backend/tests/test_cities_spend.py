@@ -13,10 +13,10 @@ async def _seed(app_client):
         s.add_all([
             Movement(type="expense", amount=Decimal("50"), currency="USD", amount_usd=Decimal("50"),
                      fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=u.id, split="shared",
-                     stop_slug="londres", city_name="Londres", movement_date=date(2026, 8, 6), created_by=u.id),
+                     stop_slug="londres", city_name="Londres",  created_by=u.id),
             Movement(type="expense", amount=Decimal("20"), currency="USD", amount_usd=Decimal("20"),
                      fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=u.id, split="shared",
-                     stop_slug="londres", city_name="Londres", movement_date=date(2026, 8, 7), created_by=u.id),
+                     stop_slug="londres", city_name="Londres",  created_by=u.id),
         ])
         await s.commit()
 

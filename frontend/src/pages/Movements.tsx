@@ -18,7 +18,7 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import Skeleton from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { formatAmount, formatDayHeader, formatUsd } from "@/lib/format";
-import { dayTotalShare, dayTotalUsd, groupByDay } from "@/lib/groupByDay";
+import { createdDayKey, dayTotalShare, dayTotalUsd, groupByDay } from "@/lib/groupByDay";
 import { involvesMe, myShare } from "@/lib/share";
 import { useMe } from "@/lib/useMe";
 import type { Category, Movement } from "@/types";
@@ -36,9 +36,6 @@ export default function Movements() {
   const [showFilters, setShowFilters] = useState(false);
   const [params, setParams] = useSearchParams();
   // Estado inicial desde la URL, para que los deep-links del bot lleguen filtrados.
-  const [sort, setSort] = useState<"date" | "created">(
-    params.get("sort") === "created" ? "created" : "date",
-  );
   const [f, setF] = useState({
     onlyMine: params.get("mine") === "1",
     city: params.get("city") ?? "",
@@ -57,13 +54,12 @@ export default function Movements() {
     if (f.from) p.set("from", f.from);
     if (f.to) p.set("to", f.to);
     if (f.q) p.set("q", f.q);
-    if (sort !== "date") p.set("sort", sort);
     setParams(p, { replace: true });
-  }, [f, sort, setParams]);
+  }, [f, setParams]);
 
   const { data = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["movements", sort],
-    queryFn: () => listMovements(sort),
+    queryKey: ["movements"],
+    queryFn: listMovements,
   });
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
   const { data: stops = [] } = useQuery({ queryKey: ["stops"], queryFn: getStops, staleTime: 60_000 });
@@ -106,27 +102,15 @@ export default function Movements() {
       if (f.onlyMine && me && !involvesMe(m, me.id)) return false;
       if (f.city && m.city_name !== f.city) return false;
       if (f.categoryId && String(m.category_id) !== f.categoryId) return false;
-      if (f.from && m.movement_date < f.from) return false;
-      if (f.to && m.movement_date > f.to) return false;
+      if (f.from && createdDayKey(m) < f.from) return false;
+      if (f.to && createdDayKey(m) > f.to) return false;
       if (q && !`${m.description ?? ""} ${m.city_name ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
   }, [data, f, me]);
 
-  // Agrupar preservando el orden del backend, por la fecha del criterio activo:
-  // "date" = fecha imputada; "created" = fecha de carga en TZ local del browser.
-  const groups = useMemo(
-    () =>
-      groupByDay(filtered, (m) => {
-        if (sort !== "created") return m.movement_date;
-        const d = new Date(m.created_at);
-        const y = d.getFullYear();
-        const mo = String(d.getMonth() + 1).padStart(2, "0");
-        const da = String(d.getDate()).padStart(2, "0");
-        return `${y}-${mo}-${da}`;
-      }),
-    [filtered, sort],
-  );
+  // Agrupar preservando el orden del backend, por día de carga en TZ del browser.
+  const groups = useMemo(() => groupByDay(filtered), [filtered]);
 
   const totals = useMemo(() => {
     let visible = 0;
@@ -170,24 +154,6 @@ export default function Movements() {
 
       {showFilters && (
         <Card className="mb-3 animate-fade-in p-5">
-          <div className="mb-3">
-            <span className="mb-1.5 block text-xs font-semibold text-ink-3">Ordenar por</span>
-            <div className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5">
-              {([["date", "Fecha imputada"], ["created", "Fecha de carga"]] as const).map(([v, label]) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setSort(v)}
-                  aria-pressed={sort === v}
-                  className={`min-h-[36px] cursor-pointer rounded-md px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
-                    sort === v ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
           <label className="mb-3 flex cursor-pointer items-center gap-2.5">
             <input
               type="checkbox"

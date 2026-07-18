@@ -36,7 +36,7 @@ async def _seed(app_client):
                      amount_usd=Decimal("40"), fx_rate=Decimal("1"), fx_source="frankfurter",
                      paid_by=katia.id, split="shared", category_id=cat,
                      stop_slug="pititas", city_name="Pititas",
-                     movement_date=date(2026, 9, 6), created_by=katia.id),
+                      created_by=katia.id),
         ])
         await s.commit()
 

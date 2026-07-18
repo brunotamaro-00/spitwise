@@ -34,16 +34,16 @@ async def _seed(app_client):
             Movement(type="expense", amount=Decimal("40"), currency="EUR", amount_usd=Decimal("40"),
                      fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=u.id, split="shared",
                      stop_slug="portugal", city_name="Portugal",
-                     movement_date=date(2026, 9, 6), created_by=u.id),
+                      created_by=u.id),
             Movement(type="expense", amount=Decimal("30"), currency="EUR", amount_usd=Decimal("30"),
                      fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=u.id, split="shared",
                      stop_slug="pititas", city_name="Pititas",
-                     movement_date=date(2026, 9, 6), created_by=u.id),
+                      created_by=u.id),
             # Gasto general (sin ciudad): el filtro de locales no debe comérselo.
             Movement(type="expense", amount=Decimal("10"), currency="USD", amount_usd=Decimal("10"),
                      fx_rate=Decimal("1"), fx_source="direct", paid_by=u.id, split="shared",
                      stop_slug=None, city_name=None,
-                     movement_date=date(2026, 9, 6), created_by=u.id),
+                      created_by=u.id),
         ])
         await s.commit()
 

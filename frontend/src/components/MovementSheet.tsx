@@ -8,6 +8,7 @@ import Modal from "@/components/ui/Modal";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { categoryBg, categoryColor } from "@/lib/chartTheme";
 import { capitalize, formatAmount, formatDayHeader, formatUsd } from "@/lib/format";
+import { createdDayKey } from "@/lib/groupByDay";
 import { myShare } from "@/lib/share";
 import type { Category, Movement } from "@/types";
 
@@ -77,7 +78,7 @@ export default function MovementSheet({ mv, category, flag, myId, onEdit, onDele
 
       <dl className="mt-4">
         {!isSettlement && <Row label="Categoría">{category?.name ?? "Sin categoría"}</Row>}
-        <Row label="Fecha">{capitalize(formatDayHeader(mv.movement_date))}</Row>
+        <Row label="Cargado">{capitalize(formatDayHeader(createdDayKey(mv)))}</Row>
         {!isSettlement && (
           <Row label="Ciudad">
             {mv.city_name ? (

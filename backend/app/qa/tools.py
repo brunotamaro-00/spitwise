@@ -20,6 +20,7 @@ from app.bot.render import BotReply
 from app.db.models import Category, Movement, Stop, User
 from app.llm.chat import ToolSpec
 from app.spend import user_share
+from app.trip_time import day_in_tz
 
 _MAX_DELETE_IDS = 5
 
@@ -52,16 +53,21 @@ def _to_date(v, field: str) -> date | None:
         raise ValueError(f"{field} inválida: {v!r}, usar YYYY-MM-DD")
 
 
+def _created_day(m: Movement, tz_name: str | None) -> date:
+    """Día de carga del movimiento en la tz del viaje: el único eje temporal que queda."""
+    return day_in_tz(m.created_at, tz_name)
+
+
 async def _load_context(session: AsyncSession):
     movements = (await session.execute(
-        select(Movement).where(Movement.type == "expense").order_by(Movement.movement_date, Movement.id)
+        select(Movement).where(Movement.type == "expense").order_by(Movement.created_at, Movement.id)
     )).scalars().all()
     stops = {s.slug: s for s in (await session.execute(select(Stop))).scalars().all()}
     cats = {c.id: c.name for c in (await session.execute(select(Category))).scalars().all()}
     return movements, stops, cats
 
 
-def _filter(movements, stops, cats, *, date_from=None, date_to=None, cities=None,
+def _filter(movements, stops, cats, *, tz_name=None, date_from=None, date_to=None, cities=None,
             countries=None, categories=None, currency=None):
     d_from = _to_date(date_from, "date_from")
     d_to = _to_date(date_to, "date_to")
@@ -72,9 +78,10 @@ def _filter(movements, stops, cats, *, date_from=None, date_to=None, cities=None
 
     out = []
     for m in movements:
-        if d_from and m.movement_date < d_from:
+        day = _created_day(m, tz_name) if (d_from or d_to) else None
+        if d_from and day < d_from:
             continue
-        if d_to and m.movement_date > d_to:
+        if d_to and day > d_to:
             continue
         if city_set and _fold(m.city_name) not in city_set and _fold(m.stop_slug) not in city_set:
             continue
@@ -101,12 +108,13 @@ def _resolve_person(users: list[User], name: str | None, asker: User) -> User:
 
 
 async def aggregate_expenses(session: AsyncSession, users: list[User], asker: User, *,
-                             person=None, attribution="share", date_from=None, date_to=None,
-                             cities=None, countries=None, categories=None, currency=None,
-                             group_by="none") -> dict:
+                             tz_name=None, person=None, attribution="share", date_from=None,
+                             date_to=None, cities=None, countries=None, categories=None,
+                             currency=None, group_by="none") -> dict:
     movements, stops, cats = await _load_context(session)
-    rows_src = _filter(movements, stops, cats, date_from=date_from, date_to=date_to,
-                       cities=cities, countries=countries, categories=categories, currency=currency)
+    rows_src = _filter(movements, stops, cats, tz_name=tz_name, date_from=date_from,
+                       date_to=date_to, cities=cities, countries=countries,
+                       categories=categories, currency=currency)
     who = _resolve_person(users, person, asker)
 
     def amount_for(m, uid: int) -> Decimal:
@@ -118,7 +126,7 @@ async def aggregate_expenses(session: AsyncSession, users: list[User], asker: Us
 
     def key_for(m) -> str:
         if group_by == "day":
-            return m.movement_date.isoformat()
+            return _created_day(m, tz_name).isoformat()
         if group_by == "city":
             return m.city_name or "Sin ciudad"
         if group_by == "country":
@@ -172,12 +180,13 @@ def _app_link(cats: dict, *, date_from, date_to, cities, categories):
                                date_from=date_from, date_to=date_to)
 
 
-async def list_movements(session: AsyncSession, users: list[User], *, date_from=None, date_to=None,
-                         cities=None, countries=None, categories=None, currency=None,
-                         limit=10) -> dict:
+async def list_movements(session: AsyncSession, users: list[User], *, tz_name=None,
+                         date_from=None, date_to=None, cities=None, countries=None,
+                         categories=None, currency=None, limit=10) -> dict:
     movements, stops, cats = await _load_context(session)
-    rows_src = _filter(movements, stops, cats, date_from=date_from, date_to=date_to,
-                       cities=cities, countries=countries, categories=categories, currency=currency)
+    rows_src = _filter(movements, stops, cats, tz_name=tz_name, date_from=date_from,
+                       date_to=date_to, cities=cities, countries=countries,
+                       categories=categories, currency=currency)
     usernames = {u.id: u.username for u in users}
     limit = max(1, min(int(limit or 10), 50))
     newest_first = list(reversed(rows_src))
@@ -186,7 +195,7 @@ async def list_movements(session: AsyncSession, users: list[User], *, date_from=
         stop = stops.get(m.stop_slug) if m.stop_slug else None
         rows.append({
             "id": m.id,
-            "date": m.movement_date.isoformat(),
+            "date": _created_day(m, tz_name).isoformat(),
             "description": m.description,
             "category": cats.get(m.category_id),
             "city": m.city_name,
@@ -240,7 +249,7 @@ async def get_itinerary(session: AsyncSession) -> dict:
     return {"stops": rows, "note": "days = noches en la parada (departure - arrival)"}
 
 
-async def edit_movement(session: AsyncSession, users: list[User], wa_id: str, today: date,
+async def edit_movement(session: AsyncSession, users: list[User], today: date,
                         *, movement_id, **new_fields) -> dict:
     """Aplica cambios a un movimiento reutilizando el flujo del intent 'edit'
     (normalización + apply_changes, con recálculo de ciudad/FX)."""
@@ -269,7 +278,7 @@ async def edit_movement(session: AsyncSession, users: list[User], wa_id: str, to
             "ningún cambio válido; campos: amount, currency (ISO), date (YYYY-MM-DD), "
             "city, category, description, split (shared|payer_only|other_only), paid_by"
         )
-    diffs = await apply_changes(session, wa_id, mv, changes, today)
+    diffs = await apply_changes(session, mv, changes, today)
     return {
         "edited_id": mv.id,
         "changes": [{"campo": label, "antes": before, "despues": after}
@@ -316,8 +325,10 @@ async def delete_movements(session: AsyncSession, users: list[User], asker: User
 
 
 _FILTER_PROPS = {
-    "date_from": {"type": "string", "description": "Fecha mínima inclusive, YYYY-MM-DD."},
-    "date_to": {"type": "string", "description": "Fecha máxima inclusive, YYYY-MM-DD."},
+    "date_from": {"type": "string",
+                  "description": "Fecha de carga mínima inclusive, YYYY-MM-DD (cuándo se registró el gasto)."},
+    "date_to": {"type": "string",
+                "description": "Fecha de carga máxima inclusive, YYYY-MM-DD (cuándo se registró el gasto)."},
     "cities": {"type": "array", "items": {"type": "string"},
                "description": "Ciudades (nombre o slug del itinerario)."},
     "countries": {"type": "array", "items": {"type": "string"},
@@ -329,14 +340,14 @@ _FILTER_PROPS = {
 
 
 def build_tools(session: AsyncSession, users: list[User], asker: User, *,
-                wa_id: str, today: date, ctx: ActionContext) -> list[ToolSpec]:
+                today: date, ctx: ActionContext, tz_name: str | None = None) -> list[ToolSpec]:
     usernames = [u.username for u in users]
 
     async def _aggregate(**kw):
-        return await aggregate_expenses(session, users, asker, **kw)
+        return await aggregate_expenses(session, users, asker, tz_name=tz_name, **kw)
 
     async def _list(**kw):
-        return await list_movements(session, users, **kw)
+        return await list_movements(session, users, tz_name=tz_name, **kw)
 
     async def _balance(**kw):
         return await get_balance(session, users)
@@ -345,7 +356,7 @@ def build_tools(session: AsyncSession, users: list[User], asker: User, *,
         return await get_itinerary(session)
 
     async def _edit(**kw):
-        return await edit_movement(session, users, wa_id, today, **kw)
+        return await edit_movement(session, users, today, **kw)
 
     async def _delete(**kw):
         return await delete_movements(session, users, asker, ctx, **kw)
@@ -410,15 +421,16 @@ def build_tools(session: AsyncSession, users: list[User], asker: User, *,
         ToolSpec(
             name="edit_movement",
             description=("Edita un movimiento YA guardado (los cambios se aplican al instante). "
-                         "Usá el id que devuelve list_movements. Cambiar la fecha recalcula la "
-                         "ciudad según el itinerario."),
+                         "Usá el id que devuelve list_movements. 'date' re-imputa la ciudad "
+                         "según el itinerario de esa fecha (la fecha en sí no se guarda)."),
             input_schema={
                 "type": "object",
                 "properties": {
                     "movement_id": {"type": "integer", "description": "id del movimiento (de list_movements)."},
                     "amount": {"type": "string", "description": "Nuevo monto (decimal como string)."},
                     "currency": {"type": "string", "description": "Nueva moneda ISO 4217."},
-                    "date": {"type": "string", "description": "Nueva fecha YYYY-MM-DD."},
+                    "date": {"type": "string",
+                             "description": "Fecha YYYY-MM-DD solo para re-imputar la ciudad por itinerario."},
                     "city": {"type": "string", "description": "Nueva ciudad."},
                     "category": {"type": "string", "description": "Nueva categoría (nombre de la lista)."},
                     "description": {"type": "string", "description": "Nueva descripción corta."},

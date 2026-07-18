@@ -5,7 +5,7 @@ memoria corta por wa_id (WhatsAppSessionState) para follow-ups.
 """
 from datetime import date, datetime, timedelta, timezone
 
-from app.bot.active_stop import get_state_payload, update_state_payload
+from app.bot.active_stop import get_state_payload, resolve_trip_timezone, update_state_payload
 from app.bot.capture import all_users
 from app.bot.render import BotReply, text_reply
 from app.config import get_settings
@@ -62,7 +62,7 @@ _SYSTEM = (
     "- LISTAR movimientos = una línea COMPACTA por gasto, pensada para mobile. "
     "Formato exacto por ítem, con ' · ' de separador: "
     "'dd/mm · Descripción · *USD 32,9* · quién · reparto'. Reglas de esa línea:\n"
-    "  · fecha corta dd/mm (sin año); descripción tal cual, sin emoji de categoría.\n"
+    "  · fecha de carga corta dd/mm (sin año); descripción tal cual, sin emoji de categoría.\n"
     "  · ciudad/país SOLO si el usuario no la fijó ya en la consulta (si pidió 'gastos "
     "de Roma', no repitas Roma en cada línea); sin bandera ni 📍.\n"
     "  · pagador: solo el nombre (sin 'pagó').\n"
@@ -145,11 +145,12 @@ async def handle_question(session, user: User, wa_id: str, text: str, today: dat
         chat_client = make_chat_llm()
 
     ctx = ActionContext()
+    tz_name = await resolve_trip_timezone(session, user.username)
     answer = await chat_client.run(
         system=_render_system(user.username, users, today),
         history=[{"role": e["role"], "content": e["content"]} for e in history],
         user_text=text,
-        tools=build_tools(session, users, asker=user, wa_id=wa_id, today=today, ctx=ctx),
+        tools=build_tools(session, users, asker=user, today=today, ctx=ctx, tz_name=tz_name),
         max_iterations=s.qa_max_iterations,
     )
 

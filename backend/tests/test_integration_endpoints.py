@@ -22,16 +22,16 @@ async def _seed(app_client):
             Movement(type="expense", amount=Decimal("50"), currency="EUR", amount_usd=Decimal("55"),
                      fx_rate=Decimal("1.1"), fx_source="frankfurter", paid_by=u.id, split="shared",
                      description="Cena bistró", category_id=2, stop_slug="paris", city_name="París",
-                     movement_date=date(2026, 8, 30), created_by=u.id),
+                      created_by=u.id),
             Movement(type="expense", amount=Decimal("20"), currency="EUR", amount_usd=Decimal("22"),
                      fx_rate=Decimal("1.1"), fx_source="frankfurter", paid_by=k.id, split="shared",
                      description="Metro", category_id=3, stop_slug="paris", city_name="París",
-                     movement_date=date(2026, 8, 31), created_by=k.id),
+                      created_by=k.id),
             # Settlement: no debe contar en spend.
             Movement(type="settlement", amount=Decimal("10"), currency="USD", amount_usd=Decimal("10"),
                      fx_rate=Decimal("1"), fx_source="manual", paid_by=u.id, split="shared",
                      stop_slug="paris", city_name="París",
-                     movement_date=date(2026, 8, 31), created_by=u.id),
+                      created_by=u.id),
         ])
         await s.commit()
 
@@ -158,17 +158,17 @@ async def _seed_private(app_client):
             Movement(type="expense", amount=Decimal("100"), currency="EUR", amount_usd=Decimal("110"),
                      fx_rate=Decimal("1.1"), fx_source="frankfurter", paid_by=u.id, split="shared",
                      description="Hotel", category_id=1, stop_slug="paris", city_name="París",
-                     movement_date=date(2026, 8, 30), created_by=u.id),
+                      created_by=u.id),
             # Privado de Bruno.
             Movement(type="expense", amount=Decimal("40"), currency="USD", amount_usd=Decimal("40"),
                      fx_rate=Decimal("1"), fx_source="manual", paid_by=u.id, split="payer_only",
                      description="Remera", category_id=2, stop_slug="paris", city_name="París",
-                     movement_date=date(2026, 8, 31), created_by=u.id),
+                      created_by=u.id),
             # Privado de Katia, pagado por Bruno.
             Movement(type="expense", amount=Decimal("30"), currency="USD", amount_usd=Decimal("30"),
                      fx_rate=Decimal("1"), fx_source="manual", paid_by=u.id, split="other_only",
                      description="Perfume", category_id=2, stop_slug="paris", city_name="París",
-                     movement_date=date(2026, 9, 1), created_by=u.id),
+                      created_by=u.id),
         ])
         await s.commit()
 

@@ -48,7 +48,6 @@ class Category(Base):
 class Movement(Base):
     __tablename__ = "movements"
     __table_args__ = (
-        Index("ix_movements_date", "movement_date"),
         Index("ix_movements_stop_slug", "stop_slug"),
     )
 
@@ -68,7 +67,6 @@ class Movement(Base):
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
     stop_slug: Mapped[str | None] = mapped_column(String(80))
     city_name: Mapped[str | None] = mapped_column(String(120))
-    movement_date: Mapped[date] = mapped_column(Date, nullable=False)
     raw_message: Mapped[str | None] = mapped_column(Text)
     # Los movimientos nacidos de un mismo mensaje multi-gasto comparten clave
     # (interno del bot: habilita "borrar" del batch completo).

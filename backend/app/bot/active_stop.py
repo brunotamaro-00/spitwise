@@ -77,23 +77,6 @@ async def place_for_date(session: AsyncSession, d: date, username: str | None = 
     stops = await visible_stops(session, username)
     return _stop_in_range(stops, d) if stops else None
 
-async def resolve_active_stop(session: AsyncSession, wa_id: str, today: date,
-                              username: str | None = None):
-    # 1) Override de sesión (day-trips).
-    st = await _get_state(session, wa_id)
-    if st:
-        data = json.loads(st.payload_json or "{}")
-        ov = data.get("active_stop")
-        if ov:
-            return ov.get("stop_slug"), ov.get("city_name"), ov.get("currency_code", "USD")
-
-    # 2/3) Derivar de stops por fecha.
-    current = await stop_for_date(session, today, username)
-    if current is None:
-        return None, None, "USD"
-    return current.slug, current.name, (current.currency_code or "USD")
-
-
 async def resolve_trip_timezone(session: AsyncSession, username: str | None = None) -> str | None:
     """Timezone de la parada activa por fecha (para today_in_tz). None => fallback default.
 
@@ -117,8 +100,7 @@ async def get_state_payload(session: AsyncSession, wa_id: str) -> dict:
 
 
 async def update_state_payload(session: AsyncSession, wa_id: str, **keys) -> None:
-    """Mergea claves en el payload de sesión sin pisar las demás (active_stop,
-    qa_history, etc. conviven)."""
+    """Mergea claves en el payload de sesión sin pisar las demás (qa_history, etc.)."""
     st = await _get_state(session, wa_id)
     if st is None:
         session.add(WhatsAppSessionState(wa_id=wa_id, owner=wa_id, payload_json=json.dumps(keys)))
@@ -127,10 +109,3 @@ async def update_state_payload(session: AsyncSession, wa_id: str, **keys) -> Non
         data.update(keys)
         st.payload_json = json.dumps(data)
     await session.commit()
-
-
-async def set_active_stop_override(session, wa_id, stop_slug, city_name, currency_code):
-    await update_state_payload(
-        session, wa_id,
-        active_stop={"stop_slug": stop_slug, "city_name": city_name, "currency_code": currency_code},
-    )

@@ -39,7 +39,7 @@ async def _seed_movement(session, slug: str, city: str) -> None:
     session.add(Movement(
         type="expense", amount=Decimal("10"), currency="USD", amount_usd=Decimal("10"),
         fx_rate=Decimal("1"), fx_source="manual", paid_by=user.id, split="shared",
-        stop_slug=slug, city_name=city, movement_date=date(2026, 8, 6), created_by=user.id,
+        stop_slug=slug, city_name=city,  created_by=user.id,
     ))
     await session.commit()
 

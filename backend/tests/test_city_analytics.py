@@ -27,15 +27,15 @@ async def _seed_and_auth(app_client):
             Movement(type="expense", amount=Decimal("50"), currency="USD", amount_usd=Decimal("50"),
                      fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=u1.id, split="shared",
                      category_id=c0, stop_slug="londres", city_name="Londres",
-                     movement_date=date(2026, 8, 6), created_by=u1.id),
+                      created_by=u1.id),
             Movement(type="expense", amount=Decimal("20"), currency="USD", amount_usd=Decimal("20"),
                      fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=u2.id, split="shared",
                      category_id=c1, stop_slug="londres", city_name="Londres",
-                     movement_date=date(2026, 8, 7), created_by=u2.id),
+                      created_by=u2.id),
             Movement(type="expense", amount=Decimal("30"), currency="USD", amount_usd=Decimal("30"),
                      fx_rate=Decimal("1"), fx_source="frankfurter", paid_by=u2.id, split="shared",
                      category_id=c0, stop_slug="paris", city_name="París",
-                     movement_date=date(2026, 8, 30), created_by=u2.id),
+                      created_by=u2.id),
         ])
         await s.commit()
     r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
@@ -90,8 +90,8 @@ async def test_movements_filtered_by_city(app_client):
     r = await app_client.get("/api/v1/dashboard/city/movements?slugs=londres", headers=h)
     rows = r.json()
     assert {m["city_name"] for m in rows} == {"Londres"}
-    # Orden por fecha desc.
-    assert [m["movement_date"] for m in rows] == ["2026-08-07", "2026-08-06"]
+    # Orden por fecha de carga desc (empate de created_at => id desc).
+    assert [m["amount"] for m in rows] == ["20.00", "50.00"]
 
 
 async def test_stops_exposes_dates_and_country(app_client):

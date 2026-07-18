@@ -30,6 +30,7 @@ class ParsedMessage:
     category_name: str | None = None
     split: str = "shared"
     paid_by: str | None = None  # username, None => quien escribe
+    # Efímera: solo elige la parada mirando el itinerario ("ayer"); NO se persiste.
     movement_date: date | None = None  # None => hoy
     city: str | None = None  # None => itinerario estricto por fecha (fuera de rango => General)
     confidence: float = 1.0

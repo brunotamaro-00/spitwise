@@ -10,8 +10,6 @@ from app.api.schemas import (
     CategorySpendOut,
     CityPaceOut,
     SummaryOut,
-    TimelineDayOut,
-    TimelineOut,
     TripBlockOut,
     TripPaceOut,
 )
@@ -75,40 +73,6 @@ async def by_category(
         )
         for cid, v in items
     ]
-
-
-@router.get("/timeline", response_model=TimelineOut)
-async def timeline(
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> TimelineOut:
-    """Serie diaria personal (user_share por fecha del gasto) para la tab Viaje.
-    Solo fechas con gasto: los ceros los interpola el frontend por rango de parada."""
-    agg: dict = {}
-    for m in await _expenses(session):
-        share = user_share(m, user.id)
-        if share <= 0:
-            continue
-        row = agg.setdefault(m.movement_date, {"total": Decimal("0"), "count": 0, "cats": {}})
-        row["total"] += share
-        row["count"] += 1
-        if m.category_id is not None:
-            row["cats"][m.category_id] = row["cats"].get(m.category_id, Decimal("0")) + share
-    today = today_in_tz(await resolve_trip_timezone(session, user.username))
-    return TimelineOut(
-        as_of=today,
-        days=[
-            TimelineDayOut(
-                date=d,
-                total_usd=_money(row["total"]),
-                movement_count=row["count"],
-                top_category_id=(
-                    max(row["cats"].items(), key=lambda kv: kv[1])[0] if row["cats"] else None
-                ),
-            )
-            for d, row in sorted(agg.items())
-        ],
-    )
 
 
 @router.get("/pace", response_model=TripPaceOut)

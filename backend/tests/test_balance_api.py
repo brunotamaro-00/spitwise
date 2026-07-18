@@ -12,7 +12,7 @@ async def test_balance_endpoint(app_client):
         from datetime import date
         s.add(Movement(type="expense", amount=Decimal("100"), currency="USD",
                        amount_usd=Decimal("100"), fx_rate=Decimal("1"), fx_source="frankfurter",
-                       paid_by=u1.id, split="shared", movement_date=date(2026, 8, 6), created_by=u1.id))
+                       paid_by=u1.id, split="shared",  created_by=u1.id))
         await s.commit()
     r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}

@@ -62,7 +62,7 @@ async def _handle_interactive(session: AsyncSession, user: User, wa_id: str, int
     if interactive_id.startswith("edit_pick:"):
         from app.bot.editor import apply_edit_pick
         token, mid = _token_and_id(interactive_id, "edit_pick:")
-        return await apply_edit_pick(session, user, wa_id, token, mid, today)
+        return await apply_edit_pick(session, user, token, mid, today)
 
     if interactive_id.startswith("del_pick:"):
         from app.bot.editor import apply_delete_pick

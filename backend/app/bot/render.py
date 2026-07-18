@@ -79,10 +79,11 @@ def _owes_line(mv, payer_name: str, other_name: str) -> str | None:
 
 
 def movement_summary(mv, cat_name: str | None, payer_name: str) -> str:
-    """Una línea que identifica un movimiento (para botones y confirmaciones)."""
+    """Una línea que identifica un movimiento (para botones y confirmaciones).
+    La fecha es la de carga: el único eje temporal que queda."""
     desc = _cap(mv.description or cat_name or mv.type)
     loc = f" · {mv.city_name}" if mv.city_name else ""
-    return f"{desc} · {mv.currency} {ar_number(mv.amount)} · {fmt_date(mv.movement_date)}{loc} · Pagó {_cap(payer_name)}"
+    return f"{desc} · {mv.currency} {ar_number(mv.amount)} · {fmt_date(mv.created_at.date())}{loc} · Pagó {_cap(payer_name)}"
 
 
 def expense_card(mv, cat_name: str | None, payer_name: str, other_name: str) -> str:
@@ -92,7 +93,7 @@ def expense_card(mv, cat_name: str | None, payer_name: str, other_name: str) -> 
         "",
         f"{cat_label(cat_name)} — {mv.description or 'sin descripción'}",
         f"💰 {fmt_money(mv.amount, mv.currency, mv.amount_usd)}",
-        f"📅 {fmt_date(mv.movement_date)} · 📍 {city}",
+        f"📍 {city}",
         f"👤 Pagó {_cap(payer_name)} · {split_label(mv.split, _cap(payer_name), _cap(other_name))}",
     ]
     owes = _owes_line(mv, payer_name, other_name)
@@ -138,16 +139,12 @@ def _batch_owes_line(rows: list[BatchRow], usernames: list[str]) -> str | None:
 def batch_card(rows: list[BatchRow], usernames: list[str]) -> str:
     """Confirmación única de un mensaje multi-gasto: header con lo común a todos,
     una línea por ítem (con sufijos solo donde difiere), total y neto."""
-    dates = [r.mv.movement_date for r in rows]
     cities = [r.mv.city_name for r in rows if r.mv.type != "settlement"]
     payers = [r.payer_name for r in rows]
-    common_date = dates[0] if len(set(dates)) == 1 else None
     common_city = cities[0] if cities and all(c == cities[0] for c in cities) else None
     common_payer = payers[0] if len(set(payers)) == 1 else None
 
     meta = []
-    if common_date:
-        meta.append(f"📅 {fmt_date(common_date)}")
     if common_city:
         meta.append(f"📍 {common_city}")
     if common_payer:
@@ -169,8 +166,6 @@ def batch_card(rows: list[BatchRow], usernames: list[str]) -> str:
             if mv.split != "shared":
                 other = next((u for u in usernames if u != r.payer_name), "el otro")
                 line += f" · {split_label(mv.split, _cap(r.payer_name), _cap(other))}"
-        if not common_date:
-            line += f" · {fmt_date(mv.movement_date)}"
         if not common_city and mv.city_name:
             line += f" · {mv.city_name}"
         if not common_payer:
@@ -194,8 +189,7 @@ def settlement_card(mv, payer_name: str, other_name: str) -> str:
     return (
         f"{copy.H_SETTLEMENT}\n\n"
         f"*{_cap(payer_name)}* → *{_cap(other_name)}*\n"
-        f"💰 {fmt_money(mv.amount, mv.currency, mv.amount_usd)}\n"
-        f"📅 {fmt_date(mv.movement_date)}"
+        f"💰 {fmt_money(mv.amount, mv.currency, mv.amount_usd)}"
     )
 
 
@@ -218,18 +212,6 @@ def balance_card(debtor: str | None, creditor: str | None, amount: Decimal) -> s
     if not debtor or not creditor:
         return "⚖️ *Balance*\n\nEstán a mano 🤝"
     return f"⚖️ *Balance*\n\n*{_cap(debtor)}* le debe *USD {ar_number(amount)}* a *{_cap(creditor)}*"
-
-
-def today_card(city: str | None, total: Decimal, mine: Decimal, count: int) -> str:
-    """Tarjeta del fast-path 'hoy': total del día + mi parte + ciudad activa."""
-    where = f" · 📍 {city}" if city else ""
-    if count == 0:
-        return f"📅 *Hoy*{where}\n\nTodavía no hay gastos cargados hoy."
-    return (
-        f"📅 *Hoy*{where}\n\n"
-        f"💸 Total: *USD {ar_number(total)}* · {count} gasto{'s' if count != 1 else ''}\n"
-        f"👤 Tu parte: USD {ar_number(mine)}"
-    )
 
 
 def trip_card(total: Decimal, mine: Decimal, count: int, days: int, avg: Decimal,

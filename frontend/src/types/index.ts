@@ -2,7 +2,7 @@ export type Movement = {
   id: number; type: string; amount: string; currency: string; amount_usd: string;
   fx_rate: string; fx_source: string; paid_by: number; split: string;
   description: string | null; category_id: number | null;
-  stop_slug: string | null; city_name: string | null; movement_date: string;
+  stop_slug: string | null; city_name: string | null;
   created_at: string;
 };
 export type Balance = { debtor_id: number | null; creditor_id: number | null; amount_usd: string };
@@ -52,14 +52,6 @@ export type CityPace = {
 
 export type TripPace = { as_of: string; trip: TripBlock; cities: CityPace[] };
 
-/** Un día con gasto (parte personal) para el timeline de la tab Viaje. */
-export type TimelineDay = {
-  date: string;
-  total_usd: string;
-  movement_count: number;
-  top_category_id: number | null;
-};
-export type Timeline = { as_of: string; days: TimelineDay[] };
 export type Category = { id: number; name: string; icon: string | null; sort_order: number };
 export type User = { id: number; username: string };
 export type Stop = {

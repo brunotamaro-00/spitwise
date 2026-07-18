@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Literal
 
@@ -28,10 +28,8 @@ class MovementIn(BaseModel):
     paid_by: int | None = None  # default: usuario actual
     description: str | None = None
     category_id: int | None = None
-    stop_slug: str | None = None
-    city_name: str | None = None
-    general: bool = False  # gasto general sin ciudad: no derivar la parada por fecha
-    movement_date: date | None = None
+    stop_slug: str | None = None  # parada del itinerario; None => parada de hoy
+    general: bool = False  # gasto general sin ciudad: no derivar la parada de hoy
     fx_rate: Decimal | None = None  # override manual (multiplicador a USD)
 
     @field_validator("currency")
@@ -52,10 +50,8 @@ class MovementUpdate(BaseModel):
     paid_by: int | None = None
     description: str | None = None
     category_id: int | None = None
-    stop_slug: str | None = None
-    city_name: str | None = None
+    stop_slug: str | None = None  # slug => esa parada; null explícito => parada de hoy
     general: bool | None = None
-    movement_date: date | None = None
     fx_rate: Decimal | None = None  # setearlo => fx_source='manual'
 
     @field_validator("currency")
@@ -79,12 +75,18 @@ class MovementOut(BaseModel):
     category_id: int | None
     stop_slug: str | None
     city_name: str | None
-    movement_date: date
     created_at: datetime
 
     @field_serializer("amount", "amount_usd", "fx_rate")
     def _ser_decimal(self, v: Decimal) -> str:
         return str(v)
+
+    @field_serializer("created_at")
+    def _ser_created(self, v: datetime) -> str:
+        # created_at es naive-UTC en ambos motores (func.now()); emitir con Z
+        # para que el browser lo convierta bien a su TZ local.
+        aware = v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        return aware.isoformat().replace("+00:00", "Z")
 
 
 class BalanceOut(BaseModel):
@@ -162,19 +164,6 @@ class TripPaceOut(BaseModel):
     as_of: date
     trip: TripBlockOut
     cities: list[CityPaceOut]
-
-
-class TimelineDayOut(BaseModel):
-    date: date
-    total_usd: str
-    movement_count: int
-    # Categoría con más gasto del día (sabor visual del timeline).
-    top_category_id: int | None
-
-
-class TimelineOut(BaseModel):
-    as_of: date
-    days: list[TimelineDayOut]
 
 
 class CitySpendPublicOut(BaseModel):

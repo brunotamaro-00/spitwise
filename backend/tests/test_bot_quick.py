@@ -1,4 +1,4 @@
-"""Fast-paths del bot ('saldo', 'hoy', 'total'): responden sin pasar por el LLM."""
+"""Fast-paths del bot ('saldo', 'total'): responden sin pasar por el LLM."""
 from datetime import date
 from decimal import Decimal
 
@@ -25,20 +25,21 @@ async def _seed(db_session):
     return u1, u2
 
 
-def _expense(payer_id: int, usd: str, day: date, split: str = "shared") -> Movement:
+def _expense(payer_id: int, usd: str, split: str = "shared") -> Movement:
     return Movement(
         type="expense", amount=Decimal(usd), currency="USD", amount_usd=Decimal(usd),
         fx_rate=Decimal("1"), fx_source="direct", paid_by=payer_id, split=split,
-        movement_date=day, created_by=payer_id,
+        created_by=payer_id,
     )
 
 
 def test_route_folds_accents_and_punctuation():
     assert route("¿Quién debe?") == "balance"
     assert route("Saldo") == "balance"
-    assert route("HOY") == "today"
     assert route("total") == "total"
     assert route("Resumen") == "total"
+    # 'hoy' ya no es fast-path: sin fecha imputada, va al agente Q&A.
+    assert route("hoy") is None
     # No fast-path: preguntas en lenguaje natural van al agente Q&A.
     assert route("cuánto gastamos en Roma") is None
     assert route("¿cuánto gastamos?") is None
@@ -47,7 +48,7 @@ def test_route_folds_accents_and_punctuation():
 
 async def test_saldo_sin_llm(db_session):
     u1, _u2 = await _seed(db_session)
-    db_session.add(_expense(u1.id, "100", TODAY))
+    db_session.add(_expense(u1.id, "100"))
     await db_session.commit()
     reply = await dispatch(db_session, "549110", "text", "saldo", None, TODAY, llm_client=BoomLLM())
     assert "Balance" in reply.text
@@ -61,38 +62,17 @@ async def test_saldo_a_mano(db_session):
     assert "a mano" in reply.text
 
 
-async def test_hoy_solo_cuenta_el_dia(db_session):
-    u1, u2 = await _seed(db_session)
-    db_session.add(Stop(slug="roma", order=1, name="Roma", currency_code="EUR",
-                        arrival_date=date(2026, 8, 1), departure_date=date(2026, 8, 10)))
-    db_session.add(_expense(u1.id, "30", TODAY))
-    db_session.add(_expense(u2.id, "10", TODAY, split="payer_only"))
-    db_session.add(_expense(u1.id, "99", date(2026, 8, 5)))  # ayer: afuera
-    await db_session.commit()
-    reply = await dispatch(db_session, "549110", "text", "hoy", None, TODAY, llm_client=BoomLLM())
-    assert "Hoy" in reply.text and "Roma" in reply.text
-    assert "USD 40,0" in reply.text  # total del día
-    assert "Tu parte: USD 15,0" in reply.text  # 30/2; el payer_only de katia no
-    assert "2 gastos" in reply.text
-
-
-async def test_hoy_sin_gastos(db_session):
-    await _seed(db_session)
-    reply = await dispatch(db_session, "549110", "text", "hoy", None, TODAY, llm_client=BoomLLM())
-    assert "no hay gastos" in reply.text
-
-
 async def test_total_del_viaje(db_session):
     u1, _u2 = await _seed(db_session)
     # Itinerario: 10 días (arrival→departure).
     db_session.add(Stop(slug="roma", order=1, name="Roma", currency_code="EUR",
                         arrival_date=date(2026, 8, 1), departure_date=date(2026, 8, 11)))
-    db_session.add(_expense(u1.id, "80", date(2026, 8, 2)))
-    db_session.add(_expense(u1.id, "20", TODAY))
+    db_session.add(_expense(u1.id, "80"))
+    db_session.add(_expense(u1.id, "20"))
     # Un settlement no es gasto: no suma al total del viaje.
     db_session.add(Movement(type="settlement", amount=Decimal("50"), currency="USD",
                             amount_usd=Decimal("50"), fx_rate=Decimal("1"), fx_source="direct",
-                            paid_by=u1.id, split="shared", movement_date=TODAY, created_by=u1.id))
+                            paid_by=u1.id, split="shared", created_by=u1.id))
     await db_session.commit()
     reply = await dispatch(db_session, "549110", "text", "total", None, TODAY, llm_client=BoomLLM())
     assert "Total del viaje" in reply.text

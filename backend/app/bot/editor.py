@@ -1,7 +1,7 @@
 import unicodedata
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import copy
@@ -32,10 +32,14 @@ def _score(mv: Movement, ref_tokens: set[str]) -> int:
 
 async def find_candidates(session: AsyncSession, *, ref_last: bool, ref_text: str | None,
                           ref_date: date | None) -> list[Movement]:
-    """Movimientos que matchean la referencia, mejor primero. Sin referencia => el último."""
+    """Movimientos que matchean la referencia, mejor primero. Sin referencia => el último.
+
+    'el museo de ayer' = cargado ayer: la referencia por fecha filtra por día de
+    created_at (corte UTC — aceptable para un bot de dos personas en viaje)."""
     q = select(Movement).order_by(Movement.id.desc()).limit(_SEARCH_LIMIT)
     if ref_date is not None:
-        q = select(Movement).where(Movement.movement_date == ref_date).order_by(Movement.id.desc()).limit(_SEARCH_LIMIT)
+        q = (select(Movement).where(func.date(Movement.created_at) == ref_date.isoformat())
+             .order_by(Movement.id.desc()).limit(_SEARCH_LIMIT))
     movements = (await session.execute(q)).scalars().all()
     if not movements:
         return []
@@ -66,7 +70,7 @@ async def _cat_name(session, mv: Movement) -> str | None:
     )).scalar_one_or_none()
 
 
-async def apply_changes(session, wa_id: str, mv: Movement, changes: dict, today: date,
+async def apply_changes(session, mv: Movement, changes: dict, today: date,
                         username: str | None = None) -> list[tuple[str, str, str]]:
     """Aplica cambios a un movimiento con recálculo en cascada. Devuelve diffs (label, antes, después)."""
     diffs: list[tuple[str, str, str]] = []
@@ -98,26 +102,18 @@ async def apply_changes(session, wa_id: str, mv: Movement, changes: dict, today:
                       split_label(changes["split"], payer.capitalize(), other_name)))
         mv.split = changes["split"]
 
-    # Fecha: recalcula ciudad (itinerario) salvo que también venga ciudad explícita.
+    # Fecha ("era de ayer"): no se guarda — solo re-imputa la ciudad mirando el
+    # itinerario de esa fecha. Con ciudad explícita, un único resolve con ambas.
     new_date = changes.get("date")
-    if new_date is not None and new_date != mv.movement_date:
-        diffs.append(("📅", fmt_date(mv.movement_date), fmt_date(new_date)))
-        mv.movement_date = new_date
-        if "city" not in changes and mv.type != "settlement":
-            slug, city, _cur = await resolve_place(session, wa_id, new_date, today, None, username)
-            if (slug, city) != (mv.stop_slug, mv.city_name):
-                diffs.append(("📍", mv.city_name or "Sin ciudad", city or "Sin ciudad"))
-                mv.stop_slug, mv.city_name = slug, city
-
-    if "city" in changes and mv.type != "settlement":
+    if (new_date is not None or "city" in changes) and mv.type != "settlement":
         slug, city, _cur = await resolve_place(
-            session, wa_id, mv.movement_date, today, changes["city"], username
+            session, new_date or today, changes.get("city"), username
         )
         if (slug, city) != (mv.stop_slug, mv.city_name):
             diffs.append(("📍", mv.city_name or "Sin ciudad", city or "Sin ciudad"))
             mv.stop_slug, mv.city_name = slug, city
 
-    # Monto/moneda/fecha → recalcular USD.
+    # Monto/moneda → recalcular USD.
     money_changed = False
     if "amount" in changes and changes["amount"] != mv.amount:
         diffs.append(("💰", f"{mv.currency} {ar_number(mv.amount)}",
@@ -141,7 +137,7 @@ async def _pick_buttons(session, candidates, action: str, payload: dict, owner: 
     token = await create_pending(session, owner=owner, payload=payload, kind=action)
     buttons = []
     for mv in candidates[:3]:
-        label = f"{(mv.description or mv.type)[:16]} · {mv.currency} {mv.amount:.0f} · {fmt_date(mv.movement_date)}"
+        label = f"{(mv.description or mv.type)[:16]} · {mv.currency} {mv.amount:.0f} · {fmt_date(mv.created_at.date())}"
         buttons.append((f"{action}:{token}|{mv.id}", label[:20]))
     return buttons_reply(question, buttons)
 
@@ -160,11 +156,11 @@ async def handle_edit(session, user: User, wa_id: str, parsed, today: date) -> B
     if len(candidates) > 1:
         payload = {"changes": _serialize_changes(parsed.changes)}
         return await _pick_buttons(session, candidates, "edit_pick", payload, user.username, "¿Cuál querés editar?")
-    return await apply_edit_to(session, user, wa_id, candidates[0], parsed.changes, today)
+    return await apply_edit_to(session, user, candidates[0], parsed.changes, today)
 
 
-async def apply_edit_to(session, user: User, wa_id: str, mv: Movement, changes: dict, today: date) -> BotReply:
-    diffs = await apply_changes(session, wa_id, mv, changes, today, user.username)
+async def apply_edit_to(session, user: User, mv: Movement, changes: dict, today: date) -> BotReply:
+    diffs = await apply_changes(session, mv, changes, today, user.username)
     if not diffs:
         return text_reply("Nada que cambiar: ya estaba así. 👌")
     return text_reply(edit_card(mv, diffs))
@@ -209,14 +205,14 @@ def _deserialize_changes(raw: dict) -> dict:
     return out
 
 
-async def apply_edit_pick(session, user: User, wa_id: str, token: str, movement_id: int, today: date) -> BotReply:
+async def apply_edit_pick(session, user: User, token: str, movement_id: int, today: date) -> BotReply:
     data = await load_pending(session, token, owner=user.username)
     if data is None:
         return text_reply("⚠️ Expiró: ese pending ya no está disponible.")
     mv = (await session.execute(select(Movement).where(Movement.id == movement_id))).scalar_one_or_none()
     if mv is None:
         return text_reply("⚠️ No encontrado: ese movimiento ya no existe.")
-    reply = await apply_edit_to(session, user, wa_id, mv, _deserialize_changes(data["changes"]), today)
+    reply = await apply_edit_to(session, user, mv, _deserialize_changes(data["changes"]), today)
     await close_pending(session, token)
     return reply
 

@@ -32,7 +32,7 @@ export default function Dashboard() {
   const byCat = useQuery({ queryKey: ["dashboard", "cat"], queryFn: getByCategory });
   const pace = useQuery({ queryKey: ["dashboard", "pace"], queryFn: getPace });
   const users = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
-  const recent = useQuery({ queryKey: ["movements", "created"], queryFn: () => listMovements("created") });
+  const recent = useQuery({ queryKey: ["movements"], queryFn: listMovements });
   const categories = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
   const stops = useQuery({ queryKey: ["stops"], queryFn: getStops, staleTime: 60_000 });
   const me = useMe();

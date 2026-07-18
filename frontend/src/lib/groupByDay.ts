@@ -13,11 +13,20 @@ export function dayTotalShare(items: Movement[], userId: number): number {
   return items.reduce((acc, m) => acc + myShare(m, userId), 0);
 }
 
-/** Agrupa movimientos en bloques consecutivos por día, preservando el orden
- *  de entrada. `keyOf` elige qué fecha usar (imputada vs. de carga). */
+/** Día local (YYYY-MM-DD) de la fecha de carga: el único eje temporal que queda. */
+export function createdDayKey(m: Movement): string {
+  const d = new Date(m.created_at);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${y}-${mo}-${da}`;
+}
+
+/** Agrupa movimientos en bloques consecutivos por día de carga, preservando el
+ *  orden de entrada. */
 export function groupByDay(
   movements: Movement[],
-  keyOf: (m: Movement) => string = (m) => m.movement_date,
+  keyOf: (m: Movement) => string = createdDayKey,
 ): DayGroup[] {
   const out: DayGroup[] = [];
   for (const m of movements) {

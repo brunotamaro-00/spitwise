@@ -19,7 +19,7 @@ Uso (ver "Demo local" en CLAUDE.md):
 """
 import asyncio
 import random
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from sqlalchemy import delete, select
@@ -157,8 +157,8 @@ async def main() -> None:
         s.add(Movement(
             type="settlement", amount=Decimal("150"), currency="USD", amount_usd=Decimal("150"),
             fx_rate=Decimal("1.0"), fx_source="manual", paid_by=katia.id, split="shared",
-            description="Le pasé 150 usd", movement_date=TODAY - timedelta(days=3),
-            created_by=katia.id,
+            description="Le pasé 150 usd", created_by=katia.id,
+            created_at=_created(TODAY - timedelta(days=3)),
         ))
 
         await s.commit()
@@ -183,6 +183,12 @@ def _desc(cat: str, city: str) -> str:
     return f"{random.choice(samples.get(cat, ['Gasto']))} · {city}"
 
 
+def _created(day: date) -> datetime:
+    """created_at plausible (naive-UTC, como server_default) para que los grupos
+    por día de carga del listado luzcan mid-trip."""
+    return datetime.combine(day, time(hour=random.randint(9, 22), minute=random.randint(0, 59)))
+
+
 def _add_mov(s, cat, cur, usd_amount, day, slug, city, paid_by, split, desc) -> None:
     """`usd_amount` está en USD; se convierte a la moneda local del stop."""
     rate = FX[cur]
@@ -193,7 +199,8 @@ def _add_mov(s, cat, cur, usd_amount, day, slug, city, paid_by, split, desc) -> 
         amount_usd=(local * rate).quantize(Decimal("0.01")),
         fx_rate=rate, fx_source="manual", paid_by=paid_by.id, split=split,
         description=desc, category_id=cat.id if cat else None,
-        stop_slug=slug, city_name=city, movement_date=day, created_by=paid_by.id,
+        stop_slug=slug, city_name=city, created_by=paid_by.id,
+        created_at=_created(day),
     ))
 
 

@@ -8,7 +8,7 @@ from app.api.auth import get_current_user
 from app.api.schemas import MovementIn, MovementOut, MovementUpdate
 from app.bot.active_stop import place_for_date, resolve_trip_timezone
 from app.db.engine import get_session
-from app.db.models import Movement, User
+from app.db.models import Movement, Stop, User
 from app.fx import convert_to_usd
 from app.trip_time import today_in_tz
 
@@ -32,6 +32,29 @@ async def _load_today(session: AsyncSession, username: str | None = None):
     return today_in_tz(tz)
 
 
+async def _stop_by_slug(session: AsyncSession, slug: str) -> Stop:
+    """La ciudad siempre sale de una parada real del itinerario: nunca texto libre."""
+    stop = (
+        await session.execute(
+            select(Stop).where(
+                Stop.slug == slug, Stop.is_candidate.is_(False), Stop.is_archived.is_(False)
+            )
+        )
+    ).scalar_one_or_none()
+    if stop is None:
+        raise HTTPException(status_code=422, detail=f"Parada desconocida: {slug!r}")
+    return stop
+
+
+async def _derive_place(session: AsyncSession, body, username: str, today) -> tuple[str | None, str | None]:
+    """(stop_slug, city_name) según las reglas: slug explícito validado, o parada de hoy."""
+    if body.stop_slug is not None:
+        stop = await _stop_by_slug(session, body.stop_slug)
+        return stop.slug, stop.name
+    stop = await place_for_date(session, today, username)
+    return (stop.slug, stop.name) if stop is not None else (None, None)
+
+
 @router.post("", response_model=MovementOut, status_code=status.HTTP_201_CREATED)
 async def create_movement(
     body: MovementIn,
@@ -39,16 +62,11 @@ async def create_movement(
     session: AsyncSession = Depends(get_session),
 ) -> Movement:
     today = await _load_today(session, user.username)
-    mdate = body.movement_date or today
-    stop_slug, city_name = body.stop_slug, body.city_name
-    # `general` (o un saldo) => sin ciudad; no derivar la parada activa por fecha.
-    is_general = body.general or body.type == "settlement"
-    if not is_general and stop_slug is None and city_name is None:
-        stop = await place_for_date(session, mdate, user.username)
-        if stop is not None:
-            stop_slug, city_name = stop.slug, stop.name
-    if body.type == "settlement":
+    # `general` (o un saldo) => sin ciudad; si no, parada explícita validada o la de hoy.
+    if body.general or body.type == "settlement":
         stop_slug, city_name = None, None
+    else:
+        stop_slug, city_name = await _derive_place(session, body, user.username, today)
     if body.fx_rate is not None:
         rate = body.fx_rate
         # ARS system rate is ~1/venta (<1). Users often type pesos-per-USD (>1).
@@ -76,7 +94,6 @@ async def create_movement(
         category_id=None if body.type == "settlement" else body.category_id,
         stop_slug=stop_slug,
         city_name=city_name,
-        movement_date=mdate,
         created_by=user.id,
     )
     session.add(mv)
@@ -87,17 +104,13 @@ async def create_movement(
 
 @router.get("", response_model=list[MovementOut])
 async def list_movements(
-    sort: str = "date",  # "date" = fecha imputada; "created" = fecha de carga
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[Movement]:
-    order = (
-        (Movement.created_at.desc(), Movement.id.desc())
-        if sort == "created"
-        else (Movement.movement_date.desc(), Movement.id.desc())
-    )
     rows = (
-        await session.execute(select(Movement).order_by(*order))
+        await session.execute(
+            select(Movement).order_by(Movement.created_at.desc(), Movement.id.desc())
+        )
     ).scalars().all()
     return list(rows)
 
@@ -114,8 +127,7 @@ async def update_movement(
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
 
     sent = body.model_fields_set  # solo lo que vino en el body
-    for field in ("type", "split", "paid_by", "description", "category_id",
-                  "stop_slug", "city_name", "movement_date"):
+    for field in ("type", "split", "paid_by", "description", "category_id"):
         if field in sent:
             setattr(mv, field, getattr(body, field))
     if "amount" in sent:
@@ -123,20 +135,14 @@ async def update_movement(
     if "currency" in sent:
         mv.currency = body.currency.upper()
 
+    # Ciudad: slug explícito validado (deriva city_name), null explícito => parada de hoy.
+    if "stop_slug" in sent and mv.type != "settlement":
+        today = await _load_today(session, user.username)
+        mv.stop_slug, mv.city_name = await _derive_place(session, body, user.username, today)
+
     # general=True => forzar sin ciudad.
     if "general" in sent and body.general:
         mv.stop_slug, mv.city_name = None, None
-
-    # Si cambió la fecha y no vino override de ciudad / general, re-derivar (o limpiar).
-    if "movement_date" in sent and not ({"stop_slug", "city_name"} & sent) and not (
-        "general" in sent and body.general
-    ):
-        if mv.type != "settlement":
-            stop = await place_for_date(session, mv.movement_date, user.username)
-            if stop is not None:
-                mv.stop_slug, mv.city_name = stop.slug, stop.name
-            else:
-                mv.stop_slug, mv.city_name = None, None
 
     # Settlement nunca lleva ciudad.
     if mv.type == "settlement":

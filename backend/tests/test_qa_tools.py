@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal
 
 from app.api.auth import hash_password
@@ -8,10 +8,13 @@ from app.qa.tools import aggregate_expenses, get_balance, get_itinerary, list_mo
 
 def _mv(payer, creator, desc, amount, d, *, split="shared", city=None, slug=None,
         cat_id=None, typ="expense", currency="USD"):
+    # created_at controla el eje temporal (fecha de carga); mediodía UTC para que
+    # el día no cambie al convertir a la tz del viaje.
     return Movement(type=typ, amount=Decimal(amount), currency=currency,
                     amount_usd=Decimal(amount), fx_rate=Decimal("1"), fx_source="frankfurter",
                     paid_by=payer.id, split=split, description=desc, category_id=cat_id,
-                    movement_date=d, city_name=city, stop_slug=slug, created_by=creator.id)
+                    created_at=datetime.combine(d, time(12)), city_name=city, stop_slug=slug,
+                    created_by=creator.id)
 
 
 async def _setup(db_session):

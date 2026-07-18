@@ -7,7 +7,6 @@ import { listCategories } from "@/api/categories";
 import { createMovement, updateMovement } from "@/api/movements";
 import { listStops, listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
-import DatePicker from "@/components/ui/DatePicker";
 import { Field, Input, Label, Select } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -73,7 +72,6 @@ export default function AddMovementDialog({ editing, onClose }: {
   const [description, setDescription] = useState(editing?.description ?? "");
   const [categoryId, setCategoryId] = useState<string>(editing?.category_id?.toString() ?? "");
   const [split, setSplit] = useState(editing?.split ?? "shared");
-  const [date, setDate] = useState(editing?.movement_date ?? todayLocal());
   // Sin ciudad al editar (y sin parada) => se asume gasto general.
   const [stopSlug, setStopSlug] = useState<string>(
     editing?.stop_slug ?? (editing && !editing.city_name ? GENERAL : ""),
@@ -123,23 +121,20 @@ export default function AddMovementDialog({ editing, onClose }: {
         description: description || null,
         category_id: categoryId ? Number(categoryId) : null,
         split,
-        movement_date: date,
       };
       if (paidBy) body.paid_by = Number(paidBy);
 
+      // La ciudad la deriva siempre el backend del stop_slug (nunca texto libre).
       if (stopSlug === GENERAL) {
         body.stop_slug = null;
-        body.city_name = null;
         body.general = true;
       } else if (stop) {
         body.stop_slug = stop.slug;
-        body.city_name = stop.name;
       } else if (!isEdit) {
-        // Create + Auto: nulls => backend deriva por fecha.
+        // Create + Auto: null => backend imputa la parada de hoy.
         body.stop_slug = null;
-        body.city_name = null;
       }
-      // Edit + Auto: omitir stop_* para que el backend re-derive / no limpie a ciegas.
+      // Edit + Auto: omitir stop_slug para no tocar la ciudad ya asignada.
 
       return isEdit ? updateMovement(editing!.id, body) : createMovement(body);
     },
@@ -254,20 +249,15 @@ export default function AddMovementDialog({ editing, onClose }: {
           <Segmented options={SPLITS} value={split} onChange={setSplit} />
         </div>
 
-        <div className="grid grid-cols-[1fr_1.4fr] gap-2.5">
-          <Field label="Ciudad">
-            <Select value={stopSlug} onChange={(e) => setStopSlug(e.target.value)}>
-              <option value="">Automática</option>
-              <option value={GENERAL}>General (sin ciudad)</option>
-              {stops.map((s) => (
-                <option key={s.slug} value={s.slug}>{s.name}</option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Fecha">
-            <DatePicker value={date} onChange={setDate} stops={stops} />
-          </Field>
-        </div>
+        <Field label="Ciudad">
+          <Select value={stopSlug} onChange={(e) => setStopSlug(e.target.value)}>
+            <option value="">Automática (parada de hoy)</option>
+            <option value={GENERAL}>General (sin ciudad)</option>
+            {stops.map((s) => (
+              <option key={s.slug} value={s.slug}>{s.name}</option>
+            ))}
+          </Select>
+        </Field>
 
         {err && <p role="alert" className="text-sm font-semibold text-danger">{err}</p>}
         <Button type="submit" disabled={save.isPending} className="mt-1">

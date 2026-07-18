@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.bot.active_stop import resolve_active_stop, resolve_trip_timezone, set_active_stop_override
+from app.bot.active_stop import resolve_trip_timezone, stop_for_date
 from app.db.models import Stop
 
 
@@ -16,22 +16,15 @@ async def _seed_stops(session):
 
 async def test_active_by_date_inside_range(db_session):
     await _seed_stops(db_session)
-    slug, city, cur = await resolve_active_stop(db_session, "549110", date(2026, 8, 6))
-    assert (slug, city, cur) == ("londres", "Londres", "GBP")
+    stop = await stop_for_date(db_session, date(2026, 8, 6))
+    assert (stop.slug, stop.name, stop.currency_code) == ("londres", "Londres", "GBP")
 
 
 async def test_between_stops_uses_last_arrived(db_session):
     await _seed_stops(db_session)
     # 20-ago: ya salió de Londres, no llegó a París -> última con arrival<=today
-    slug, city, cur = await resolve_active_stop(db_session, "549110", date(2026, 8, 20))
-    assert slug == "londres"
-
-
-async def test_override_beats_date(db_session):
-    await _seed_stops(db_session)
-    await set_active_stop_override(db_session, "549110", "paris", "París", "EUR")
-    slug, city, cur = await resolve_active_stop(db_session, "549110", date(2026, 8, 6))
-    assert slug == "paris"
+    stop = await stop_for_date(db_session, date(2026, 8, 20))
+    assert stop.slug == "londres"
 
 
 async def test_trip_timezone_none_without_stops(db_session):

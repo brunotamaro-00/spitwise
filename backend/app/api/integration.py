@@ -19,7 +19,7 @@ from app.config import get_settings
 from app.db.engine import get_session
 from app.db.models import Category, Movement, Stop, User
 from app.spend import user_share
-from app.trip_time import today_in_tz
+from app.trip_time import day_in_tz, today_in_tz
 
 router = APIRouter(tags=["integration"])
 
@@ -146,7 +146,7 @@ async def cities_spend_detail(
     ]
 
     users = {u.id: u.username for u in (await session.execute(select(User))).scalars().all()}
-    recent = sorted(shares, key=lambda t: (t[0].movement_date, t[0].id), reverse=True)[:limit]
+    recent = sorted(shares, key=lambda t: (t[0].created_at, t[0].id), reverse=True)[:limit]
     last_movements = [
         SpendDetailMovementOut(
             description=m.description,
@@ -156,7 +156,7 @@ async def cities_spend_detail(
             amount=_money(m.amount * share / m.amount_usd if m.amount_usd else 0),
             currency=m.currency,
             amount_usd=_money(share),
-            date=m.movement_date,
+            date=day_in_tz(m.created_at, None),
             category_id=m.category_id,
             paid_by_name=users.get(m.paid_by),
         )
@@ -185,35 +185,18 @@ async def trip_spend(
     """Totales del viaje para el strip de /hoy en Andiamo. Sin `?user=`, gross
     del hogar; con él, la parte de esa persona."""
     who = await _resolve_user(session, user)
-    if who is None:
-        total, count = (
-            await session.execute(
-                select(func.coalesce(func.sum(Movement.amount_usd), 0), func.count()).where(
-                    _EXPENSE
-                )
-            )
-        ).one()
-        today = today_in_tz(None)
-        today_total = (
-            await session.execute(
-                select(func.coalesce(func.sum(Movement.amount_usd), 0)).where(
-                    _EXPENSE, Movement.movement_date == today
-                )
-            )
-        ).scalar_one()
-    else:
-        # user_share() vive en Python (mira split y paid_by), así que el share
-        # se agrega acá. Son dos personas y un viaje: el volumen no justifica
-        # portar la lógica a SQL.
-        shares = _shares(
-            list((await session.execute(select(Movement).where(_EXPENSE))).scalars().all()), who
-        )
-        total = sum((s for _m, s in shares), Decimal("0"))
-        count = len(shares)
-        today = today_in_tz(None)
-        today_total = sum(
-            (s for m, s in shares if m.movement_date == today), Decimal("0")
-        )
+    # user_share() vive en Python (mira split y paid_by), así que todo se agrega
+    # acá. Son dos personas y un viaje: el volumen no justifica SQL.
+    shares = _shares(
+        list((await session.execute(select(Movement).where(_EXPENSE))).scalars().all()), who
+    )
+    total = sum((s for _m, s in shares), Decimal("0"))
+    count = len(shares)
+    # "Hoy" = fecha de carga (created_at) en la tz default del viaje.
+    today = today_in_tz(None)
+    today_total = sum(
+        (s for m, s in shares if day_in_tz(m.created_at, None) == today), Decimal("0")
+    )
     return TripSpendOut(
         total_usd=_money(total), today_usd=_money(today_total), movement_count=count
     )
