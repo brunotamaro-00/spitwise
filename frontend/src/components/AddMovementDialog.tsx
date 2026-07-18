@@ -169,22 +169,30 @@ export default function AddMovementDialog({ editing, onClose }: {
         amount: normalizeAmountInput(amount),
         currency,
         description: description || null,
-        category_id: categoryId ? Number(categoryId) : null,
-        split,
       };
       if (paidBy) body.paid_by = Number(paidBy);
 
-      // La ciudad la deriva siempre el backend del stop_slug (nunca texto libre).
-      if (stopSlug === GENERAL) {
+      if (isExpense) {
+        // Categoría y división solo aplican a gastos.
+        body.category_id = categoryId ? Number(categoryId) : null;
+        body.split = split;
+
+        // La ciudad la deriva siempre el backend del stop_slug (nunca texto libre).
+        if (stopSlug === GENERAL) {
+          body.stop_slug = null;
+          body.general = true;
+        } else if (stop) {
+          body.stop_slug = stop.slug;
+        } else if (!isEdit) {
+          // Create + Auto: null => backend imputa la parada de hoy.
+          body.stop_slug = null;
+        }
+        // Edit + Auto: omitir stop_slug para no tocar la ciudad ya asignada.
+      } else {
+        // Los saldos son SIEMPRE sin ciudad, sin categoría y sin división.
         body.stop_slug = null;
         body.general = true;
-      } else if (stop) {
-        body.stop_slug = stop.slug;
-      } else if (!isEdit) {
-        // Create + Auto: null => backend imputa la parada de hoy.
-        body.stop_slug = null;
       }
-      // Edit + Auto: omitir stop_slug para no tocar la ciudad ya asignada.
 
       return isEdit ? updateMovement(editing!.id, body) : createMovement(body);
     },
@@ -254,7 +262,9 @@ export default function AddMovementDialog({ editing, onClose }: {
                  value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
 
-        {/* Categoría: chips con ícono, un toque; tocar de nuevo deselecciona. */}
+        {/* Categoría: chips con ícono, un toque; tocar de nuevo deselecciona.
+            Los saldos no llevan categoría. */}
+        {isExpense && (
         <div className="flex flex-col gap-1">
           <Label>Categoría</Label>
           <div className="flex flex-wrap gap-1">
@@ -284,9 +294,10 @@ export default function AddMovementDialog({ editing, onClose }: {
             })}
           </div>
         </div>
+        )}
 
         <div className="flex flex-col gap-1">
-          <Label>Pagó</Label>
+          <Label>{isExpense ? "Pagó" : "Pagó (transferencia)"}</Label>
           <Segmented
             options={users.map((u) => ({ value: String(u.id), label: capitalize(u.username) }))}
             value={paidBy}
@@ -294,20 +305,25 @@ export default function AddMovementDialog({ editing, onClose }: {
           />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <Label>División</Label>
-          <Segmented options={SPLITS} value={split} onChange={setSplit} />
-        </div>
+        {/* División y ciudad no aplican a saldos (siempre sin ciudad). */}
+        {isExpense && (
+          <div className="flex flex-col gap-1">
+            <Label>División</Label>
+            <Segmented options={SPLITS} value={split} onChange={setSplit} />
+          </div>
+        )}
 
-        <Field label="Ciudad">
-          <Select value={stopSlug} onChange={(e) => setStopSlug(e.target.value)}>
-            <option value="">Automática (parada de hoy)</option>
-            <option value={GENERAL}>General (sin ciudad)</option>
-            {stops.map((s) => (
-              <option key={s.slug} value={s.slug}>{s.name}</option>
-            ))}
-          </Select>
-        </Field>
+        {isExpense && (
+          <Field label="Ciudad">
+            <Select value={stopSlug} onChange={(e) => setStopSlug(e.target.value)}>
+              <option value="">Automática (parada de hoy)</option>
+              <option value={GENERAL}>General (sin ciudad)</option>
+              {stops.map((s) => (
+                <option key={s.slug} value={s.slug}>{s.name}</option>
+              ))}
+            </Select>
+          </Field>
+        )}
 
         {err && <p role="alert" className="text-sm font-semibold text-danger">{err}</p>}
         <Button type="submit" disabled={save.isPending} className="mt-1">
