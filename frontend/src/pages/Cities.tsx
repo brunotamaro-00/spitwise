@@ -258,6 +258,7 @@ export default function Cities() {
       {/* Header / hero de la selección */}
       <Card className="animate-rise-in stagger-1 relative overflow-hidden p-5 text-white hero-gradient soft-hero">
         <div className="spit-dots absolute inset-0" aria-hidden="true" />
+        <div className="hero-sheen absolute inset-0" aria-hidden="true" />
         <div className="relative">
           <div className="flex items-center gap-3">
             {flag ? (
@@ -290,7 +291,7 @@ export default function Cities() {
           <div className="mt-5 flex items-end justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-white/70">Mi gasto</p>
-              <p className="font-display text-4xl leading-none font-tabular">
+              <p className="font-display text-4xl leading-none tracking-[-0.02em] font-tabular">
                 <AnimatedUsd value={summary?.total_usd ?? "0"} />
               </p>
               <p className="mt-1.5 text-sm text-white/80">

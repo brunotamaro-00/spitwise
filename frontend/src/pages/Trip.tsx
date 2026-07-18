@@ -31,10 +31,10 @@ function Chapter({ city, onOpen }: { city: CityPace; onOpen: () => void }) {
         }`}
       />
       <Card
-        className={`p-3.5 transition-colors ${future ? "opacity-70" : ""} ${
+        className={`cursor-pointer p-3.5 transition-colors hover:border-border-strong ${
           current ? "border-brick/40" : ""
-        } ${hasSpend || !future ? "cursor-pointer hover:border-border-strong" : ""}`}
-        onClick={hasSpend || !future ? onOpen : undefined}
+        }`}
+        onClick={onOpen}
       >
         <div className="flex items-baseline justify-between gap-3">
           <div className="flex min-w-0 items-baseline gap-2">
@@ -71,9 +71,6 @@ function Chapter({ city, onOpen }: { city: CityPace; onOpen: () => void }) {
           )}
           {!future && <DeltaBadge pct={city.delta_vs_trip_pct} compact />}
         </div>
-        {future && !hasSpend && (
-          <p className="mt-1 text-[12px] italic text-ink-faint">por escribir…</p>
-        )}
       </Card>
     </div>
   );

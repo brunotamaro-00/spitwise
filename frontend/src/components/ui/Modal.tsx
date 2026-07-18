@@ -3,6 +3,8 @@ import { AnimatePresence, motion, useDragControls, useReducedMotion } from "moti
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { DURATION } from "@/lib/motion";
+
 const SPRING = { type: "spring", stiffness: 420, damping: 38 } as const;
 
 /** Shell de diálogo: bottom sheet en mobile (slide-up con spring, drag para
@@ -81,7 +83,7 @@ export default function Modal({ title, onClose, children, size = "md", locked = 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
+          transition={{ duration: DURATION.quick }}
           onClick={requestClose}
         >
           <motion.div

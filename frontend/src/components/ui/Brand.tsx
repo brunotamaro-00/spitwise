@@ -27,7 +27,7 @@ export function Wordmark({ className, tone = "light" }: { className?: string; to
 /** Título de página editorial: Anton grande + trail de puntitos de marca. */
 export function PageTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h1 className="flex items-baseline gap-2.5 font-display text-[1.9rem] leading-none tracking-wide text-ink">
+    <h1 className="flex items-baseline gap-2.5 font-display text-[1.9rem] leading-none tracking-[-0.01em] text-ink">
       {children}
       <SpitDivider className="translate-y-[-0.35rem]" />
     </h1>

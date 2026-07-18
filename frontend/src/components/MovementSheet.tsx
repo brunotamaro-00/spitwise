@@ -64,7 +64,7 @@ export default function MovementSheet({ mv, category, flag, myId, onEdit, onDele
           <Icon size={20} strokeWidth={2} />
         </span>
         <div className="min-w-0">
-          <p className="font-display text-4xl leading-none text-ink font-tabular">{formatUsd(mv.amount_usd)}</p>
+          <p className="font-display text-4xl leading-none tracking-[-0.02em] text-ink font-tabular">{formatUsd(mv.amount_usd)}</p>
           {mv.currency !== "USD" && (
             <p className="mt-1.5 font-tabular text-sm text-ink-3">
               {/* El TC necesita sus decimales reales (1,0850), no el formato de 1 decimal. */}

@@ -27,7 +27,7 @@ export default function TripPaceCard({ pace }: { pace: TripPace }) {
       </div>
 
       <div className="flex items-baseline gap-2">
-        <span className="font-display text-4xl leading-none font-tabular text-ink">
+        <span className="font-display text-4xl leading-none tracking-[-0.02em] font-tabular text-ink">
           <AnimatedUsd value={perDay ?? "0"} />
         </span>
         <span className="text-sm font-medium text-ink-3">

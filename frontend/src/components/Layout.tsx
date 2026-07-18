@@ -7,6 +7,7 @@ import { logout } from "@/api/auth";
 import AddMovementDialog from "@/components/AddMovementDialog";
 import { Wordmark } from "@/components/ui/Brand";
 import { capitalize } from "@/lib/format";
+import { DURATION, EASE_SMOOTH_OUT } from "@/lib/motion";
 import { useMe } from "@/lib/useMe";
 import { useOnline } from "@/lib/useOnline";
 import { usePullToRefresh } from "@/lib/usePullToRefresh";
@@ -142,7 +143,7 @@ export default function Layout() {
             key={location.pathname}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: DURATION.fast, ease: EASE_SMOOTH_OUT }}
           >
             <Outlet />
           </motion.div>

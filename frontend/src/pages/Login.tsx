@@ -36,6 +36,7 @@ export default function Login() {
         <header className="animate-rise-in espresso-panel relative overflow-hidden rounded-2xl px-6 py-7 soft-hero">
           {/* Firma de marca: escupitajo tenue hacia la esquina superior derecha. */}
           <div className="spit-dots pointer-events-none absolute inset-0" aria-hidden="true" />
+          <div className="hero-sheen pointer-events-none absolute inset-0" aria-hidden="true" />
           <div className="relative flex flex-col items-start">
             <img
               src="/brand/mark-tile.png"

@@ -152,8 +152,9 @@ export default function Movements() {
         </div>
       )}
 
-      {showFilters && (
-        <Card className="mb-3 animate-fade-in p-5">
+      <div className={`t-acc-panel ${showFilters ? "is-open" : ""}`}>
+        <div className="t-acc-panel-inner" inert={!showFilters}>
+        <Card className="mb-3 p-5">
           <label className="mb-3 flex cursor-pointer items-center gap-2.5">
             <input
               type="checkbox"
@@ -199,7 +200,8 @@ export default function Movements() {
             </button>
           )}
         </Card>
-      )}
+        </div>
+      </div>
 
       {!isLoading && data.length > 0 && (
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-xl border border-border bg-surface-2 px-4 py-2.5">

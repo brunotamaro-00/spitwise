@@ -100,10 +100,12 @@
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
 
-  /* Sombras suaves difusas + una con tinte cálido para las heros */
-  --shadow-sm: 0 1px 2px rgb(27 26 23 / 0.05), 0 2px 6px rgb(27 26 23 / 0.06);
-  --shadow-md: 0 4px 16px rgb(27 26 23 / 0.10), 0 2px 6px rgb(27 26 23 / 0.06);
-  --shadow-hero: 0 10px 30px -8px rgb(196 68 40 / 0.35), 0 4px 12px -4px rgb(27 26 23 / 0.12);
+  /* Sombras suaves difusas, con tinte cálido (espresso #342112 diluido, no
+     negro) para que la dirección de luz sea coherente con el canvas cálido.
+     La hero ya lleva tinte ladrillo. */
+  --shadow-sm: 0 1px 2px rgb(52 33 18 / 0.05), 0 2px 6px rgb(52 33 18 / 0.06);
+  --shadow-md: 0 4px 16px rgb(52 33 18 / 0.10), 0 2px 8px rgb(52 33 18 / 0.05);
+  --shadow-hero: 0 10px 30px -8px rgb(196 68 40 / 0.35), 0 4px 12px -4px rgb(52 33 18 / 0.12);
 }
 
 /* Gradientes de marca (no son tokens de color de Tailwind: se usan por clase). */
@@ -113,6 +115,37 @@
   --gradient-plum: linear-gradient(135deg, #8E3D88 0%, #5C2A70 100%);
   /* Espresso: profundidad cálida para paneles de marca oscuros. */
   --gradient-espresso: linear-gradient(160deg, #3E2818 0%, #2C1B0E 100%);
+
+  /* ── Motion tokens — escala compartida (transitions.dev) ──────────────
+     Vocabulario único de motion: duración, ease, distancia, escala y blur.
+     Se referencian con var(--…) en CSS y en los componentes `motion`.
+     Nota: --ease-smooth-out ES el cubic-bezier(0.22,1,0.36,1) que ya usaba
+     toda la app, así que tokenizar es 1:1 sin cambiar el feel. */
+  --duration-stagger: 40ms;   /* offset por ítem en un stagger */
+  --duration-micro: 80ms;     /* delay de intención (tooltip/path) */
+  --duration-quick: 150ms;    /* cierre de modal/dropdown, text swap */
+  --duration-fast: 250ms;     /* apertura de modal/dropdown, tabs, page slide */
+  --duration-medium: 350ms;   /* cierre de panel, entrada de card */
+  --duration-slow: 400ms;     /* apertura de panel, reveal de skeleton */
+  --duration-very-slow: 500ms;/* momentos de énfasis, number pop-in */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1); /* open/close, slide, resize */
+  --ease-in-out: ease-in-out; /* swap de icono/texto, reveal */
+  --ease-out: ease-out;       /* tooltip */
+  --ease-linear: linear;      /* shimmer, pulse, spinner */
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);       /* pop de badge */
+  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);/* hover-out con resorte */
+  --distance-micro: 4px;      /* text swap */
+  --distance-small: 6px;      /* shake chico */
+  --distance-base: 8px;       /* page slide, badge */
+  --distance-medium: 12px;    /* text/card reveal */
+  --distance-large: 30px;     /* badge celebratorio */
+  --scale-large: 0.96;        /* modal open/close */
+  --scale-medium: 0.97;       /* dropdown open */
+  --scale-small: 0.98;        /* tooltip open */
+  --scale-tiny: 0.99;         /* dropdown close */
+  --blur-small: 2px;          /* panel/icon/text/skeleton reveal, number pop-in */
+  --blur-medium: 3px;         /* page slide, text reveal */
+  --blur-large: 8px;          /* success check */
 }
 
 body {
@@ -157,6 +190,49 @@ body {
     -webkit-mask-image: radial-gradient(130% 130% at 100% 0%, black 0%, transparent 62%);
     mask-image: radial-gradient(130% 130% at 100% 0%, black 0%, transparent 62%);
   }
+
+  /* Brillo de superficie para heros: overlay hermano (como .spit-dots) sobre
+     un contenedor relative+overflow-hidden. Suma un hairline interior cálido
+     (refracción de borde) + un brillo superior tenue que mata la planitud del
+     gradiente. pointer-events:none; hereda el radio del contenedor. */
+  .hero-sheen {
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: radial-gradient(120% 85% at 12% -8%, rgb(255 255 255 / 0.16), transparent 56%);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.18),
+      inset 0 0 0 1px rgb(255 255 255 / 0.08),
+      inset 0 -22px 40px -28px rgb(52 33 18 / 0.55);
+  }
+}
+
+/* Pill deslizante del segmented control (patrón tabs-sliding). JS escribe
+   transform/width inline; el CSS sólo tweenea entre posiciones medidas. */
+@layer utilities {
+  .seg-pill {
+    transition:
+      transform var(--duration-fast) var(--ease-smooth-out),
+      width var(--duration-fast) var(--ease-smooth-out);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seg-pill { transition: none; }
+}
+
+/* Acordeón: expande/colapsa la altura vía grid-rows 0fr↔1fr (animable, a
+   diferencia de height:auto). El padding va SIEMPRE en .t-acc-panel-inner,
+   nunca en el track, o el panel no cierra del todo. (patrón accordion) */
+@layer utilities {
+  .t-acc-panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--duration-fast) var(--ease-smooth-out);
+  }
+  .t-acc-panel.is-open { grid-template-rows: 1fr; }
+  .t-acc-panel-inner { min-height: 0; overflow: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-acc-panel { transition: none; }
 }
 
 @keyframes fade-in {
@@ -165,8 +241,28 @@ body {
 }
 
 @keyframes rise-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(var(--distance-medium)); filter: blur(var(--blur-medium)); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+/* Number pop-in: cada carácter re-entra con blur + slide vertical cuando el
+   número cambia. Los últimos dos dígitos escalonan para que los decimales se
+   sientan vivos sin caos. (patrón number-pop-in) */
+@keyframes t-digit-pop-in {
+  0% { transform: translateY(var(--distance-base)); opacity: 0; filter: blur(var(--blur-small)); }
+  100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+}
+@layer utilities {
+  .t-digit-group { display: inline-flex; align-items: baseline; }
+  .t-digit { display: inline-block; white-space: pre; will-change: transform, opacity, filter; }
+  .t-digit-group.is-animating .t-digit {
+    animation: t-digit-pop-in var(--duration-very-slow) var(--ease-bounce) both;
+  }
+  .t-digit-group.is-animating .t-digit[data-stagger="1"] { animation-delay: 70ms; }
+  .t-digit-group.is-animating .t-digit[data-stagger="2"] { animation-delay: 140ms; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-digit-group .t-digit { animation: none !important; }
 }
 
 @keyframes skeleton {
@@ -179,10 +275,39 @@ body {
   to { transform: translateX(100%); }
 }
 
+/* Skeleton → contenido con cross-blur: al llegar la data, el skeleton se
+   desvanece + difumina y el contenido entra enfocándose, sobre el mismo slot
+   (el contenido en flujo fija la altura; el skeleton se apila encima).
+   (patrón skeleton-reveal) */
 @layer utilities {
-  .animate-fade-in { animation: fade-in 0.2s ease-out both; }
-  .animate-rise-in { animation: rise-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
-  .animate-skeleton { animation: skeleton 1.3s ease-in-out infinite; }
+  .t-skel-content {
+    opacity: 0;
+    filter: blur(var(--blur-small));
+    transition:
+      opacity var(--duration-slow) var(--ease-in-out),
+      filter var(--duration-slow) var(--ease-in-out);
+  }
+  .t-skel-skeleton {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    opacity: 1;
+    filter: blur(0);
+    transition:
+      opacity var(--duration-slow) var(--ease-in-out),
+      filter var(--duration-slow) var(--ease-in-out);
+  }
+  .t-skel.is-revealed .t-skel-content { opacity: 1; filter: blur(0); }
+  .t-skel.is-revealed .t-skel-skeleton { opacity: 0; filter: blur(var(--blur-small)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-skel-content, .t-skel-skeleton { transition: none; }
+}
+
+@layer utilities {
+  .animate-fade-in { animation: fade-in var(--duration-fast) var(--ease-out) both; }
+  .animate-rise-in { animation: rise-in var(--duration-medium) var(--ease-smooth-out) both; }
+  .animate-skeleton { animation: skeleton 1.3s var(--ease-in-out) infinite; }
 
   /* Shimmer sobre skeletons: brillo diagonal que barre la superficie. */
   .skeleton-shimmer::after {
@@ -193,12 +318,14 @@ body {
     animation: shimmer 1.6s ease-in-out infinite;
   }
 
-  /* Stagger de entrada: cada card de la página revela con un pequeño delay. */
-  .stagger-1 { animation-delay: 0.05s; }
-  .stagger-2 { animation-delay: 0.1s; }
-  .stagger-3 { animation-delay: 0.15s; }
-  .stagger-4 { animation-delay: 0.2s; }
-  .stagger-5 { animation-delay: 0.25s; }
+  /* Stagger de entrada: cada card de la página revela con un pequeño delay.
+     Múltiplos de --duration-stagger (40ms); total < ~300ms para que el
+     último ítem no se sienta tarde. */
+  .stagger-1 { animation-delay: calc(var(--duration-stagger) * 1); }
+  .stagger-2 { animation-delay: calc(var(--duration-stagger) * 2); }
+  .stagger-3 { animation-delay: calc(var(--duration-stagger) * 3); }
+  .stagger-4 { animation-delay: calc(var(--duration-stagger) * 4); }
+  .stagger-5 { animation-delay: calc(var(--duration-stagger) * 5); }
 }
 
 @media (prefers-reduced-motion: reduce) {

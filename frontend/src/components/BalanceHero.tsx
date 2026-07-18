@@ -2,6 +2,7 @@ import { Check, Handshake } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import NumberPopIn from "@/components/ui/NumberPopIn";
 import { formatUsd, isZeroMoney } from "@/lib/format";
 import type { Balance } from "@/types";
 
@@ -46,11 +47,12 @@ export default function BalanceHero({ balance, names, myId, onSettle }: {
         </div>
       </div>
       <div className="flex items-center gap-4">
-        <span className={`font-display text-[1.7rem] leading-none font-tabular ${
-          iAmCreditor ? "text-success" : "text-brick"
-        }`}>
-          {formatUsd(balance.amount_usd)}
-        </span>
+        <NumberPopIn
+          value={formatUsd(balance.amount_usd)}
+          className={`font-display text-[1.7rem] leading-none font-tabular ${
+            iAmCreditor ? "text-success" : "text-brick"
+          }`}
+        />
         <Button variant="secondary" size="sm" onClick={onSettle}>
           Saldar
         </Button>

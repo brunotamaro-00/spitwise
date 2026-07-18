@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusCircle } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { listCategories } from "@/api/categories";
 import { createMovement, updateMovement } from "@/api/movements";
@@ -25,27 +25,75 @@ const SPLITS = [
   { value: "other_only", label: "Solo del otro" },
 ];
 
-/** Grupo de botones exclusivos (segmented control). */
+/** Grupo de botones exclusivos (segmented control) con pill deslizante: el
+ *  pill blanco se desliza entre opciones (patrón tabs-sliding). JS mide
+ *  offsetLeft/offsetWidth del botón activo y los escribe inline; el CSS
+ *  (.seg-pill) tweenea. En primer paint y resize se posiciona sin animar
+ *  (snap). El borde va como ring-inset para que offsetLeft (border-box) y
+ *  el pill (left:0 padding-box) compartan origen. */
 function Segmented({ options, value, onChange }: {
   options: { value: string; label: string }[];
   value: string;
   onChange: (v: string) => void;
 }) {
+  const pillRef = useRef<HTMLSpanElement>(null);
+  const btnRefs = useRef(new Map<string, HTMLButtonElement>());
+  const mounted = useRef(false);
+
+  function place(animate: boolean) {
+    const pill = pillRef.current;
+    const btn = btnRefs.current.get(value);
+    if (!pill || !btn) return;
+    const apply = () => {
+      pill.style.transform = `translateX(${btn.offsetLeft}px)`;
+      pill.style.width = `${btn.offsetWidth}px`;
+    };
+    if (animate) {
+      apply();
+    } else {
+      const prev = pill.style.transition;
+      pill.style.transition = "none";
+      apply();
+      void pill.offsetWidth; // fuerza reflow para que el próximo cambio anime
+      pill.style.transition = prev;
+    }
+  }
+
+  // Snap al montar; anima en cambios de `value` posteriores (click o externo).
+  useLayoutEffect(() => {
+    place(mounted.current);
+    mounted.current = true;
+  }, [value]);
+
+  // Reposicionar sin animar en resize (usa el `value` vigente vía ref indirecto).
+  const placeRef = useRef(place);
+  placeRef.current = place;
+  useEffect(() => {
+    const onResize = () => placeRef.current(false);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   return (
-    <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
+    <div className="relative flex rounded-lg bg-surface-2 p-0.5 ring-1 ring-inset ring-border">
+      <span
+        ref={pillRef}
+        aria-hidden="true"
+        className="seg-pill pointer-events-none absolute bottom-0.5 left-0 top-0.5 w-0 rounded-md bg-surface shadow-sm"
+      />
       {options.map((o) => (
-        <motion.button
+        <button
           key={o.value}
+          ref={(el) => { if (el) btnRefs.current.set(o.value, el); }}
           type="button"
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
-          whileTap={{ scale: 0.96 }}
-          className={`min-h-[38px] flex-1 cursor-pointer rounded-md px-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
-            value === o.value ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink"
+          className={`relative z-10 min-h-[36px] flex-1 cursor-pointer rounded-md px-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+            value === o.value ? "text-ink" : "text-ink-3 hover:text-ink"
           }`}
         >
           {o.label}
-        </motion.button>
+        </button>
       ))}
     </div>
   );
@@ -97,7 +145,9 @@ export default function AddMovementDialog({ editing, onClose }: {
   // La moneda de la parada activa puede no estar en la lista fija (p.ej. RON).
   const currencyOptions = [...new Set([activeCurrency, ...CURRENCIES, currency])];
 
-  useEffect(() => { firstRef.current?.focus(); }, []);
+  // preventScroll: en iOS el foco abre el teclado pero NO scrollea el sheet,
+  // así el monto queda visible arriba en vez de irse fuera de cuadro.
+  useEffect(() => { firstRef.current?.focus({ preventScroll: true }); }, []);
 
   // Pasa a modo "completar": clona ciudad/categoría/fecha/moneda del gasto y
   // deja el monto vacío + pagador en mí, listo para cargar el resto.
@@ -106,7 +156,7 @@ export default function AddMovementDialog({ editing, onClose }: {
     setAmount("");
     setErr(null);
     if (me) setPaidBy(String(me.id));
-    requestAnimationFrame(() => firstRef.current?.focus());
+    requestAnimationFrame(() => firstRef.current?.focus({ preventScroll: true }));
   }
 
   const origPayer = editing && users.find((u) => u.id === editing.paid_by);
@@ -163,7 +213,7 @@ export default function AddMovementDialog({ editing, onClose }: {
 
   return (
     <Modal title={title} onClose={onClose}>
-      <form onSubmit={submit} className="flex flex-col gap-2.5">
+      <form onSubmit={submit} className="flex flex-col gap-2">
         {completing && (
           <p className="rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-[13px] leading-snug text-ink-2">
             Se carga un <span className="font-semibold text-ink">movimiento nuevo</span> por la parte que falta.
@@ -174,7 +224,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           </p>
         )}
         {/* El monto manda: input display grande + moneda al lado. */}
-        <div className="rounded-xl border border-border bg-surface-2/50 p-3">
+        <div className="rounded-xl border border-border bg-surface-2/50 p-2.5">
           <Label>Monto</Label>
           <div className="mt-1 flex items-center gap-3">
             <input
@@ -184,7 +234,7 @@ export default function AddMovementDialog({ editing, onClose }: {
               aria-label="Monto"
               value={amount}
               onChange={(e) => setAmount(sanitizeAmountInput(e.target.value))}
-              className="w-full min-w-0 bg-transparent font-display text-3xl leading-none text-ink outline-none font-tabular placeholder:text-ink-faint"
+              className="w-full min-w-0 bg-transparent font-display text-3xl leading-none tracking-[-0.02em] text-ink outline-none font-tabular placeholder:text-ink-faint"
             />
             {/* wrapper de ancho fijo: el Select base trae w-full */}
             <div className="w-24 shrink-0">
@@ -205,9 +255,9 @@ export default function AddMovementDialog({ editing, onClose }: {
         </Field>
 
         {/* Categoría: chips con ícono, un toque; tocar de nuevo deselecciona. */}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           <Label>Categoría</Label>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1">
             {categories.map((c) => {
               const active = categoryId === String(c.id);
               const Icon = categoryIcon(c.name);
@@ -218,7 +268,7 @@ export default function AddMovementDialog({ editing, onClose }: {
                   onClick={() => setCategoryId(active ? "" : String(c.id))}
                   aria-pressed={active}
                   whileTap={{ scale: 0.94 }}
-                  className={`flex min-h-[34px] cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+                  className={`flex min-h-[32px] cursor-pointer items-center gap-1.5 rounded-full border px-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
                     active ? "" : "border-border bg-surface text-ink-2 hover:bg-surface-2"
                   }`}
                   style={active ? {
@@ -227,7 +277,7 @@ export default function AddMovementDialog({ editing, onClose }: {
                     borderColor: categoryColor(c.name),
                   } : undefined}
                 >
-                  <Icon size={14} strokeWidth={2} aria-hidden="true" />
+                  <Icon size={13} strokeWidth={2} aria-hidden="true" />
                   {c.name}
                 </motion.button>
               );
@@ -235,7 +285,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           <Label>Pagó</Label>
           <Segmented
             options={users.map((u) => ({ value: String(u.id), label: capitalize(u.username) }))}
@@ -244,7 +294,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           />
         </div>
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           <Label>División</Label>
           <Segmented options={SPLITS} value={split} onChange={setSplit} />
         </div>

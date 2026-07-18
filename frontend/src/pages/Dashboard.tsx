@@ -20,6 +20,7 @@ import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
 import Skeleton from "@/components/ui/Skeleton";
+import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { capitalize, formatUsd } from "@/lib/format";
 import { useMe } from "@/lib/useMe";
 import type { Category, Movement } from "@/types";
@@ -72,20 +73,22 @@ export default function Dashboard() {
 
       {/* Hero del viaje: el gasto total manda; el balance es secundario. */}
       <div className="animate-rise-in stagger-1">
-        {summary.data ? (
+        <SkeletonReveal ready={!!summary.data} skeleton={<Skeleton className="h-44" />}>
+          {() => (
           <Card className="relative overflow-hidden p-6 text-white hero-gradient soft-hero lg:p-7">
             <div className="spit-dots absolute inset-0" aria-hidden="true" />
+            <div className="hero-sheen absolute inset-0" aria-hidden="true" />
             <div className="relative">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
                 Mis gastos · todo el viaje
               </p>
-              <p className="mt-2 font-display text-6xl leading-none font-tabular lg:text-7xl">
-                <AnimatedUsd value={summary.data.total_usd} />
+              <p className="mt-2 font-display text-6xl leading-none tracking-[-0.02em] font-tabular lg:text-7xl">
+                <AnimatedUsd value={summary.data!.total_usd} />
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-white/85">
                 <span className="inline-flex items-center gap-1.5">
                   <Receipt size={15} strokeWidth={2} aria-hidden="true" />
-                  {summary.data.movement_count} movimiento{summary.data.movement_count === 1 ? "" : "s"}
+                  {summary.data!.movement_count} movimiento{summary.data!.movement_count === 1 ? "" : "s"}
                 </span>
                 {trip?.avg_per_day_usd && (
                   <span className="inline-flex items-center gap-1.5">
@@ -97,17 +100,16 @@ export default function Dashboard() {
               </div>
             </div>
           </Card>
-        ) : (
-          <Skeleton className="h-44" />
-        )}
+          )}
+        </SkeletonReveal>
       </div>
 
       <div className="animate-rise-in stagger-2">
-        {balance.data ? (
-          <BalanceHero balance={balance.data} names={names} myId={me.data?.id} onSettle={() => setSettle(true)} />
-        ) : (
-          <Skeleton className="h-20" />
-        )}
+        <SkeletonReveal ready={!!balance.data} skeleton={<Skeleton className="h-20" />}>
+          {() => (
+            <BalanceHero balance={balance.data!} names={names} myId={me.data?.id} onSettle={() => setSettle(true)} />
+          )}
+        </SkeletonReveal>
       </div>
 
       <div className="animate-rise-in stagger-3">
