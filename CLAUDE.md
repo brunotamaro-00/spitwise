@@ -192,6 +192,7 @@ Reglas del bot:
 - Números en es-AR (`1.234,5`) — mismo criterio en backend `render.ar_number` y frontend `lib/format.ts`.
 - Q&A: tools en `qa/tools.py`; **delete nunca es directo** — crea pending + botones de confirmación.
 - Split por defecto shared; cambio de split vía NL (`edit`) o botones legacy `split_*`.
+- **Corrección de gasto reciente** (`editor.recent_movement` + `describe_recent`): tras cargar un gasto, el parser recibe ese último gasto como contexto (`last_expense`, ventana `EDIT_RECENT_TTL_MINUTES`, default 15). Una corrección natural sin monto nuevo (_contalo solo para katia_, _era en Paris_, _fueron 45_, _pagó bruno_, _es transporte_) se clasifica `edit` con `ref_last` y edita ese movimiento. Red de seguridad en `dispatcher`: un `expense` sin monto con un gasto fresco a la vista no da dead-end ("no le pesqué el monto") sino que guía a corregir el último.
 
 ## Frontend
 

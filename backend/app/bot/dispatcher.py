@@ -114,11 +114,15 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
         return await quick.handle_total(session, user)
 
     from app.llm.parser import parse_message
+    from app.bot.editor import describe_recent, recent_movement
     users = await all_users(session)
+    # Gasto recién cargado como contexto: el bot espera una posible corrección.
+    recent = await recent_movement(session, ttl_minutes=get_settings().edit_recent_ttl_minutes)
     parsed = await parse_message(
         stripped, today=today, categories=await load_categories(session),
         usernames=[u.username for u in users], sender=user.username, client=llm_client,
         city_names=await load_city_names(session),
+        last_expense=await describe_recent(session, recent) if recent else None,
     )
 
     if parsed.intent == "edit":
@@ -135,6 +139,16 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
         if await has_fresh_history(session, wa_id):
             return await handle_question(session, user, wa_id, stripped, today, chat_client=chat_client)
         return unknown_reply()
+    # Red de seguridad: un "gasto" sin monto justo después de cargar uno casi
+    # nunca es un gasto nuevo — es una corrección que el parser no pescó. En vez
+    # del dead-end "no le pesqué el monto", guiá hacia editar el último.
+    if parsed.intent == "expense" and parsed.amount is None and not parsed.batch and recent is not None:
+        return text_reply(
+            f"{copy.H_HUH} ¿Querías corregir *{recent.description or 'el último gasto'}* "
+            f"({await describe_recent(session, recent)})?\n"
+            "Decime qué cambiar: _solo katia_ · _fueron 45_ · _en Paris_ · "
+            "_pagó bruno_ · _es transporte_."
+        )
     return await handle_capture(session, user, wa_id, text, today, parsed=parsed)
 
 

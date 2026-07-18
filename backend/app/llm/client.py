@@ -64,6 +64,19 @@ _SYSTEM = (
     "otra cosa. Los campos sueltos (amount, category, …) llevan el PRIMER ítem. "
     "Con UN solo gasto, `expenses` queda VACÍO. NO inventes ítems: partí SOLO "
     "cuando hay montos separados; 'cena 40 con vino' es UN gasto de 40.\n\n"
+    "CORRECCIÓN DE UN GASTO RECIÉN CARGADO: si abajo se te da un 'Último gasto', "
+    "{sender} acaba de cargarlo y este mensaje puede ser una corrección. Si el "
+    "mensaje NO carga un gasto nuevo (no trae un monto propio junto a algo "
+    "comprado) y en cambio ajusta uno de sus campos —monto, moneda, ciudad, "
+    "categoría, división o quién pagó—, es intent='edit' con ref_last=true y solo "
+    "los new_* que cambian. Ejemplos (Último gasto = 'tren · USD 39 · Pititas · "
+    "pagó Katia · 50/50'): 'no, contalo solo para katia' → edit, "
+    "new_split='payer_only' (Katia pagó, es de ella); 'ponelo solo de bruno' → "
+    "edit, new_split='other_only'; 'era en Paris' → edit, new_city='Paris'; "
+    "'fueron 45' → edit, new_amount='45'; 'en realidad pagó bruno' → edit, "
+    "new_paid_by='bruno'; 'es transporte' → edit, new_category='Transporte'. "
+    "Pero si trae un gasto nuevo con su propio monto ('café 5'), es expense, NO "
+    "edit. Sin 'Último gasto' abajo, no apliques esta regla.\n\n"
     "Para edit/delete extraé la referencia al movimiento:\n"
     "- ref_last: true si se refiere al último movimiento o no da ninguna referencia.\n"
     "- ref_text: palabras que identifican el movimiento ('cena', 'museo'), o null.\n"
@@ -143,13 +156,21 @@ def _render_cities(city_names) -> str:
     return f"Paradas del itinerario: {', '.join(city_names)}.\n"
 
 
+def _render_last_expense(last_expense) -> str:
+    """El gasto recién cargado (si sigue fresco). Habilita la regla de corrección."""
+    if not last_expense:
+        return ""
+    return f"Último gasto cargado (puede que este mensaje lo corrija): {last_expense}.\n"
+
+
 def _render_user(text: str, today: date, category_names: list[str], usernames: list[str],
-                 sender: str, categories=None, city_names=None) -> str:
+                 sender: str, categories=None, city_names=None, last_expense=None) -> str:
     other = next((u for u in usernames if u != sender), sender)
     return (
         f"Hoy es {today.isoformat()}.\n"
         f"{_render_categories(category_names, categories)}\n"
         f"{_render_cities(city_names)}"
+        f"{_render_last_expense(last_expense)}"
         f"Escribe: {sender}. La otra persona es {other} "
         f"('yo'→{sender}; 'él'→bruno, 'ella'→katia si existen esos usuarios).\n"
         f"Mensaje: {text}"
@@ -177,7 +198,7 @@ class AnthropicLLM:
         self._model = s.anthropic_model  # claude-haiku-4-5
 
     async def parse(self, text, *, today, category_names, usernames, sender, categories=None,
-                    city_names=None) -> dict:
+                    city_names=None, last_expense=None) -> dict:
         resp = await self._client.messages.parse(
             model=self._model,
             max_tokens=1024,
@@ -185,7 +206,8 @@ class AnthropicLLM:
             system=[{"type": "text", "text": _render_system(usernames, sender),
                      "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": _render_user(
-                text, today, category_names, usernames, sender, categories, city_names
+                text, today, category_names, usernames, sender, categories, city_names,
+                last_expense,
             )}],
             output_format=ParsedMessageSchema,
         )
@@ -207,13 +229,14 @@ class OpenAILLM:
         self._model = s.openai_model
 
     async def parse(self, text, *, today, category_names, usernames, sender, categories=None,
-                    city_names=None) -> dict:
+                    city_names=None, last_expense=None) -> dict:
         resp = await self._client.chat.completions.parse(
             model=self._model,
             messages=[
                 {"role": "system", "content": _render_system(usernames, sender)},
                 {"role": "user", "content": _render_user(
-                    text, today, category_names, usernames, sender, categories, city_names
+                    text, today, category_names, usernames, sender, categories, city_names,
+                    last_expense,
                 )},
             ],
             response_format=ParsedMessageSchema,

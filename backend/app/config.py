@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     qa_max_iterations: int = 5  # la mayoría de consultas se resuelven en 1-2 tool-calls
     qa_history_max_turns: int = 8  # turnos (pregunta+respuesta) que se recuerdan
     qa_history_ttl_minutes: int = 60
+    # Ventana en la que un gasto recién cargado sigue siendo "corregible": el
+    # parser recibe ese último gasto como contexto para pescar correcciones
+    # naturales ('contalo solo para katia', 'era en Paris') como edit.
+    edit_recent_ttl_minutes: int = 15
 
     # WhatsApp Cloud — usado en Plan 3
     whatsapp_access_token: str = ""

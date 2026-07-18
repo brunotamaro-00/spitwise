@@ -130,13 +130,16 @@ def _normalize_expense(raw: dict, category_names, usernames) -> ParsedMessage:
 async def parse_message(
     text, *, today: date, category_names: list[str] | None = None, usernames: list[str],
     sender: str, client=None, categories: list[tuple[str, str | None]] | None = None,
-    city_names: list[str] | None = None,
+    city_names: list[str] | None = None, last_expense: str | None = None,
 ) -> ParsedMessage:
     """`categories` = [(nombre, descripción)] para enriquecer el prompt; si no viene,
     alcanza con `category_names` (API vieja, usada en tests).
 
     `city_names` = paradas del itinerario: sin ellas el LLM solo reconoce ciudades
     por cultura general y se pierde las de nombre propio (Pititas, Highlands…).
+
+    `last_expense` = resumen del gasto recién cargado (si sigue fresco): permite
+    pescar correcciones naturales ('contalo solo para katia') como intent='edit'.
     """
     if categories is not None:
         category_names = [n for n, _ in categories]
@@ -147,7 +150,7 @@ async def parse_message(
         client = make_llm()
     raw = await client.parse(
         text, today=today, category_names=category_names, usernames=usernames,
-        sender=sender, categories=categories, city_names=city_names,
+        sender=sender, categories=categories, city_names=city_names, last_expense=last_expense,
     )
 
     intent = raw.get("intent")

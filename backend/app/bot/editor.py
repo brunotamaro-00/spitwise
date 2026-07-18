@@ -1,5 +1,5 @@
 import unicodedata
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,39 @@ from app.db.models import Category, Movement, User
 from app.fx import convert_to_usd
 
 _SEARCH_LIMIT = 50  # movimientos recientes donde buscar referencias
+
+
+async def recent_movement(session: AsyncSession, *, ttl_minutes: int) -> Movement | None:
+    """El último gasto cargado, si es lo bastante fresco como para esperar una
+    corrección. Sirve de contexto al parser: apenas guardado, un mensaje que ajusta
+    monto/ciudad/categoría/división/pagador casi seguro lo corrige, no carga uno nuevo.
+
+    Solo gastos (los settlements no tienen las 5 dimensiones corregibles). El corte
+    es por created_at UTC-naive, igual criterio que find_candidates."""
+    cutoff = datetime.utcnow() - timedelta(minutes=ttl_minutes)
+    return (await session.execute(
+        select(Movement).where(Movement.type == "expense", Movement.created_at >= cutoff)
+        .order_by(Movement.id.desc()).limit(1)
+    )).scalars().first()
+
+
+async def describe_recent(session: AsyncSession, mv: Movement) -> str:
+    """Resumen compacto del último gasto para el prompt del parser (una línea)."""
+    payer = (await _payer_name(session, mv)).capitalize()
+    other = await other_user(session, (await session.execute(
+        select(User).where(User.id == mv.paid_by))).scalar_one())
+    other_name = other.username.capitalize() if other else "el otro"
+    parts = [
+        mv.description or "gasto",
+        f"{mv.currency} {ar_number(mv.amount)}",
+        mv.city_name or "sin ciudad",
+        f"pagó {payer}",
+        split_label(mv.split, payer, other_name),
+    ]
+    cat = await _cat_name(session, mv)
+    if cat:
+        parts.append(f"categoría {cat}")
+    return " · ".join(parts)
 
 
 def _fold(s: str) -> str:
