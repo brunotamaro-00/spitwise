@@ -4,6 +4,10 @@ import { QueryClient } from "@tanstack/react-query";
 /** Offline-first: queries en localStorage. gcTime >= maxAge. */
 export const PERSIST_MAX_AGE = 1000 * 60 * 60 * 24 * 7; // 7 días
 export const QUERY_CACHE_KEY = "spitwise-query-cache";
+/** Subir cuando cambia forma/contenido de datos cacheados (ej. rename de categoría).
+ *  Forma parte del `buster` de PersistQueryClient: al cambiar, se descarta la
+ *  caché restaurada en todos los clientes sin pedir logout. */
+export const CACHE_SCHEMA_VERSION = "2";
 
 export const queryClient = new QueryClient({
   defaultOptions: { queries: { gcTime: PERSIST_MAX_AGE } },

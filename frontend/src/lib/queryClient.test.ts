@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { authCacheBuster, QUERY_CACHE_KEY, resetSessionCache } from "./queryClient";
+import {
+  authCacheBuster,
+  CACHE_SCHEMA_VERSION,
+  QUERY_CACHE_KEY,
+  resetSessionCache,
+} from "./queryClient";
 
 function jwtFor(sub: string): string {
   const payload = btoa(JSON.stringify({ sub, exp: 9999999999 }));
@@ -19,6 +24,10 @@ describe("authCacheBuster", () => {
   it("lee el sub del JWT", () => {
     localStorage.setItem("auth_token", jwtFor("Katia"));
     expect(authCacheBuster()).toBe("katia");
+  });
+
+  it("CACHE_SCHEMA_VERSION es un string no vacío (buster de PersistQueryClient)", () => {
+    expect(CACHE_SCHEMA_VERSION.length).toBeGreaterThan(0);
   });
 });
 

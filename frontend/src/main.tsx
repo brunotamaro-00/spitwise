@@ -9,6 +9,7 @@ import App from "./App";
 import "./index.css";
 import {
   authCacheBuster,
+  CACHE_SCHEMA_VERSION,
   PERSIST_MAX_AGE,
   queryClient,
   queryPersister,
@@ -23,8 +24,8 @@ createRoot(document.getElementById("root")!).render(
       persistOptions={{
         persister: queryPersister,
         maxAge: PERSIST_MAX_AGE,
-        // Si cambia el usuario del JWT, la caché persistida se descarta al restaurar.
-        buster: authCacheBuster(),
+        // Usuario del JWT + schema: al cambiar cualquiera, se descarta la caché.
+        buster: `${authCacheBuster()}:${CACHE_SCHEMA_VERSION}`,
       }}
     >
       {/* reducedMotion="user": toda animación de motion respeta el ajuste del OS. */}
