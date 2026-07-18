@@ -163,7 +163,7 @@ export default function AddMovementDialog({ editing, onClose }: {
 
   return (
     <Modal title={title} onClose={onClose}>
-      <form onSubmit={submit} className="flex flex-col gap-3">
+      <form onSubmit={submit} className="flex flex-col gap-2.5">
         {completing && (
           <p className="rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-[13px] leading-snug text-ink-2">
             Se carga un <span className="font-semibold text-ink">movimiento nuevo</span> por la parte que falta.
@@ -174,7 +174,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           </p>
         )}
         {/* El monto manda: input display grande + moneda al lado. */}
-        <div className="rounded-xl border border-border bg-surface-2/50 p-3.5">
+        <div className="rounded-xl border border-border bg-surface-2/50 p-3">
           <Label>Monto</Label>
           <div className="mt-1 flex items-center gap-3">
             <input
@@ -184,7 +184,7 @@ export default function AddMovementDialog({ editing, onClose }: {
               aria-label="Monto"
               value={amount}
               onChange={(e) => setAmount(sanitizeAmountInput(e.target.value))}
-              className="w-full min-w-0 bg-transparent font-display text-4xl leading-none text-ink outline-none font-tabular placeholder:text-ink-faint"
+              className="w-full min-w-0 bg-transparent font-display text-3xl leading-none text-ink outline-none font-tabular placeholder:text-ink-faint"
             />
             {/* wrapper de ancho fijo: el Select base trae w-full */}
             <div className="w-24 shrink-0">
