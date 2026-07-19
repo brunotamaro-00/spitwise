@@ -71,6 +71,13 @@ class Movement(Base):
     # Los movimientos nacidos de un mismo mensaje multi-gasto comparten clave
     # (interno del bot: habilita "borrar" del batch completo).
     batch_key: Mapped[str | None] = mapped_column(String(16))
+    # Fecha en que se paga/pagó el gasto. NULL = el día de carga (caso normal).
+    payment_date: Mapped[date | None] = mapped_column(Date)
+    # confirmed | pending. pending = payment_date futura con TC proxy; la
+    # liquidación lazy (app/due.py) lo confirma con el TC real de esa fecha.
+    # Columna real (no derivada de la fecha): un pending vencido con Frankfurter
+    # caído sigue pending hasta poder liquidarse.
+    status: Mapped[str] = mapped_column(String(12), server_default=text("'confirmed'"), index=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

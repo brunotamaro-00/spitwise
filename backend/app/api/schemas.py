@@ -75,6 +75,8 @@ class MovementOut(BaseModel):
     category_id: int | None
     stop_slug: str | None
     city_name: str | None
+    payment_date: date | None
+    status: str
     created_at: datetime
 
     @field_serializer("amount", "amount_usd", "fx_rate")

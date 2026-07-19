@@ -14,6 +14,15 @@ _TWO = Decimal("0.01")
 _SIX = Decimal("0.000001")
 
 
+def fx_reference_date(payment_date: date | None, today: date) -> date:
+    """Fecha cuyo TC aplica a un movimiento: payment_date pasada → esa (histórico
+    Frankfurter, ya cacheado por fecha en FxRate); futura o NULL → hoy (TC proxy
+    de la fecha de carga, la regla de siempre). Limitación ARS: dolarapi solo
+    publica MEP vivo, así que un movimiento en ARS siempre usa la tasa del día
+    en que se procesa (get_rate_to_usd fuerza cache_date=today)."""
+    return min(payment_date or today, today)
+
+
 async def _cached_rate(session: AsyncSession, currency: str, on_date: date) -> Decimal | None:
     row = (
         await session.execute(

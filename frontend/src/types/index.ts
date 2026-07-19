@@ -3,6 +3,7 @@ export type Movement = {
   fx_rate: string; fx_source: string; paid_by: number; split: string;
   description: string | null; category_id: number | null;
   stop_slug: string | null; city_name: string | null;
+  payment_date: string | null; status: string;
   created_at: string;
 };
 export type Balance = { debtor_id: number | null; creditor_id: number | null; amount_usd: string };
