@@ -101,7 +101,7 @@ script espeja `webhook.process_message` (stops → due → **dispatch**) con LLM
 | Runner | `backend/scripts/bot_scenario_runner.py` |
 | Transcript de la última corrida | `backend/scripts/bot_scenarios.md` |
 | Suite crítica (default, **10**) | `SUITE_CRITICAL` — óptima para **una** sesión Claude/Fable |
-| Extras de valor (**4**) | `CONVERSATIONS_EXTRA` — con `--all` / `--only` |
+| Extras de valor (**5**) | `CONVERSATIONS_EXTRA` — con `--all` / `--only` |
 
 **Default = 10 críticas** (cuotas, batch+split, day-trip, pending+saldo, corrección
 corta, delete, settlement, batch+borrar, Pititas owner, moneda). Cada escenario
@@ -117,7 +117,7 @@ cd backend
 # Suite crítica (10)
 .venv/bin/python scripts/bot_scenario_runner.py
 
-# Crítica + 4 extras (14)
+# Crítica + 5 extras (15)
 .venv/bin/python scripts/bot_scenario_runner.py --all
 
 # Subconjunto

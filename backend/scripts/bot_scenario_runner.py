@@ -13,7 +13,7 @@ Uso (desde backend/):
     # Default: suite crítica (10) — óptima para una sesión Claude/Fable
     .venv/bin/python scripts/bot_scenario_runner.py
 
-    # Crítica + 4 extras de valor (14)
+    # Crítica + 5 extras de valor (15)
     .venv/bin/python scripts/bot_scenario_runner.py --all
 
     # Subconjunto del catálogo unificado
@@ -330,12 +330,32 @@ CONVERSATIONS_EXTRA: list[Conversation] = [
         ],
         fix_in="llm/client.py (settlement dirección) · bot/capture.py · bot/quick.py",
     ),
+    Conversation(
+        name="Multi-hostel con seña USD + resto en moneda local",
+        goal="Mensaje real: varios hostels, cada uno con seña en USD hoy y resto en GBP a la fecha de ingreso, más uno simple con fecha.",
+        turns=[
+            Turn(BRUNO_WA,
+                 "34 usd Hostel Fort William hoy. El resto (134 GBP) a pagar al ingresar "
+                 "(12 de septiembre)\n\n"
+                 "94 USD Hostel Portree hoy. El resto (70 GBP) a pagar al ingresar "
+                 "(15 de septiembre)\n\n"
+                 "Hostel ClinkMama 403 euros el 25 de agosto en Lisboa",
+                 note="multi-hostel etapas mixtas"),
+        ],
+        expect_hints=[
+            "5 movimientos, un solo batch_key: FW 34 USD confirmed hoy + FW 134 GBP pending 12/09; "
+            "Portree 94 USD confirmed + 70 GBP pending 15/09; ClinkMama 403 EUR pending 25/08",
+            "FAIL histórico: se pierden las etapas GBP (solo quedan las señas USD) o cada etapa nace como gasto suelto sin (i/n)",
+            "Ciudades: Fort William / Portree / Lisboa (paradas reales); montos GBP con TC proxy de hoy",
+        ],
+        fix_in="llm/client.py (installments por ítem + currency) · bot/capture.py (expand_installments modo directo)",
+    ),
 ]
 
-# Catálogo unificado: índices 1..10 = crítica, 11..14 = extra.
+# Catálogo unificado: índices 1..10 = crítica, 11..15 = extra.
 CONVERSATIONS: list[Conversation] = SUITE_CRITICAL + CONVERSATIONS_EXTRA
 assert len(SUITE_CRITICAL) == N_CRITICAL
-assert len(CONVERSATIONS_EXTRA) == 4
+assert len(CONVERSATIONS_EXTRA) == 5
 assert len(CONVERSATIONS) == N_CRITICAL + len(CONVERSATIONS_EXTRA)
 
 
@@ -358,6 +378,10 @@ async def seed(session: AsyncSession) -> None:
         Stop(slug="pititas", order=5, name="Pititas", arrival_date=date(2026, 9, 4),
              departure_date=date(2026, 9, 12), currency_code="EUR", timezone="Europe/Paris",
              is_local=True, owner_username="katia", country_flag="😊"),
+        Stop(slug="fort-william", order=6, name="Fort William", arrival_date=date(2026, 9, 12),
+             departure_date=date(2026, 9, 15), currency_code="GBP", timezone="Europe/London"),
+        Stop(slug="portree", order=7, name="Portree", arrival_date=date(2026, 9, 15),
+             departure_date=date(2026, 9, 18), currency_code="GBP", timezone="Europe/London"),
     ])
 
     fx_dates = {
@@ -562,7 +586,7 @@ def render_md(
         "",
         "> **Auto-generado** por `scripts/bot_scenario_runner.py`.",
         "> Cada corrida **borra y reemplaza** este archivo (no acumula historial).",
-        "> Catálogo: `SUITE_CRITICAL` (1–10) + `CONVERSATIONS_EXTRA` (11–14) en el script.",
+        "> Catálogo: `SUITE_CRITICAL` (1–10) + `CONVERSATIONS_EXTRA` (11–15) en el script.",
         "",
         f"- Corrida: `{started_at.isoformat(timespec='seconds')}`",
         f"- Suite: **{suite_label}**",
@@ -675,7 +699,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Correr escenarios del bot WPP (sin Meta).")
     p.add_argument(
         "--all", action="store_true",
-        help="correr crítica + 4 extras (14)",
+        help="correr crítica + 5 extras (15)",
     )
     p.add_argument("--from", dest="from_n", type=int, default=None,
                    help="primer escenario (1-based) del catálogo unificado")

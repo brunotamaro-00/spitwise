@@ -39,6 +39,7 @@ class Installment:
     percent: Decimal | None = None  # 0..100
     amount: Decimal | None = None  # monto explícito de la etapa
     pay_date: date | None = None  # None = hoy
+    currency: str | None = None  # ISO si la etapa tiene moneda propia (seña USD + resto GBP)
 
 
 @dataclass
@@ -136,6 +137,21 @@ def normalize_changes(raw: dict, category_names, usernames) -> dict:
     return changes
 
 
+def _norm_installments(raw_list) -> list[Installment]:
+    """Etapas crudas → Installment. La validación y los montos finales son del
+    server (capture.expand_installments), nunca de la aritmética del LLM."""
+    return [
+        Installment(
+            percent=_to_decimal(it.get("percent")),
+            amount=_to_decimal(it.get("amount")),
+            pay_date=_to_date(it.get("date")),
+            currency=_norm_currency(it.get("currency")),
+        )
+        for it in (raw_list or [])
+        if isinstance(it, dict)
+    ]
+
+
 def _normalize_expense(raw: dict, category_names, usernames, sender: str | None = None) -> ParsedMessage:
     """Normaliza un gasto/settlement (flat o ítem de `expenses`) a ParsedMessage."""
     intent = "settlement" if raw.get("kind") == "settlement" else "expense"
@@ -153,6 +169,7 @@ def _normalize_expense(raw: dict, category_names, usernames, sender: str | None 
         split = raw.get("split")
         if split not in _VALID_SPLIT:
             split = "shared"
+    insts = _norm_installments(raw.get("installments")) if intent == "expense" else []
     return ParsedMessage(
         intent=intent,
         amount=_to_decimal(raw.get("amount")),
@@ -165,6 +182,7 @@ def _normalize_expense(raw: dict, category_names, usernames, sender: str | None 
         city=(str(raw.get("city")).strip() if raw.get("city") else None),
         confidence=float(raw.get("confidence", 1.0)),
         category_candidates=[c for c in (raw.get("candidates") or []) if c in category_names],
+        installments=insts if len(insts) >= 2 else [],
     )
 
 
@@ -214,19 +232,8 @@ async def parse_message(
             if (p := _normalize_expense(it, category_names, usernames, sender)).amount is not None
         ]
         if len(items) >= 2:
+            # Cada ítem lleva sus propias etapas (installments); el flat espeja
+            # al primero, así que sus etapas sueltas se descartan.
             parsed.batch = items
-        # Etapas de pago: se normalizan crudas; la validación y los montos son
-        # del server (capture.expand_installments). Solo aplica al gasto flat.
-        if not parsed.batch:
-            insts = [
-                Installment(
-                    percent=_to_decimal(it.get("percent")),
-                    amount=_to_decimal(it.get("amount")),
-                    pay_date=_to_date(it.get("date")),
-                )
-                for it in (raw.get("installments") or [])
-                if isinstance(it, dict)
-            ]
-            if len(insts) >= 2:
-                parsed.installments = insts
+            parsed.installments = []
     return parsed

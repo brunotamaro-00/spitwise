@@ -2,13 +2,13 @@
 
 > **Auto-generado** por `scripts/bot_scenario_runner.py`.
 > Cada corrida **borra y reemplaza** este archivo (no acumula historial).
-> Catálogo: `SUITE_CRITICAL` (1–10) + `CONVERSATIONS_EXTRA` (11–14) en el script.
+> Catálogo: `SUITE_CRITICAL` (1–10) + `CONVERSATIONS_EXTRA` (11–15) en el script.
 
-- Corrida: `2026-07-19T12:46:34-03:00`
-- Suite: **catálogo completo (14)**
+- Corrida: `2026-07-19T20:13:37-03:00`
+- Suite: **catálogo completo (15)**
 - provider=`openai` parser=`gpt-5-mini` chat=`gpt-5-mini`
 - Hoy ficticio: `2026-08-20` (parada activa: Lisboa)
-- Escenarios corridos: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 (14 conversaciones)
+- Escenarios corridos: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 (15 conversaciones)
 - Latencia: fases espejo de `process_message` (stops → due → dispatch); Meta send/typing **no** medidos
 
 ---
@@ -26,15 +26,15 @@
 
 **Bruno:** hostel interlaken 430 chf, 30% hoy y el resto al check-in el 3 de septiembre _cuotas_
 
-**Latencia:** dispatch 5.2s · stops 0.0s · due 0.0s · **total 5.2s** (sin Meta send)
+**Latencia:** dispatch 4.2s · stops 0.0s · due 0.0s · **total 4.2s** (sin Meta send)
 
 **Bot:**
 
 ```
 ✅ *2 gastos guardados* · 📍 Interlaken · 👤 Pagó Bruno
 
-- 🏨 Hostel (1/2) · CHF 129,0 → USD 154,8
-- 🏨 Hostel (2/2) · CHF 301,0 → USD 361,2 · 📅 03/09
+- 🏨 Hostel Interlaken (1/2) · CHF 129,0 → USD 154,8
+- 🏨 Hostel Interlaken (2/2) · CHF 301,0 → USD 361,2 · 📅 03/09
 
 💰 Total: *USD 516,0*
 ⚖️ *Katia* le debe *USD 77,4* por esto
@@ -48,24 +48,24 @@
 #2 expense 60.00 EUR usd=66.00 desc='Cena Lisboa' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=None
 #3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 129.00 CHF usd=154.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 301.00 CHF usd=361.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
+#5 expense 129.00 CHF usd=154.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 301.00 CHF usd=361.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
 ```
 
 </details>
 
 **Bruno:** no, el total era 480 no 430 _edit monto del batch_
 
-**Latencia:** dispatch 3.0s · stops 0.0s · due 0.0s · **total 3.0s** (sin Meta send)
+**Latencia:** dispatch 2.9s · stops 0.0s · due 0.0s · **total 2.9s** (sin Meta send)
 
 **Bot:**
 
 ```
-✏️ *Editado* · _Hostel_
+✏️ *Editado* · _Hostel Interlaken_
 
 💰 Total: CHF 430,0 → *CHF 480,0*
-- Hostel (1/2) · CHF 144,0 → USD 172,8
-- Hostel (2/2) · CHF 336,0 → USD 403,2 · 📅 03/09
+- Hostel Interlaken (1/2) · CHF 144,0 → USD 172,8
+- Hostel Interlaken (2/2) · CHF 336,0 → USD 403,2 · 📅 03/09
 ```
 
 <details><summary>DB (últimos)</summary>
@@ -75,8 +75,8 @@
 #2 expense 60.00 EUR usd=66.00 desc='Cena Lisboa' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=None
 #3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
 ```
 
 </details>
@@ -96,7 +96,7 @@
 
 **Bruno:** en Roma ayer: cena 45 euros pagó katia, taxi 12 solo mío, helado 5 _batch 3 ítems_
 
-**Latencia:** dispatch 6.3s · stops 0.0s · due 0.0s · **total 6.4s** (sin Meta send)
+**Latencia:** dispatch 5.0s · stops 0.0s · due 0.0s · **total 5.0s** (sin Meta send)
 
 **Bot:**
 
@@ -118,18 +118,18 @@
 #2 expense 60.00 EUR usd=66.00 desc='Cena Lisboa' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=None
 #3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=payer_only paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=payer_only paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 ```
 
 </details>
 
 **Bruno:** el taxi en realidad era compartido _edit split taxi_
 
-**Latencia:** dispatch 3.5s · stops 0.0s · due 0.0s · **total 3.5s** (sin Meta send)
+**Latencia:** dispatch 3.0s · stops 0.0s · due 0.0s · **total 3.0s** (sin Meta send)
 
 **Bot:**
 
@@ -145,11 +145,11 @@
 #2 expense 60.00 EUR usd=66.00 desc='Cena Lisboa' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=None
 #3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 ```
 
 </details>
@@ -169,7 +169,7 @@
 
 **Bruno:** paseo a sintra 28 euros _daytrip → Lisboa_
 
-**Latencia:** dispatch 3.2s · stops 0.0s · due 0.0s · **total 3.2s** (sin Meta send)
+**Latencia:** dispatch 2.6s · stops 0.0s · due 0.0s · **total 2.6s** (sin Meta send)
 
 **Bot:**
 
@@ -189,11 +189,11 @@
 ```
 #3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=shared paid_by=bruno cat=Actividades pay=None status=confirmed batch=None
 ```
 
@@ -201,7 +201,7 @@
 
 **Bruno:** en realidad lo pagó katia y es solo de ella _edit paid_by + split_
 
-**Latencia:** dispatch 3.2s · stops 0.0s · due 0.0s · **total 3.2s** (sin Meta send)
+**Latencia:** dispatch 2.9s · stops 0.0s · due 0.0s · **total 2.9s** (sin Meta send)
 
 **Bot:**
 
@@ -217,11 +217,11 @@
 ```
 #3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 ```
 
@@ -229,12 +229,12 @@
 
 **Bruno:** ¿cuánto le debo a katia por ese paseo? _Q&A_
 
-**Latencia:** dispatch 9.8s · stops 0.0s · due 0.0s · **total 9.9s** (sin Meta send)
+**Latencia:** dispatch 7.9s · stops 0.0s · due 0.0s · **total 7.9s** (sin Meta send)
 
 **Bot:**
 
 ```
-El Paseo del *19/07* fue *USD 30,8* y está marcado *solo katia*, así que no le debés nada: 💸 *USD 0,0*.
+Ese paseo fue *USD 30,8* y lo pagó *katia* · fue *solo katia*, así que *no le debés nada*. 💸
 ```
 
 <details><summary>DB (últimos)</summary>
@@ -242,11 +242,11 @@ El Paseo del *19/07* fue *USD 30,8* y está marcado *solo katia*, así que no le
 ```
 #3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 ```
 
@@ -267,7 +267,7 @@ El Paseo del *19/07* fue *USD 30,8* y está marcado *solo katia*, así que no le
 
 **Bruno:** entrada al louvre 44 eur, se paga el 15 de septiembre en paris _pending futuro_
 
-**Latencia:** dispatch 5.1s · stops 0.0s · due 0.0s · **total 5.1s** (sin Meta send)
+**Latencia:** dispatch 3.6s · stops 0.0s · due 0.0s · **total 3.6s** (sin Meta send)
 
 **Bot:**
 
@@ -286,11 +286,11 @@ El Paseo del *19/07* fue *USD 30,8* y está marcado *solo katia*, así que no le
 
 ```
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-09-15 status=pending batch=None
 ```
@@ -299,24 +299,24 @@ El Paseo del *19/07* fue *USD 30,8* y está marcado *solo katia*, así que no le
 
 **Bruno:** eso del louvre, ¿ya entra en el saldo o todavía no? _Q&A pending vs balance_
 
-**Latencia:** dispatch 9.3s · stops 0.0s · due 0.0s · **total 9.3s** (sin Meta send)
+**Latencia:** dispatch 9.9s · stops 0.0s · due 0.0s · **total 9.9s** (sin Meta send)
 
 **Bot:**
 
 ```
-No — el Louvre está *PENDIENTE* y se paga el *15/09* 📅, así que todavía no entra al saldo. El importe pendiente: *USD 48,4*.  
-💸 Saldo actual: *katia le debe USD 10,5 a bruno*.
+No, todavía no — está pendiente hasta el *15/09*. 💸  
+Fue *USD 48,4* · pagó *bruno* · reparto *50/50* — cuando se confirme el pago entra al saldo.
 ```
 
 <details><summary>DB (últimos)</summary>
 
 ```
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-09-15 status=pending batch=None
 ```
@@ -325,7 +325,7 @@ No — el Louvre está *PENDIENTE* y se paga el *15/09* 📅, así que todavía 
 
 **Bruno:** ok, poné que se paga hoy _edit payment_date_
 
-**Latencia:** dispatch 3.4s · stops 0.0s · due 0.0s · **total 3.4s** (sin Meta send)
+**Latencia:** dispatch 2.7s · stops 0.0s · due 0.0s · **total 2.7s** (sin Meta send)
 
 **Bot:**
 
@@ -339,11 +339,11 @@ No — el Louvre está *PENDIENTE* y se paga el *15/09* 📅, así que todavía 
 
 ```
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 ```
@@ -365,7 +365,7 @@ No — el Louvre está *PENDIENTE* y se paga el *15/09* 📅, así que todavía 
 
 **Katia:** tren 39 usd en pititas _carga_
 
-**Latencia:** dispatch 3.2s · stops 0.0s · due 0.0s · **total 3.2s** (sin Meta send)
+**Latencia:** dispatch 2.9s · stops 0.0s · due 0.0s · **total 2.9s** (sin Meta send)
 
 **Bot:**
 
@@ -382,11 +382,11 @@ No — el Louvre está *PENDIENTE* y se paga el *15/09* 📅, así que todavía 
 <details><summary>DB (últimos)</summary>
 
 ```
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
@@ -396,7 +396,7 @@ No — el Louvre está *PENDIENTE* y se paga el *15/09* 📅, así que todavía 
 
 **Katia:** no, contalo solo para katia _edit split corto_
 
-**Latencia:** dispatch 3.8s · stops 0.0s · due 0.0s · **total 3.8s** (sin Meta send)
+**Latencia:** dispatch 2.7s · stops 0.0s · due 0.0s · **total 2.7s** (sin Meta send)
 
 **Bot:**
 
@@ -407,11 +407,11 @@ Nada que cambiar: ya estaba así. 👌
 <details><summary>DB (últimos)</summary>
 
 ```
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
@@ -434,7 +434,7 @@ Nada que cambiar: ya estaba así. 👌
 
 **Bruno:** museo vaticano 25 eur en roma, solo de katia, pagó katia _carga_
 
-**Latencia:** dispatch 3.5s · stops 0.0s · due 0.0s · **total 3.5s** (sin Meta send)
+**Latencia:** dispatch 2.9s · stops 0.0s · due 0.0s · **total 2.9s** (sin Meta send)
 
 **Bot:**
 
@@ -451,10 +451,10 @@ Nada que cambiar: ya estaba así. 👌
 <details><summary>DB (últimos)</summary>
 
 ```
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
@@ -465,7 +465,7 @@ Nada que cambiar: ya estaba así. 👌
 
 **Bruno:** borrá el museo _delete NL_
 
-**Latencia:** dispatch 4.1s · stops 0.0s · due 0.0s · **total 4.1s** (sin Meta send)
+**Latencia:** dispatch 2.7s · stops 0.0s · due 0.0s · **total 2.7s** (sin Meta send)
 
 **Bot:**
 
@@ -473,17 +473,17 @@ Nada que cambiar: ya estaba así. 👌
 ⚠️ ¿Borrar este movimiento? Es irreversible.
 Museo Vaticano · EUR 25,0 · 19/07 · Roma · Pagó Katia
 [botones]
-  · Borrar 🗑️  (`del_confirm:Vy-vngy6DFYt_8zjhIgvL9rJ`)
+  · Borrar 🗑️  (`del_confirm:ePvTeBnFfn_FiZbS7ysqaman`)
   · Cancelar  (`del_cancel:0`)
 ```
 
 <details><summary>DB (últimos)</summary>
 
 ```
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
@@ -492,7 +492,7 @@ Museo Vaticano · EUR 25,0 · 19/07 · Roma · Pagó Katia
 
 </details>
 
-**Bruno:** [tap] `del_confirm:Vy-vngy6DFYt_8zjhIgvL9rJ` _confirmar_
+**Bruno:** [tap] `del_confirm:ePvTeBnFfn_FiZbS7ysqaman` _confirmar_
 
 **Latencia:** dispatch 0.0s · stops 0.0s · due 0.0s · **total 0.0s** (sin Meta send)
 
@@ -507,11 +507,11 @@ Museo Vaticano · EUR 25,0 · 19/07 · Roma · Pagó Katia
 <details><summary>DB (últimos)</summary>
 
 ```
-#5 expense 144.00 CHF usd=172.80 desc='Hostel (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=b8d92257f9828205
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=01d5158a00835f3c
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
@@ -533,7 +533,7 @@ Museo Vaticano · EUR 25,0 · 19/07 · Roma · Pagó Katia
 
 **Bruno:** le pasé 80 usd a katia por lo del hotel de paris _settlement_
 
-**Latencia:** dispatch 3.9s · stops 0.0s · due 0.0s · **total 3.9s** (sin Meta send)
+**Latencia:** dispatch 2.7s · stops 0.0s · due 0.0s · **total 2.7s** (sin Meta send)
 
 **Bot:**
 
@@ -548,14 +548,14 @@ Museo Vaticano · EUR 25,0 · 19/07 · Roma · Pagó Katia
 <details><summary>DB (últimos)</summary>
 
 ```
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 ```
 
 </details>
@@ -567,21 +567,22 @@ Museo Vaticano · EUR 25,0 · 19/07 · Roma · Pagó Katia
 **Bot:**
 
 ```
-💸 *Katia le debe USD 114,7 a bruno.*  
-⚠️ Además hay 1 gasto pendiente por *USD 403,2* (no cuenta en el saldo hasta su fecha: 03/09).
+*katia* le debe a *bruno* *USD 114,7*. 💸
+
+Hay además 1 gasto pendiente: *USD 403,2* (Hostel Interlaken) que se paga el *03/09* y NO entra al saldo hasta entonces. 📅
 ```
 
 <details><summary>DB (últimos)</summary>
 
 ```
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 ```
 
 </details>
@@ -601,7 +602,7 @@ Museo Vaticano · EUR 25,0 · 19/07 · Roma · Pagó Katia
 
 **Bruno:** en paris: metro 4 eur, croissant 3, agua 2 _batch 3_
 
-**Latencia:** dispatch 6.8s · stops 0.0s · due 0.0s · **total 6.8s** (sin Meta send)
+**Latencia:** dispatch 4.8s · stops 0.0s · due 0.0s · **total 4.8s** (sin Meta send)
 
 **Bot:**
 
@@ -620,14 +621,14 @@ Museo Vaticano · EUR 25,0 · 19/07 · Roma · Pagó Katia
 <details><summary>DB (últimos)</summary>
 
 ```
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-#14 expense 4.00 EUR usd=4.40 desc='Metro' city=Paris split=shared paid_by=bruno cat=Transporte pay=None status=confirmed batch=cb07427bbe738970
-#15 expense 3.00 EUR usd=3.30 desc='Croissant' city=Paris split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=cb07427bbe738970
-#16 expense 2.00 EUR usd=2.20 desc='Agua' city=Paris split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=cb07427bbe738970
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#14 expense 4.00 EUR usd=4.40 desc='Metro' city=Paris split=shared paid_by=bruno cat=Transporte pay=2026-08-20 status=confirmed batch=6f8398a321c7a7e0
+#15 expense 3.00 EUR usd=3.30 desc='Croissant' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=6f8398a321c7a7e0
+#16 expense 2.00 EUR usd=2.20 desc='Agua' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=6f8398a321c7a7e0
 ```
 
 </details>
@@ -644,27 +645,27 @@ Metro · EUR 4,0 · 19/07 · Paris · Pagó Bruno
 Croissant · EUR 3,0 · 19/07 · Paris · Pagó Bruno
 Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 [botones]
-  · Borrar los 3 🗑️  (`del_confirm:QSWh3DKvgCE3xCqeIyKWhJuI`)
-  · Solo el último  (`del_confirm:KZX0sMG_VstPIjJqu9C8PzVo`)
+  · Borrar los 3 🗑️  (`del_confirm:HDtpUaulQcZr03yho8whYqAE`)
+  · Solo el último  (`del_confirm:6tvecAxdQfnCaAyru49WgARN`)
   · Cancelar  (`del_cancel:0`)
 ```
 
 <details><summary>DB (últimos)</summary>
 
 ```
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-#14 expense 4.00 EUR usd=4.40 desc='Metro' city=Paris split=shared paid_by=bruno cat=Transporte pay=None status=confirmed batch=cb07427bbe738970
-#15 expense 3.00 EUR usd=3.30 desc='Croissant' city=Paris split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=cb07427bbe738970
-#16 expense 2.00 EUR usd=2.20 desc='Agua' city=Paris split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=cb07427bbe738970
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#14 expense 4.00 EUR usd=4.40 desc='Metro' city=Paris split=shared paid_by=bruno cat=Transporte pay=2026-08-20 status=confirmed batch=6f8398a321c7a7e0
+#15 expense 3.00 EUR usd=3.30 desc='Croissant' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=6f8398a321c7a7e0
+#16 expense 2.00 EUR usd=2.20 desc='Agua' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=6f8398a321c7a7e0
 ```
 
 </details>
 
-**Bruno:** [tap] `del_confirm:QSWh3DKvgCE3xCqeIyKWhJuI` _confirmar batch_
+**Bruno:** [tap] `del_confirm:HDtpUaulQcZr03yho8whYqAE` _confirmar batch_
 
 **Latencia:** dispatch 0.0s · stops 0.0s · due 0.0s · **total 0.0s** (sin Meta send)
 
@@ -681,14 +682,14 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 <details><summary>DB (últimos)</summary>
 
 ```
-#6 expense 336.00 CHF usd=403.20 desc='Hostel (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=b8d92257f9828205
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=01d5158a00835f3c
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 ```
 
 </details>
@@ -707,7 +708,7 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 
 **Bruno:** super 22 eur en pititas _owner default_
 
-**Latencia:** dispatch 3.5s · stops 0.0s · due 0.0s · **total 3.5s** (sin Meta send)
+**Latencia:** dispatch 2.4s · stops 0.0s · due 0.0s · **total 2.4s** (sin Meta send)
 
 **Bot:**
 
@@ -725,13 +726,13 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 <details><summary>DB (últimos)</summary>
 
 ```
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=other_only paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 ```
 
@@ -739,7 +740,7 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 
 **Bruno:** en realidad era compartido _edit → shared_
 
-**Latencia:** dispatch 3.3s · stops 0.0s · due 0.0s · **total 3.3s** (sin Meta send)
+**Latencia:** dispatch 2.8s · stops 0.0s · due 0.0s · **total 2.8s** (sin Meta send)
 
 **Bot:**
 
@@ -752,13 +753,13 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 <details><summary>DB (últimos)</summary>
 
 ```
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 ```
 
@@ -778,7 +779,7 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 
 **Bruno:** cena 40 usd en lisboa _USD explícito_
 
-**Latencia:** dispatch 3.5s · stops 0.0s · due 0.0s · **total 3.5s** (sin Meta send)
+**Latencia:** dispatch 2.8s · stops 0.0s · due 0.0s · **total 2.8s** (sin Meta send)
 
 **Bot:**
 
@@ -797,12 +798,12 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 <details><summary>DB (últimos)</summary>
 
 ```
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 USD usd=40.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
 ```
@@ -811,7 +812,7 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 
 **Bruno:** era en euros, no dólares _edit currency_
 
-**Latencia:** dispatch 4.0s · stops 0.0s · due 0.0s · **total 4.0s** (sin Meta send)
+**Latencia:** dispatch 3.0s · stops 0.0s · due 0.0s · **total 3.0s** (sin Meta send)
 
 **Bot:**
 
@@ -825,12 +826,12 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 <details><summary>DB (últimos)</summary>
 
 ```
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
 ```
@@ -851,34 +852,33 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 
 **Bruno:** me cobraron 35 eur en lisboa por aquello _categoría ambigua_
 
-**Latencia:** dispatch 3.9s · stops 0.0s · due 0.0s · **total 3.9s** (sin Meta send)
+**Latencia:** dispatch 2.9s · stops 0.0s · due 0.0s · **total 2.9s** (sin Meta send)
 
 **Bot:**
 
 ```
-🤔 ¿Qué categoría? _Cobro por aquello_ · *EUR 35,0 → USD 38,5*
+🤔 ¿Qué categoría? _Aquello_ · *EUR 35,0 → USD 38,5*
 [botones]
-  · 📦 Otros  (`cat_pick:NhnhYFK9lKYCy-c9QWTqfC2I|10`)
-  · 🍽️ Comida  (`cat_pick:NhnhYFK9lKYCy-c9QWTqfC2I|2`)
-  · 🎟️ Actividades  (`cat_pick:NhnhYFK9lKYCy-c9QWTqfC2I|5`)
+  · 🍽️ Comida  (`cat_pick:JrRwI1IJ9RK8X85MxobXi9H8|2`)
+  · 🎟️ Actividades  (`cat_pick:JrRwI1IJ9RK8X85MxobXi9H8|5`)
 ```
 
 <details><summary>DB (últimos)</summary>
 
 ```
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=1047044633e40848
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
 ```
 
 </details>
 
-**Bruno:** [tap] `cat_pick:NhnhYFK9lKYCy-c9QWTqfC2I|10` _tap 1.er candidato_
+**Bruno:** [tap] `cat_pick:JrRwI1IJ9RK8X85MxobXi9H8|2` _tap 1.er candidato_
 
 **Latencia:** dispatch 0.0s · stops 0.0s · due 0.0s · **total 0.0s** (sin Meta send)
 
@@ -887,11 +887,10 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 ```
 ✅ *Gasto guardado*
 
-📦 Otros — Cobro por aquello
+🍽️ Comida — Aquello
 💰 EUR 35,0 → USD 38,5
 📍 Lisboa
 👤 Pagó Bruno · ÷ 50/50
-📅 Pagado el 20/08
 ⚖️ *Katia* le debe *USD 19,3* por esto
 (movement_id=16)
 ```
@@ -899,14 +898,14 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 <details><summary>DB (últimos)</summary>
 
 ```
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
-#16 expense 35.00 EUR usd=38.50 desc='Cobro por aquello' city=Lisboa split=shared paid_by=bruno cat=Otros pay=2026-08-20 status=confirmed batch=None
+#16 expense 35.00 EUR usd=38.50 desc='Aquello' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
 ```
 
 </details>
@@ -926,77 +925,77 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 
 **Bruno:** ¿cuánto gastamos en comida en paris? _Q&A_
 
-**Latencia:** dispatch 11.0s · stops 0.0s · due 0.0s · **total 11.0s** (sin Meta send)
+**Latencia:** dispatch 7.7s · stops 0.0s · due 0.0s · **total 7.7s** (sin Meta send)
 
 **Bot:**
 
 ```
-*Paris* 🇫🇷  
+📍 *Paris*  
 💸 Total comida: *USD 88,0* (1 gasto)
 ```
 
 <details><summary>DB (últimos)</summary>
 
 ```
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
-#16 expense 35.00 EUR usd=38.50 desc='Cobro por aquello' city=Lisboa split=shared paid_by=bruno cat=Otros pay=2026-08-20 status=confirmed batch=None
+#16 expense 35.00 EUR usd=38.50 desc='Aquello' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
 ```
 
 </details>
 
 **Bruno:** ¿y en roma? _follow-up ciudad_
 
-**Latencia:** dispatch 15.2s · stops 0.0s · due 0.0s · **total 15.2s** (sin Meta send)
+**Latencia:** dispatch 11.6s · stops 0.0s · due 0.0s · **total 11.6s** (sin Meta send)
 
 **Bot:**
 
 ```
-*Roma* 🇮🇹  
+🇮🇹 *Roma*  
 💸 Total comida: *USD 110,0* (3 gastos)
 ```
 
 <details><summary>DB (últimos)</summary>
 
 ```
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
-#16 expense 35.00 EUR usd=38.50 desc='Cobro por aquello' city=Lisboa split=shared paid_by=bruno cat=Otros pay=2026-08-20 status=confirmed batch=None
+#16 expense 35.00 EUR usd=38.50 desc='Aquello' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
 ```
 
 </details>
 
 **Bruno:** ¿y cuánto puse yo de bolsillo ahí? _attribution paid_
 
-**Latencia:** dispatch 10.8s · stops 0.0s · due 0.0s · **total 10.8s** (sin Meta send)
+**Latencia:** dispatch 5.9s · stops 0.0s · due 0.0s · **total 5.9s** (sin Meta send)
 
 **Bot:**
 
 ```
-💸 *USD 240,6* — eso es lo que *pusiste vos de bolsillo* en los últimos movimientos que listaste.
+¿Te referís a esos últimos movimientos que mostraste en el bloque de datos?
 ```
 
 <details><summary>DB (últimos)</summary>
 
 ```
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=1047044633e40848
+#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=a1801465a8dd9e35
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
-#16 expense 35.00 EUR usd=38.50 desc='Cobro por aquello' city=Lisboa split=shared paid_by=bruno cat=Otros pay=2026-08-20 status=confirmed batch=None
+#16 expense 35.00 EUR usd=38.50 desc='Aquello' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
 ```
 
 </details>
@@ -1015,7 +1014,7 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 
 **Bruno:** seguro de viaje 320 usd el 1 de julio, solo mío _fuera de rango_
 
-**Latencia:** dispatch 3.4s · stops 0.0s · due 0.0s · **total 3.4s** (sin Meta send)
+**Latencia:** dispatch 3.0s · stops 0.0s · due 0.0s · **total 3.0s** (sin Meta send)
 
 **Bot:**
 
@@ -1036,10 +1035,10 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
-#16 expense 35.00 EUR usd=38.50 desc='Cobro por aquello' city=Lisboa split=shared paid_by=bruno cat=Otros pay=2026-08-20 status=confirmed batch=None
+#16 expense 35.00 EUR usd=38.50 desc='Aquello' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
 #17 expense 320.00 USD usd=320.00 desc='Seguro de viaje' city=None split=payer_only paid_by=bruno cat=Otros pay=2026-07-01 status=confirmed batch=None
 ```
 
@@ -1047,13 +1046,13 @@ Agua · EUR 2,0 · 19/07 · Paris · Pagó Bruno
 
 **Bruno:** ¿en qué ciudad quedó el seguro? _Q&A_
 
-**Latencia:** dispatch 9.8s · stops 0.0s · due 0.0s · **total 9.8s** (sin Meta send)
+**Latencia:** dispatch 7.3s · stops 0.0s · due 0.0s · **total 7.3s** (sin Meta send)
 
 **Bot:**
 
 ```
-Quedó *sin ciudad asignada*.  
-Hoy la parada activa es *Lisboa* 📍. Si querés que lo mueva a Lisboa decímelo y lo edito.
+Quedó *sin ciudad asignada*. 📍  
+Si querés lo cambio: decime la ciudad y lo edito.
 ```
 
 <details><summary>DB (últimos)</summary>
@@ -1062,10 +1061,10 @@ Hoy la parada activa es *Lisboa* 📍. Si querés que lo mueva a Lisboa decímel
 #10 expense 28.00 EUR usd=30.80 desc='Paseo' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
-#16 expense 35.00 EUR usd=38.50 desc='Cobro por aquello' city=Lisboa split=shared paid_by=bruno cat=Otros pay=2026-08-20 status=confirmed batch=None
+#16 expense 35.00 EUR usd=38.50 desc='Aquello' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
 #17 expense 320.00 USD usd=320.00 desc='Seguro de viaje' city=None split=payer_only paid_by=bruno cat=Otros pay=2026-07-01 status=confirmed batch=None
 ```
 
@@ -1085,7 +1084,7 @@ Hoy la parada activa es *Lisboa* 📍. Si querés que lo mueva a Lisboa decímel
 
 **Katia:** bruno me pasó 50 usd _settlement_
 
-**Latencia:** dispatch 4.0s · stops 0.0s · due 0.0s · **total 4.0s** (sin Meta send)
+**Latencia:** dispatch 3.5s · stops 0.0s · due 0.0s · **total 3.5s** (sin Meta send)
 
 **Bot:**
 
@@ -1102,12 +1101,12 @@ Hoy la parada activa es *Lisboa* 📍. Si querés que lo mueva a Lisboa decímel
 ```
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
-#16 expense 35.00 EUR usd=38.50 desc='Cobro por aquello' city=Lisboa split=shared paid_by=bruno cat=Otros pay=2026-08-20 status=confirmed batch=None
+#16 expense 35.00 EUR usd=38.50 desc='Aquello' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
 #17 expense 320.00 USD usd=320.00 desc='Seguro de viaje' city=None split=payer_only paid_by=bruno cat=Otros pay=2026-07-01 status=confirmed batch=None
-#18 settlement 50.00 USD usd=50.00 desc='Transferencia de Bruno' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#18 settlement 50.00 USD usd=50.00 desc='Transferencia' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 ```
 
 </details>
@@ -1129,12 +1128,64 @@ Hoy la parada activa es *Lisboa* 📍. Si querés que lo mueva a Lisboa decímel
 ```
 #11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
 #12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Por lo del hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#13 settlement 80.00 USD usd=80.00 desc='Transferencia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
 #14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=None status=confirmed batch=None
 #15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-20 status=confirmed batch=None
-#16 expense 35.00 EUR usd=38.50 desc='Cobro por aquello' city=Lisboa split=shared paid_by=bruno cat=Otros pay=2026-08-20 status=confirmed batch=None
+#16 expense 35.00 EUR usd=38.50 desc='Aquello' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
 #17 expense 320.00 USD usd=320.00 desc='Seguro de viaje' city=None split=payer_only paid_by=bruno cat=Otros pay=2026-07-01 status=confirmed batch=None
-#18 settlement 50.00 USD usd=50.00 desc='Transferencia de Bruno' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#18 settlement 50.00 USD usd=50.00 desc='Transferencia' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+```
+
+</details>
+
+---
+
+## 15 · Multi-hostel con seña USD + resto en moneda local
+
+**Meta:** Mensaje real: varios hostels, cada uno con seña en USD hoy y resto en GBP a la fecha de ingreso, más uno simple con fecha.
+
+**Mirar (qué corregir si falla):**
+- 5 movimientos, un solo batch_key: FW 34 USD confirmed hoy + FW 134 GBP pending 12/09; Portree 94 USD confirmed + 70 GBP pending 15/09; ClinkMama 403 EUR pending 25/08
+- FAIL histórico: se pierden las etapas GBP (solo quedan las señas USD) o cada etapa nace como gasto suelto sin (i/n)
+- Ciudades: Fort William / Portree / Lisboa (paradas reales); montos GBP con TC proxy de hoy
+
+**Dónde tocar:** `llm/client.py (installments por ítem + currency) · bot/capture.py (expand_installments modo directo)`
+
+**Bruno:** 34 usd Hostel Fort William hoy. El resto (134 GBP) a pagar al ingresar (12 de septiembre)
+
+94 USD Hostel Portree hoy. El resto (70 GBP) a pagar al ingresar (15 de septiembre)
+
+Hostel ClinkMama 403 euros el 25 de agosto en Lisboa _multi-hostel etapas mixtas_
+
+**Latencia:** dispatch 8.6s · stops 0.0s · due 0.0s · **total 8.6s** (sin Meta send)
+
+**Bot:**
+
+```
+✅ *5 gastos guardados* · 👤 Pagó Bruno
+
+- 🏨 Hostel Fort William (1/2) · USD 34,0 · Fort William
+- 🏨 Hostel Fort William (2/2) · GBP 134,0 → USD 174,2 · Fort William · 📅 12/09
+- 🏨 Hostel Portree (1/2) · USD 94,0 · Portree
+- 🏨 Hostel Portree (2/2) · GBP 70,0 → USD 91,0 · Portree · 📅 15/09
+- 🏨 Hostel ClinkMama · EUR 403,0 → USD 443,3 · Lisboa · 📅 25/08
+
+💰 Total: *USD 836,5*
+⚖️ *Katia* le debe *USD 64,0* por esto
+(movement_id=23)
+```
+
+<details><summary>DB (últimos)</summary>
+
+```
+#16 expense 35.00 EUR usd=38.50 desc='Aquello' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
+#17 expense 320.00 USD usd=320.00 desc='Seguro de viaje' city=None split=payer_only paid_by=bruno cat=Otros pay=2026-07-01 status=confirmed batch=None
+#18 settlement 50.00 USD usd=50.00 desc='Transferencia' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
+#19 expense 34.00 USD usd=34.00 desc='Hostel Fort William (1/2)' city=Fort William split=shared paid_by=bruno cat=Alojamiento pay=2026-08-20 status=confirmed batch=4925a6471b4688cf
+#20 expense 134.00 GBP usd=174.20 desc='Hostel Fort William (2/2)' city=Fort William split=shared paid_by=bruno cat=Alojamiento pay=2026-09-12 status=pending batch=4925a6471b4688cf
+#21 expense 94.00 USD usd=94.00 desc='Hostel Portree (1/2)' city=Portree split=shared paid_by=bruno cat=Alojamiento pay=2026-08-20 status=confirmed batch=4925a6471b4688cf
+#22 expense 70.00 GBP usd=91.00 desc='Hostel Portree (2/2)' city=Portree split=shared paid_by=bruno cat=Alojamiento pay=2026-09-15 status=pending batch=4925a6471b4688cf
+#23 expense 403.00 EUR usd=443.30 desc='Hostel ClinkMama' city=Lisboa split=shared paid_by=bruno cat=Alojamiento pay=2026-08-25 status=pending batch=4925a6471b4688cf
 ```
 
 </details>
@@ -1145,41 +1196,42 @@ Hoy la parada activa es *Lisboa* 📍. Si querés que lo mueva a Lisboa decímel
 
 | Escenario | Turno | Quién | Nota | dispatch_s | stops_s | due_s | total_s |
 |---|---:|---|---|---:|---:|---:|---:|
-| 1 · Cuotas + corrección de total | 1 | bruno | cuotas | 5.2 | 0.0 | 0.0 | 5.2 |
-| 1 · Cuotas + corrección de total | 2 | bruno | edit monto del batch | 3.0 | 0.0 | 0.0 | 3.0 |
-| 2 · Multi-gasto mezclado + fix de split | 1 | bruno | batch 3 ítems | 6.3 | 0.0 | 0.0 | 6.4 |
-| 2 · Multi-gasto mezclado + fix de split | 2 | bruno | edit split taxi | 3.5 | 0.0 | 0.0 | 3.5 |
-| 3 · Day-trip + payer/split + saldo | 1 | bruno | daytrip → Lisboa | 3.2 | 0.0 | 0.0 | 3.2 |
-| 3 · Day-trip + payer/split + saldo | 2 | bruno | edit paid_by + split | 3.2 | 0.0 | 0.0 | 3.2 |
-| 3 · Day-trip + payer/split + saldo | 3 | bruno | Q&A | 9.8 | 0.0 | 0.0 | 9.9 |
-| 4 · Pago futuro + ¿entra al saldo? + traer a hoy | 1 | bruno | pending futuro | 5.1 | 0.0 | 0.0 | 5.1 |
-| 4 · Pago futuro + ¿entra al saldo? + traer a hoy | 2 | bruno | Q&A pending vs balance | 9.3 | 0.0 | 0.0 | 9.3 |
-| 4 · Pago futuro + ¿entra al saldo? + traer a hoy | 3 | bruno | edit payment_date | 3.4 | 0.0 | 0.0 | 3.4 |
-| 5 · Corrección corta post-carga | 1 | katia | carga | 3.2 | 0.0 | 0.0 | 3.2 |
-| 5 · Corrección corta post-carga | 2 | katia | edit split corto | 3.8 | 0.0 | 0.0 | 3.8 |
-| 6 · Delete por texto + confirmación | 1 | bruno | carga | 3.5 | 0.0 | 0.0 | 3.5 |
-| 6 · Delete por texto + confirmación | 2 | bruno | delete NL | 4.1 | 0.0 | 0.0 | 4.1 |
+| 1 · Cuotas + corrección de total | 1 | bruno | cuotas | 4.2 | 0.0 | 0.0 | 4.2 |
+| 1 · Cuotas + corrección de total | 2 | bruno | edit monto del batch | 2.9 | 0.0 | 0.0 | 2.9 |
+| 2 · Multi-gasto mezclado + fix de split | 1 | bruno | batch 3 ítems | 5.0 | 0.0 | 0.0 | 5.0 |
+| 2 · Multi-gasto mezclado + fix de split | 2 | bruno | edit split taxi | 3.0 | 0.0 | 0.0 | 3.0 |
+| 3 · Day-trip + payer/split + saldo | 1 | bruno | daytrip → Lisboa | 2.6 | 0.0 | 0.0 | 2.6 |
+| 3 · Day-trip + payer/split + saldo | 2 | bruno | edit paid_by + split | 2.9 | 0.0 | 0.0 | 2.9 |
+| 3 · Day-trip + payer/split + saldo | 3 | bruno | Q&A | 7.9 | 0.0 | 0.0 | 7.9 |
+| 4 · Pago futuro + ¿entra al saldo? + traer a hoy | 1 | bruno | pending futuro | 3.6 | 0.0 | 0.0 | 3.6 |
+| 4 · Pago futuro + ¿entra al saldo? + traer a hoy | 2 | bruno | Q&A pending vs balance | 9.9 | 0.0 | 0.0 | 9.9 |
+| 4 · Pago futuro + ¿entra al saldo? + traer a hoy | 3 | bruno | edit payment_date | 2.7 | 0.0 | 0.0 | 2.7 |
+| 5 · Corrección corta post-carga | 1 | katia | carga | 2.9 | 0.0 | 0.0 | 2.9 |
+| 5 · Corrección corta post-carga | 2 | katia | edit split corto | 2.7 | 0.0 | 0.0 | 2.7 |
+| 6 · Delete por texto + confirmación | 1 | bruno | carga | 2.9 | 0.0 | 0.0 | 2.9 |
+| 6 · Delete por texto + confirmación | 2 | bruno | delete NL | 2.7 | 0.0 | 0.0 | 2.7 |
 | 6 · Delete por texto + confirmación | 3 | bruno | confirmar | 0.0 | 0.0 | 0.0 | 0.0 |
-| 7 · Settlement cruzado + ¿quién debe? | 1 | bruno | settlement | 3.9 | 0.0 | 0.0 | 3.9 |
+| 7 · Settlement cruzado + ¿quién debe? | 1 | bruno | settlement | 2.7 | 0.0 | 0.0 | 2.7 |
 | 7 · Settlement cruzado + ¿quién debe? | 2 | katia | Q&A balance | 8.5 | 0.0 | 0.0 | 8.5 |
-| 8 · Batch + borrar (fast path) + confirmar los N | 1 | bruno | batch 3 | 6.8 | 0.0 | 0.0 | 6.8 |
+| 8 · Batch + borrar (fast path) + confirmar los N | 1 | bruno | batch 3 | 4.8 | 0.0 | 0.0 | 4.8 |
 | 8 · Batch + borrar (fast path) + confirmar los N | 2 | bruno | fast path | 0.0 | 0.0 | 0.0 | 0.0 |
 | 8 · Batch + borrar (fast path) + confirmar los N | 3 | bruno | confirmar batch | 0.0 | 0.0 | 0.0 | 0.0 |
-| 9 · Stop local / owner split (Pititas) | 1 | bruno | owner default | 3.5 | 0.0 | 0.0 | 3.5 |
-| 9 · Stop local / owner split (Pititas) | 2 | bruno | edit → shared | 3.3 | 0.0 | 0.0 | 3.3 |
-| 10 · Moneda explícita ≠ moneda ciudad + edit | 1 | bruno | USD explícito | 3.5 | 0.0 | 0.0 | 3.5 |
-| 10 · Moneda explícita ≠ moneda ciudad + edit | 2 | bruno | edit currency | 4.0 | 0.0 | 0.0 | 4.0 |
-| 11 · Categoría ambigua + cat_pick | 1 | bruno | categoría ambigua | 3.9 | 0.0 | 0.0 | 3.9 |
+| 9 · Stop local / owner split (Pititas) | 1 | bruno | owner default | 2.4 | 0.0 | 0.0 | 2.4 |
+| 9 · Stop local / owner split (Pititas) | 2 | bruno | edit → shared | 2.8 | 0.0 | 0.0 | 2.8 |
+| 10 · Moneda explícita ≠ moneda ciudad + edit | 1 | bruno | USD explícito | 2.8 | 0.0 | 0.0 | 2.8 |
+| 10 · Moneda explícita ≠ moneda ciudad + edit | 2 | bruno | edit currency | 3.0 | 0.0 | 0.0 | 3.0 |
+| 11 · Categoría ambigua + cat_pick | 1 | bruno | categoría ambigua | 2.9 | 0.0 | 0.0 | 2.9 |
 | 11 · Categoría ambigua + cat_pick | 2 | bruno | tap 1.er candidato | 0.0 | 0.0 | 0.0 | 0.0 |
-| 12 · Q&A follow-up elíptico | 1 | bruno | Q&A | 11.0 | 0.0 | 0.0 | 11.0 |
-| 12 · Q&A follow-up elíptico | 2 | bruno | follow-up ciudad | 15.2 | 0.0 | 0.0 | 15.2 |
-| 12 · Q&A follow-up elíptico | 3 | bruno | attribution paid | 10.8 | 0.0 | 0.0 | 10.8 |
-| 13 · General / pre-viaje sin ciudad | 1 | bruno | fuera de rango | 3.4 | 0.0 | 0.0 | 3.4 |
-| 13 · General / pre-viaje sin ciudad | 2 | bruno | Q&A | 9.8 | 0.0 | 0.0 | 9.8 |
-| 14 · Settlement 'me pasó' desde Katia | 1 | katia | settlement | 4.0 | 0.0 | 0.0 | 4.0 |
+| 12 · Q&A follow-up elíptico | 1 | bruno | Q&A | 7.7 | 0.0 | 0.0 | 7.7 |
+| 12 · Q&A follow-up elíptico | 2 | bruno | follow-up ciudad | 11.6 | 0.0 | 0.0 | 11.6 |
+| 12 · Q&A follow-up elíptico | 3 | bruno | attribution paid | 5.9 | 0.0 | 0.0 | 5.9 |
+| 13 · General / pre-viaje sin ciudad | 1 | bruno | fuera de rango | 3.0 | 0.0 | 0.0 | 3.0 |
+| 13 · General / pre-viaje sin ciudad | 2 | bruno | Q&A | 7.3 | 0.0 | 0.0 | 7.3 |
+| 14 · Settlement 'me pasó' desde Katia | 1 | katia | settlement | 3.5 | 0.0 | 0.0 | 3.5 |
 | 14 · Settlement 'me pasó' desde Katia | 2 | bruno | fast path | 0.0 | 0.0 | 0.0 | 0.0 |
+| 15 · Multi-hostel con seña USD + resto en moneda local | 1 | bruno | multi-hostel etapas mixtas | 8.6 | 0.0 | 0.0 | 8.6 |
 
-Promedio dispatch **4.8s** · promedio total **4.8s** · más lento: bruno «¿y en roma?» (15.2s)
+Promedio dispatch **3.9s** · promedio total **3.9s** · más lento: bruno «¿y en roma?» (11.6s)
 
 > En prod, al `total_s` se suman typing/react/send Graph (~0.3–1.5s típico, no medido acá).
 

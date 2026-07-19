@@ -136,6 +136,111 @@ def test_expand_invalid_returns_none():
         Installment(percent=Decimal("30"))]), TODAY) is None
 
 
+def test_expand_mixed_currency_explicit_amounts():
+    """'34 usd hoy, el resto 134 gbp al ingresar': montos explícitos con moneda
+    propia por etapa — sin total único ni aritmética, cada parte va tal cual."""
+    parsed = _parsed(amount=Decimal("34"), currency="USD", description="hostel fw",
+                     installments=[
+                         Installment(amount=Decimal("34"), currency="USD"),
+                         Installment(amount=Decimal("134"), currency="GBP",
+                                     pay_date=date(2026, 8, 18)),
+                     ])
+    parts = expand_installments(parsed, TODAY)
+    assert [(p.amount, p.currency) for p in parts] == [
+        (Decimal("34"), "USD"), (Decimal("134"), "GBP"),
+    ]
+    assert parts[0].payment_date is None
+    assert parts[1].payment_date == date(2026, 8, 18)
+    assert parts[0].description == "hostel fw (1/2)"
+
+
+def test_expand_direct_mode_ignores_wrong_total():
+    # Todos los montos explícitos: no dependemos del total del LLM.
+    parsed = _parsed(amount=Decimal("34"), installments=[
+        Installment(amount=Decimal("30")),
+        Installment(amount=Decimal("400"), pay_date=date(2026, 9, 3)),
+    ])
+    parts = expand_installments(parsed, TODAY)
+    assert [p.amount for p in parts] == [Decimal("30"), Decimal("400")]
+
+
+def test_expand_mixed_currency_with_percent_is_invalid():
+    # percent contra un total en otra moneda no se puede calcular.
+    parsed = _parsed(installments=[
+        Installment(percent=Decimal("30"), currency="GBP"),
+        Installment(pay_date=date(2026, 9, 3)),
+    ])
+    assert expand_installments(parsed, TODAY) is None
+
+
+async def test_capture_batch_item_with_mixed_currency_installments(db_session):
+    """El caso real: mensaje multi-gasto donde un ítem se paga en dos monedas
+    (seña USD hoy + resto GBP al ingresar) y otro ítem es simple."""
+    u1, _ = await _setup(db_session)
+    db_session.add(FxRate(currency="GBP", rate_date=TODAY, rate_to_usd=Decimal("1.30")))
+    await db_session.commit()
+    item_fw = _payload(
+        amount="34", currency="USD", description="hostel fort william",
+        category="Alojamiento", kind="expense",
+        installments=[
+            {"percent": None, "amount": "34", "date": None, "currency": "USD"},
+            {"percent": None, "amount": "134", "date": "2026-08-18", "currency": "GBP"},
+        ],
+    )
+    item_simple = _payload(
+        amount="403", currency="EUR", description="hostel clinkmama",
+        category="Alojamiento", kind="expense", date="2026-08-25", installments=[],
+    )
+    fake = FakeLLM(_payload(
+        amount="34", currency="USD", description="hostel fort william",
+        category="Alojamiento", expenses=[item_fw, item_simple],
+    ))
+    db_session.add(FxRate(currency="EUR", rate_date=TODAY, rate_to_usd=Decimal("1.10")))
+    await db_session.commit()
+    await handle_capture(
+        db_session, u1, "549111",
+        "34 usd hostel fort william hoy, el resto (134 gbp) al ingresar el 18. "
+        "hostel clinkmama 403 euros el 25 de agosto",
+        TODAY, llm_client=fake,
+    )
+    mvs = (await db_session.execute(select(Movement).order_by(Movement.id))).scalars().all()
+    assert len(mvs) == 3
+    fw1, fw2, clink = mvs
+    assert (fw1.amount, fw1.currency, fw1.status) == (Decimal("34"), "USD", "confirmed")
+    assert (fw2.amount, fw2.currency, fw2.status) == (Decimal("134"), "GBP", "pending")
+    assert fw2.payment_date == date(2026, 8, 18)
+    assert fw2.amount_usd == Decimal("174.20")  # 134 × 1.30 (TC proxy de hoy)
+    assert "(1/2)" in fw1.description and "(2/2)" in fw2.description
+    assert (clink.amount, clink.currency, clink.status) == (Decimal("403"), "EUR", "pending")
+    # Todos hermanos del mismo mensaje: un solo batch_key.
+    assert fw1.batch_key == fw2.batch_key == clink.batch_key
+
+
+async def test_batch_duplicate_descriptions_get_city_suffix(db_session):
+    """Dos hostels con la misma descripción genérica ('Hostel') en el mismo
+    mensaje: recuperan su ciudad para poder editarlos/borrarlos por texto."""
+    u1, _ = await _setup(db_session)
+    db_session.add(FxRate(currency="CHF", rate_date=TODAY, rate_to_usd=Decimal("1.20")))
+    await db_session.commit()
+    fake = FakeLLM(_payload(
+        amount="30", currency="CHF", description="Hostel", category="Alojamiento",
+        expenses=[
+            _payload(amount="30", currency="CHF", description="Hostel",
+                     city="Interlaken", category="Alojamiento", kind="expense",
+                     installments=[]),
+            _payload(amount="50", currency="CHF", description="Hostel",
+                     city="Interlaken", category="Alojamiento", kind="expense",
+                     installments=[]),
+        ],
+    ))
+    await handle_capture(db_session, u1, "549111", "hostel 30 y hostel 50", TODAY,
+                         llm_client=fake)
+    descs = (await db_session.execute(
+        select(Movement.description).order_by(Movement.id)
+    )).scalars().all()
+    assert all("Interlaken" in d for d in descs)
+
+
 async def test_capture_installments_end_to_end(db_session):
     u1, _ = await _setup(db_session)
     db_session.add(FxRate(currency="CHF", rate_date=TODAY, rate_to_usd=Decimal("1.20")))

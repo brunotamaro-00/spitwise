@@ -157,8 +157,32 @@ def expand_installments(parsed, today: date) -> list | None:
     insts = parsed.installments
     if not insts or len(insts) < 2 or len(insts) > _INSTALLMENTS_MAX:
         return None
+    if parsed.is_settlement:
+        return None
+
+    # Modo directo: TODAS las etapas traen monto explícito ('34 usd hoy y el
+    # resto 134 gbp al ingresar'). No hay aritmética que hacer, no hace falta
+    # un total único, y cada etapa puede venir en su propia moneda — el batch
+    # convierte cada una a USD.
+    if all(i.amount is not None for i in insts):
+        ordered = sorted(insts, key=lambda i: i.pay_date or today)
+        if any(i.amount <= 0 for i in ordered):
+            return None
+        n = len(ordered)
+        base_desc = parsed.description or "gasto"
+        return [
+            replace(parsed, amount=i.amount, currency=i.currency or parsed.currency,
+                    payment_date=i.pay_date, description=f"{base_desc} ({idx}/{n})",
+                    installments=[], batch=[])
+            for idx, i in enumerate(ordered, start=1)
+        ]
+
+    # Modo clásico (percent / 'el resto' a calcular): requiere total único en
+    # UNA moneda — con monedas mezcladas no hay total contra el que calcular.
     total = parsed.amount
-    if total is None or total <= 0 or parsed.is_settlement:
+    if total is None or total <= 0:
+        return None
+    if any(i.currency and parsed.currency and i.currency != parsed.currency for i in insts):
         return None
 
     rests = [i for i in insts if i.percent is None and i.amount is None]
@@ -233,7 +257,22 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
         )
 
     if parsed.batch:
-        return await handle_capture_batch(session, user, wa_id, text, today, items=parsed.batch)
+        # Descripciones repetidas entre gastos distintos del mensaje ('Hostel'
+        # de Fort William y 'Hostel' de Portree, con la ciudad ya extraída a
+        # `city`): devolverles la ciudad para poder referenciarlos después.
+        from collections import Counter
+        desc_counts = Counter((it.description or "").casefold() for it in parsed.batch)
+        for it in parsed.batch:
+            if desc_counts[(it.description or "").casefold()] > 1 and it.city:
+                it.description = f"{it.description or 'gasto'} {it.city}"
+        # Un ítem del multi-gasto puede a su vez pagarse en etapas ('34 usd
+        # hostel X hoy, el resto 134 gbp al ingresar'): expandirlo en sus
+        # partes antes de persistir el batch.
+        items = []
+        for item in parsed.batch:
+            parts = expand_installments(item, today)
+            items.extend(parts if parts is not None else [item])
+        return await handle_capture_batch(session, user, wa_id, text, today, items=items)
 
     # Pago en etapas: N movimientos hermanos por el camino batch (batch_key
     # compartido => "borrar" ofrece las cuotas juntas, una sola transacción).

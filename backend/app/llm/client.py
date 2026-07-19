@@ -84,15 +84,23 @@ _SYSTEM = (
     "('430 chf hostel, 30% hoy y el resto al ingresar el 3 de septiembre'), "
     "amount lleva el TOTAL (430) y llená `installments` con una entrada por "
     "etapa: percent (si dan porcentaje, '30'), amount (si dan el monto de esa "
-    "etapa) y date de esa etapa en ISO (null = hoy). 'el resto'/'lo demás' es "
-    "una etapa con percent y amount null. IMPORTANTE: cada etapa lleva SOLO su "
-    "propia fecha — la fecha del mensaje NO se replica en todas las etapas. "
-    "Una seña o pago que se hace ahora ('pago 12% de seña', '30% hoy') lleva "
-    "date null; la fecha mencionada ('al ingresar el 6 de octubre') es SOLO de "
-    "la etapa del resto. Dos etapas con la misma fecha están mal. NO calcules "
-    "vos los montos de las etapas ni los restes del total: el sistema los "
-    "calcula. Las etapas son UN solo gasto: no las repartas en `expenses`. "
-    "Sin etapas, `installments` queda VACÍO.\n\n"
+    "etapa), date de esa etapa en ISO (null = hoy) y currency SOLO si la etapa "
+    "tiene moneda propia. 'el resto'/'lo demás' sin monto es una etapa con "
+    "percent y amount null. Si las etapas vienen en MONEDAS DISTINTAS "
+    "('34 usd hoy y el resto 134 gbp al ingresar el 18') cada etapa lleva su "
+    "amount y su currency explícitos ('34' USD y '134' GBP) — no hay total "
+    "único: amount y currency del gasto llevan los de la PRIMERA etapa. "
+    "IMPORTANTE: cada etapa lleva SOLO su propia fecha — la fecha del mensaje "
+    "NO se replica en todas las etapas. Una seña o pago que se hace ahora "
+    "('pago 12% de seña', '30% hoy') lleva date null; la fecha mencionada "
+    "('al ingresar el 6 de octubre') es SOLO de la etapa del resto. Dos etapas "
+    "con la misma fecha están mal. NO calcules vos montos que no estén en el "
+    "texto ni los restes del total: el sistema los calcula. Las etapas son UN "
+    "solo gasto: NO las repartas como gastos separados en `expenses`. En un "
+    "mensaje multi-gasto, un ítem también puede pagarse en etapas: sus "
+    "`installments` van DENTRO de ese ítem ('34 usd hostel X hoy, el resto "
+    "134 gbp al ingresar' es UN ítem con dos etapas, no dos ítems). Sin "
+    "etapas, `installments` queda VACÍO.\n\n"
     "CORRECCIÓN DE UN GASTO RECIÉN CARGADO: si abajo se te da un 'Último gasto', "
     "{sender} acaba de cargarlo y este mensaje puede ser una corrección. Si el "
     "mensaje NO carga un gasto nuevo (no trae un monto propio junto a algo "
@@ -127,6 +135,15 @@ _SYSTEM = (
 )
 
 
+class InstallmentSchema(BaseModel):
+    """Una etapa de un gasto pagado en partes. El server calcula los montos."""
+
+    percent: str | None  # "30" si el mensaje da porcentaje
+    amount: str | None  # monto si el mensaje da el monto de la etapa
+    date: str | None  # ISO; null = hoy
+    currency: str | None  # ISO si la etapa tiene moneda propia ('34 usd + 134 gbp')
+
+
 class ExpenseItemSchema(BaseModel):
     """Un gasto dentro de un mensaje multi-gasto. Mismos campos/semántica que el flat."""
 
@@ -141,14 +158,8 @@ class ExpenseItemSchema(BaseModel):
     city: str | None
     confidence: float
     candidates: list[str]
-
-
-class InstallmentSchema(BaseModel):
-    """Una etapa de un gasto pagado en partes. El server calcula los montos."""
-
-    percent: str | None  # "30" si el mensaje da porcentaje
-    amount: str | None  # monto si el mensaje da el monto de la etapa
-    date: str | None  # ISO; null = hoy
+    # Este ítem se paga en etapas ('34 usd hoy y el resto 134 gbp al ingresar').
+    installments: list[InstallmentSchema]
 
 
 class ParsedMessageSchema(BaseModel):
