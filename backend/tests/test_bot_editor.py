@@ -157,3 +157,56 @@ async def test_edit_no_match_reports(db_session):
     fake = FakeLLM(_payload(ref_text="paracaidismo", new_amount="99"))
     reply = await dispatch(db_session, "549111", "text", "el paracaidismo fue 99", None, TODAY, llm_client=fake)
     assert "No encontré" in (reply.text or "")
+
+
+async def test_edit_date_persists_payment_date_and_historic_fx(db_session):
+    """'era de ayer' ahora también persiste la fecha de pago y recalcula el TC
+    con la tasa de esa fecha (histórico), no la de hoy."""
+    from app.db.models import FxRate
+    u1, _ = await _setup(db_session)
+    mv = _mv(u1, "cena", "20", TODAY)
+    mv.currency = "EUR"
+    db_session.add_all([
+        mv,
+        FxRate(currency="EUR", rate_date=date(2026, 8, 5), rate_to_usd=Decimal("1.05")),
+        FxRate(currency="EUR", rate_date=TODAY, rate_to_usd=Decimal("1.10")),
+    ])
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, new_date="2026-08-05"))
+    await dispatch(db_session, "549111", "text", "era de ayer", None, TODAY, llm_client=fake)
+    await db_session.refresh(mv)
+    assert mv.payment_date == date(2026, 8, 5)
+    assert mv.status == "confirmed"
+    assert mv.fx_rate == Decimal("1.05")
+
+
+async def test_edit_date_to_future_marks_pending(db_session):
+    u1, _ = await _setup(db_session)
+    mv = _mv(u1, "hostel", "100", TODAY)
+    db_session.add(mv)
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, new_date="2026-09-22"))
+    await dispatch(db_session, "549111", "se paga el 22-sep", "se paga el 22-sep", None,
+                   TODAY, llm_client=fake)
+    await db_session.refresh(mv)
+    assert mv.payment_date == date(2026, 9, 22)
+    assert mv.status == "pending"
+    assert mv.city_name == "Roma"  # re-imputada por el itinerario de esa fecha
+
+
+async def test_edit_amount_keeps_manual_fx(db_session):
+    """Invariante 6 también en el editor: la tasa manual no se pisa."""
+    u1, _ = await _setup(db_session)
+    mv = _mv(u1, "cena", "20", TODAY)
+    mv.currency = "GBP"
+    mv.fx_source = "manual"
+    mv.fx_rate = Decimal("1.30")
+    mv.amount_usd = Decimal("26.00")
+    db_session.add(mv)
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, new_amount="40"))
+    await dispatch(db_session, "549111", "fueron 40", "fueron 40", None, TODAY, llm_client=fake)
+    await db_session.refresh(mv)
+    assert mv.fx_source == "manual"
+    assert mv.fx_rate == Decimal("1.30")
+    assert mv.amount_usd == Decimal("52.00")

@@ -31,6 +31,10 @@ class MovementIn(BaseModel):
     stop_slug: str | None = None  # parada del itinerario; None => parada de hoy
     general: bool = False  # gasto general sin ciudad: no derivar la parada de hoy
     fx_rate: Decimal | None = None  # override manual (multiplicador a USD)
+    # Fecha en que se paga/pagó. None => día de carga. Futura => status pending
+    # (TC proxy hasta liquidar); pasada => TC histórico. status siempre lo
+    # deriva el server: no es escribible.
+    payment_date: date | None = None
 
     @field_validator("currency")
     @classmethod
@@ -53,6 +57,8 @@ class MovementUpdate(BaseModel):
     stop_slug: str | None = None  # slug => esa parada; null explícito => parada de hoy
     general: bool | None = None
     fx_rate: Decimal | None = None  # setearlo => fx_source='manual'
+    # Mandarlo (aun null) recalcula status y TC; null explícito => día de carga.
+    payment_date: date | None = None
 
     @field_validator("currency")
     @classmethod

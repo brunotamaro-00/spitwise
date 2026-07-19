@@ -1,5 +1,6 @@
 import unicodedata
 from datetime import date, datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +13,7 @@ from app.bot.render import (
     split_label, text_reply,
 )
 from app.db.models import Category, Movement, User
-from app.fx import convert_to_usd
+from app.fx import convert_to_usd, fx_reference_date
 
 _SEARCH_LIMIT = 50  # movimientos recientes donde buscar referencias
 
@@ -135,9 +136,12 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
                       split_label(changes["split"], payer.capitalize(), other_name)))
         mv.split = changes["split"]
 
-    # Fecha ("era de ayer"): no se guarda — solo re-imputa la ciudad mirando el
-    # itinerario de esa fecha. Con ciudad explícita, un único resolve con ambas.
+    # Fecha ("era de ayer", "se paga el 3-sep"): re-imputa la ciudad mirando el
+    # itinerario de esa fecha Y se persiste como fecha de pago (status derivado:
+    # futura => pending, pasada/hoy => confirmed). Con ciudad explícita, un único
+    # resolve con ambas.
     new_date = changes.get("date")
+    date_changed = False
     if (new_date is not None or "city" in changes) and mv.type != "settlement":
         slug, city, _cur = await resolve_place(
             session, new_date or today, changes.get("city"), username
@@ -145,6 +149,11 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
         if (slug, city) != (mv.stop_slug, mv.city_name):
             diffs.append(("📍", mv.city_name or "Sin ciudad", city or "Sin ciudad"))
             mv.stop_slug, mv.city_name = slug, city
+    if new_date is not None and mv.type != "settlement" and new_date != mv.payment_date:
+        diffs.append(("📅", fmt_date(mv.payment_date or mv.created_at.date()), fmt_date(new_date)))
+        mv.payment_date = new_date
+        mv.status = "pending" if new_date > today else "confirmed"
+        date_changed = True
 
     # Monto/moneda → recalcular USD.
     money_changed = False
@@ -157,10 +166,18 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
         diffs.append(("💱", mv.currency, changes["currency"]))
         mv.currency = changes["currency"]
         money_changed = True
-    if money_changed:
-        # Regla: el TC es siempre el de la fecha de CARGA/edición, no la del gasto.
-        amount_usd, rate, src = await convert_to_usd(session, mv.amount, mv.currency, today)
-        mv.amount_usd, mv.fx_rate, mv.fx_source = amount_usd, rate, _map_source(src, mv.currency)
+    if money_changed or date_changed:
+        if mv.fx_source == "manual":
+            # Invariante 6: una tasa manual nunca se pisa; solo recalcular el monto.
+            mv.amount_usd = (Decimal(mv.amount) * Decimal(mv.fx_rate)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+        else:
+            # Regla: TC de la fecha de pago, capeada a hoy.
+            amount_usd, rate, src = await convert_to_usd(
+                session, mv.amount, mv.currency, fx_reference_date(mv.payment_date, today)
+            )
+            mv.amount_usd, mv.fx_rate, mv.fx_source = amount_usd, rate, _map_source(src, mv.currency)
 
     await session.commit()
     return diffs

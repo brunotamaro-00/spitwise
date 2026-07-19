@@ -10,7 +10,7 @@ from app.bot.active_stop import place_for_date, resolve_trip_timezone
 from app.db.engine import get_session
 from app.db.models import Movement, Stop, User
 from app.due import ensure_due_settled
-from app.fx import convert_to_usd
+from app.fx import convert_to_usd, fx_reference_date
 from app.trip_time import today_in_tz
 
 router = APIRouter(prefix="/movements", tags=["movements"])
@@ -68,6 +68,9 @@ async def create_movement(
         stop_slug, city_name = None, None
     else:
         stop_slug, city_name = await _derive_place(session, body, user.username, today)
+    # Saldos: siempre de hoy. status lo deriva el server, nunca el cliente.
+    payment_date = None if body.type == "settlement" else body.payment_date
+    mv_status = "pending" if payment_date is not None and payment_date > today else "confirmed"
     if body.fx_rate is not None:
         rate = body.fx_rate
         # ARS system rate is ~1/venta (<1). Users often type pesos-per-USD (>1).
@@ -79,8 +82,11 @@ async def create_movement(
         amount_usd = (body.amount * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         fx_source = "manual"
     else:
-        # Regla: el TC es siempre el de la fecha de CARGA, no la del gasto.
-        amount_usd, rate, src = await convert_to_usd(session, body.amount, body.currency, today)
+        # Regla: TC de la fecha de pago, capeada a hoy (histórico si es pasada,
+        # proxy de hoy si es futura — se ajusta al liquidar, app/due.py).
+        amount_usd, rate, src = await convert_to_usd(
+            session, body.amount, body.currency, fx_reference_date(payment_date, today)
+        )
         fx_source = _map_source(src, body.currency)
     mv = Movement(
         type=body.type,
@@ -95,6 +101,8 @@ async def create_movement(
         category_id=None if body.type == "settlement" else body.category_id,
         stop_slug=stop_slug,
         city_name=city_name,
+        payment_date=payment_date,
+        status=mv_status,
         created_by=user.id,
     )
     session.add(mv)
@@ -146,12 +154,24 @@ async def update_movement(
     if "general" in sent and body.general:
         mv.stop_slug, mv.city_name = None, None
 
-    # Settlement nunca lleva ciudad.
+    # Settlement nunca lleva ciudad ni fecha de pago diferida.
     if mv.type == "settlement":
         mv.stop_slug, mv.city_name = None, None
         mv.category_id = None
+        mv.payment_date = None
+        mv.status = "confirmed"
 
-    fx_inputs_changed = sent & {"amount", "currency"}
+    # Fecha de pago: recalcula status (siempre derivado server-side) y el TC.
+    pay_changed = "payment_date" in sent and mv.type != "settlement"
+    if pay_changed:
+        today = await _load_today(session, user.username)
+        mv.payment_date = body.payment_date
+        mv.status = (
+            "pending" if body.payment_date is not None and body.payment_date > today
+            else "confirmed"
+        )
+
+    fx_inputs_changed = (sent & {"amount", "currency"}) or pay_changed
     if "fx_rate" in sent:
         if body.fx_rate is None:
             raise HTTPException(status_code=422, detail="fx_rate no puede ser null")
@@ -169,8 +189,10 @@ async def update_movement(
             mv.amount_usd = (mv.amount * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         else:
             today = await _load_today(session)
-            # Regla: el TC es siempre el de la fecha de CARGA/edición, no la del gasto.
-            amount_usd, rate, src = await convert_to_usd(session, mv.amount, mv.currency, today)
+            # Regla: TC de la fecha de pago, capeada a hoy.
+            amount_usd, rate, src = await convert_to_usd(
+                session, mv.amount, mv.currency, fx_reference_date(mv.payment_date, today)
+            )
             mv.amount_usd = amount_usd
             mv.fx_rate = rate
             mv.fx_source = _map_source(src, mv.currency)

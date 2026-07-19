@@ -150,3 +150,56 @@ async def test_partial_patch_keeps_manual_fx(app_client):
     p2 = await app_client.patch(f"/api/v1/movements/{mid}", headers=h, json={"amount": "50.00"})
     assert p2.status_code == 200
     assert p2.json()["amount_usd"] == "65.00"  # recalcula con la tasa manual 1.30
+
+
+async def test_create_with_future_payment_date_is_pending(app_client):
+    from datetime import date, timedelta
+    h = await _auth(app_client)
+    future = (date.today() + timedelta(days=30)).isoformat()
+    r = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "301", "currency": "USD", "description": "hostel (2/2)",
+        "payment_date": future,
+    })
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["status"] == "pending"
+    assert body["payment_date"] == future
+
+
+async def test_create_with_past_payment_date_uses_historic_rate(app_client):
+    from datetime import date, timedelta
+    from decimal import Decimal
+    from app.db.models import FxRate
+    h = await _auth(app_client)
+    past = date.today() - timedelta(days=10)
+    async with app_client._maker() as s:
+        s.add_all([
+            FxRate(currency="EUR", rate_date=past, rate_to_usd=Decimal("1.05")),
+            FxRate(currency="EUR", rate_date=date.today(), rate_to_usd=Decimal("1.10")),
+        ])
+        await s.commit()
+    r = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "130", "currency": "EUR", "description": "hospedaje york",
+        "payment_date": past.isoformat(),
+    })
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["status"] == "confirmed"
+    assert body["amount_usd"] == "136.50"  # 130 * 1.05 histórico
+
+
+async def test_patch_payment_date_null_resets_and_status_not_writable(app_client):
+    from datetime import date, timedelta
+    h = await _auth(app_client)
+    future = (date.today() + timedelta(days=30)).isoformat()
+    r = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "50", "currency": "USD", "payment_date": future,
+        "status": "confirmed",  # no escribible: el server lo deriva igual
+    })
+    assert r.json()["status"] == "pending"
+    mid = r.json()["id"]
+    p = await app_client.patch(f"/api/v1/movements/{mid}", headers=h,
+                               json={"payment_date": None})
+    assert p.status_code == 200, p.text
+    assert p.json()["payment_date"] is None
+    assert p.json()["status"] == "confirmed"
