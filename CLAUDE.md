@@ -90,6 +90,36 @@ cd backend && pytest
 cd frontend && npm test
 ```
 
+## Escenarios del bot WhatsApp (sin Meta)
+
+Para validar que el bot entiende bien charlas reales **sin pasar por Meta**: el
+script llama directo a `dispatch()` con LLM real (OpenAI desde `.env`) y una DB
+SQLite in-memory sembrada.
+
+| Qué | Dónde |
+|-----|--------|
+| Runner | `backend/scripts/bot_scenario_runner.py` |
+| Transcript de la última corrida | `backend/scripts/bot_scenarios.md` |
+| Catálogo de escenarios | `CONVERSATIONS` dentro del runner (15 flujos) |
+
+**Contrato del `.md`:** cada corrida **borra y reescribe** `bot_scenarios.md`.
+No acumula historial — el archivo siempre refleja solo la última corrida. El
+catálogo editable es el Python, no el markdown.
+
+```bash
+cd backend
+# Todo el catálogo (secuencial, con pausas para no quemar la API)
+.venv/bin/python scripts/bot_scenario_runner.py
+
+# Subconjunto
+.venv/bin/python scripts/bot_scenario_runner.py --from 6 --to 10
+.venv/bin/python scripts/bot_scenario_runner.py --only 7,12,15
+```
+
+Requiere `OPENAI_API_KEY` (y `LLM_PROVIDER=openai` si también hay Anthropic).
+Hoy ficticio fijo mid-trip (`2026-08-20`, Lisboa). Seed incluye Pititas
+(`is_local`, `owner_username=katia`). No usa webhook ni Graph API.
+
 ## Demo local (datos dummy, mid-trip)
 
 `backend/scripts/seed_demo_data.py` construye una DB SQLite local lista para
@@ -245,6 +275,7 @@ Producción / features (ver `config.py` y `DEPLOY.md`):
 | Frontend routes | `frontend/src/App.tsx` |
 | Design tokens | `frontend/src/index.css` |
 | Deploy | `DEPLOY.md` |
+| Escenarios bot (sin Meta) | `backend/scripts/bot_scenario_runner.py` → `bot_scenarios.md` |
 
 ## Antes de cambiar cosas sensibles
 
