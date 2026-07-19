@@ -21,6 +21,18 @@ EDIT_FIELDS = ("amount", "currency", "date", "city", "category", "description", 
 
 
 @dataclass
+class Installment:
+    """Una etapa de un gasto pagado en partes ('30% hoy y el resto el 3-sep').
+    percent y amount vienen del mensaje; la etapa 'el resto' no trae ninguno.
+    Los montos finales los calcula el server (capture.expand_installments),
+    nunca la aritmética del LLM."""
+
+    percent: Decimal | None = None  # 0..100
+    amount: Decimal | None = None  # monto explícito de la etapa
+    pay_date: date | None = None  # None = hoy
+
+
+@dataclass
 class ParsedMessage:
     intent: str = "unknown"
     # expense / settlement
@@ -45,6 +57,9 @@ class ParsedMessage:
     # Mensaje multi-gasto: 2+ ítems normalizados (cada uno un ParsedMessage
     # expense/settlement autocontenido). Vacío => single, camino de siempre.
     batch: list["ParsedMessage"] = field(default_factory=list)
+    # UN gasto pagado en etapas: amount lleva el total y acá van las partes.
+    # Vacío => pago único.
+    installments: list[Installment] = field(default_factory=list)
 
     @property
     def is_settlement(self) -> bool:
@@ -176,4 +191,18 @@ async def parse_message(
         ]
         if len(items) >= 2:
             parsed.batch = items
+        # Etapas de pago: se normalizan crudas; la validación y los montos son
+        # del server (capture.expand_installments). Solo aplica al gasto flat.
+        if not parsed.batch:
+            insts = [
+                Installment(
+                    percent=_to_decimal(it.get("percent")),
+                    amount=_to_decimal(it.get("amount")),
+                    pay_date=_to_date(it.get("date")),
+                )
+                for it in (raw.get("installments") or [])
+                if isinstance(it, dict)
+            ]
+            if len(insts) >= 2:
+                parsed.installments = insts
     return parsed

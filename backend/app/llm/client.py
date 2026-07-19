@@ -66,6 +66,15 @@ _SYSTEM = (
     "otra cosa. Los campos sueltos (amount, category, …) llevan el PRIMER ítem. "
     "Con UN solo gasto, `expenses` queda VACÍO. NO inventes ítems: partí SOLO "
     "cuando hay montos separados; 'cena 40 con vino' es UN gasto de 40.\n\n"
+    "Pago en etapas: si el mensaje dice que UN gasto se paga en partes "
+    "('430 chf hostel, 30% hoy y el resto al ingresar el 3 de septiembre'), "
+    "amount lleva el TOTAL (430) y llená `installments` con una entrada por "
+    "etapa: percent (si dan porcentaje, '30'), amount (si dan el monto de esa "
+    "etapa) y date de esa etapa en ISO (null = hoy). 'el resto'/'lo demás' es "
+    "una etapa con percent y amount null. NO calcules vos los montos de las "
+    "etapas ni los restes del total: el sistema los calcula. Las etapas son UN "
+    "solo gasto: no las repartas en `expenses`. Sin etapas, `installments` "
+    "queda VACÍO.\n\n"
     "CORRECCIÓN DE UN GASTO RECIÉN CARGADO: si abajo se te da un 'Último gasto', "
     "{sender} acaba de cargarlo y este mensaje puede ser una corrección. Si el "
     "mensaje NO carga un gasto nuevo (no trae un monto propio junto a algo "
@@ -106,6 +115,14 @@ class ExpenseItemSchema(BaseModel):
     candidates: list[str]
 
 
+class InstallmentSchema(BaseModel):
+    """Una etapa de un gasto pagado en partes. El server calcula los montos."""
+
+    percent: str | None  # "30" si el mensaje da porcentaje
+    amount: str | None  # monto si el mensaje da el monto de la etapa
+    date: str | None  # ISO; null = hoy
+
+
 class ParsedMessageSchema(BaseModel):
     intent: str
     amount: str | None
@@ -131,6 +148,8 @@ class ParsedMessageSchema(BaseModel):
     new_paid_by: str | None
     # Vacío salvo mensaje con 2+ gastos; ahí lleva TODOS (flat = primer ítem).
     expenses: list[ExpenseItemSchema]
+    # Vacío salvo UN gasto pagado en etapas ('30% hoy y el resto el 3-sep').
+    installments: list[InstallmentSchema]
 
 
 def _render_system(usernames: list[str], sender: str) -> str:

@@ -136,6 +136,61 @@ async def owner_split(session, stop_slug: str | None, payer: User, split: str) -
     return "payer_only" if owner.lower() == payer.username.lower() else "other_only"
 
 
+_INSTALLMENTS_MAX = 4
+_TWO = Decimal("0.01")
+
+
+def expand_installments(parsed, today: date) -> list | None:
+    """UN gasto pagado en etapas → clones autocontenidos, uno por parte, con
+    montos que CIERRAN exacto con el total (el redondeo es server-side, nunca
+    del LLM): cada etapa se calcula de su percent/amount y la ÚLTIMA absorbe el
+    remanente. La etapa 'el resto' (sin percent ni amount) va última.
+
+    Sufijo ' (i/n)' en la descripción para distinguirlas. Devuelve None si las
+    etapas no son válidas (sin total, remanente <= 0, más de un 'resto'…): el
+    gasto entra entero por el camino de siempre.
+    """
+    from dataclasses import replace
+    from decimal import ROUND_HALF_UP
+
+    insts = parsed.installments
+    if not insts or len(insts) < 2 or len(insts) > _INSTALLMENTS_MAX:
+        return None
+    total = parsed.amount
+    if total is None or total <= 0 or parsed.is_settlement:
+        return None
+
+    rests = [i for i in insts if i.percent is None and i.amount is None]
+    if len(rests) > 1:
+        return None
+    ordered = sorted(
+        (i for i in insts if i.percent is not None or i.amount is not None),
+        key=lambda i: i.pay_date or today,
+    ) + rests
+
+    amounts: list[Decimal] = []
+    for inst in ordered[:-1]:
+        if inst.amount is not None:
+            amt = inst.amount
+        else:
+            amt = (total * inst.percent / Decimal(100)).quantize(_TWO, rounding=ROUND_HALF_UP)
+        if amt <= 0:
+            return None
+        amounts.append(amt)
+    remainder = total - sum(amounts)
+    if remainder <= 0:
+        return None
+    amounts.append(remainder)
+
+    n = len(ordered)
+    base_desc = parsed.description or "gasto"
+    return [
+        replace(parsed, amount=amt, payment_date=inst.pay_date,
+                description=f"{base_desc} ({idx}/{n})", installments=[], batch=[])
+        for idx, (inst, amt) in enumerate(zip(ordered, amounts), start=1)
+    ]
+
+
 def _payment_status(payment_date: date | None, today: date) -> str:
     """pending = se paga en el futuro con TC proxy; la liquidación lazy (app/due.py)
     lo confirma con el TC real cuando llega la fecha."""
@@ -170,6 +225,11 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
 
     if parsed.batch:
         return await handle_capture_batch(session, user, wa_id, text, today, items=parsed.batch)
+
+    # Pago en etapas: N movimientos hermanos por el camino batch (batch_key
+    # compartido => "borrar" ofrece las cuotas juntas, una sola transacción).
+    if (parts := expand_installments(parsed, today)) is not None:
+        return await handle_capture_batch(session, user, wa_id, text, today, items=parts)
 
     if parsed.amount is None:
         return text_reply(f"{copy.H_WARN} No le pesqué el *monto*. Probá: _cena 20 euros_.")
