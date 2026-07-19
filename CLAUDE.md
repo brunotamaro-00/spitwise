@@ -99,7 +99,8 @@ derivan de `date.today()`, así que siempre luce mid-trip. Es self-bootstrapping
 (crea tablas + siembra categorías y usuarios), idempotente, y deja `backend/demo.db`
 (gitignoreada). Sirve para probar `/viaje`, `/ciudades` (mano a mano) y `/movimientos`
 con paradas pasadas / en curso / futuras (estas últimas solo con la reserva de
-alojamiento → estado "reservado").
+alojamiento, cargada hoy con `payment_date` al check-in → movimiento *pending* /
+ciudad "reservado").
 
 ```bash
 cd backend
@@ -129,7 +130,7 @@ Definido en `backend/app/db/models.py`. Tipos API en `api/schemas.py`; mirror TS
 |---------|-----|
 | **User** | Login web + `whatsapp_wa_id` |
 | **Category** | 10 fijas: Alojamiento, Comida, Supermercado, Transporte, Actividades, Compras, Bebidas/Salidas, Regalos, Salud, Otros |
-| **Movement** | `expense` \| `settlement`; `split`: `shared` \| `payer_only` \| `other_only`; FX + ciudad. **Sin fecha imputada**: el único eje temporal es `created_at` (fecha de carga) |
+| **Movement** | `expense` \| `settlement`; `split`: `shared` \| `payer_only` \| `other_only`; FX + ciudad. Eje temporal de lista/agrupación: `created_at` (fecha de carga). `payment_date` opcional (fecha en que se paga/pagó) + `status`: `confirmed` \| `pending` (futuro con TC proxy) |
 | **Stop** | Parada de itinerario cacheada desde Andiamo (+ locales: ver `is_local`) |
 | **FxRate** | Cache diario de tasas |
 | **BotPendingAction** | Flujos multi-step (categoría ambigua, confirm delete) |
@@ -141,7 +142,11 @@ Definido en `backend/app/db/models.py`. Tipos API en `api/schemas.py`; mirror TS
 1. **Exactamente 2 usuarios** — `get_trip_users` / balance fallan si no.
 2. **Balance** (`balance.py`): gastos `shared` = 50/50; `payer_only` no mueve neto; `other_only` = el otro debe todo; settlements reducen deuda del que paga.
 3. **Spend personal** (`spend.py` / `user_share`) — usado en dashboard, distinto del neto.
-4. **No existe la "fecha imputada"**: un movimiento no tiene fecha de gasto, solo `created_at`. La fecha que traiga un mensaje ("ayer") es **efímera**: sirve únicamente para mirar el itinerario y elegir la parada (`resolve_place`), nunca se persiste. FX siempre con la fecha de carga.
+4. **Fecha de pago** (`Movement.payment_date`, opcional; NULL = día de carga): la fecha que traiga un mensaje ("ayer", "se paga el 3-sep") elige la parada mirando el itinerario (`resolve_place`) **y se persiste**. Reglas derivadas (todas server-side, `status` nunca lo escribe el cliente):
+   - **TC = fecha de pago capeada a hoy** (`fx.fx_reference_date`): pasada → histórico Frankfurter; futura o NULL → proxy del día de carga. ARS es la excepción (DolarAPI solo publica MEP vivo → siempre tasa del día en que se procesa).
+   - **Futura → `status='pending'`**: cuenta en totales/analytics pero **no** en el balance (`compute_balance` lo excluye) ni en las líneas "le debe" del bot. La liquidación lazy (`app/due.py`, throttle 15 min colgado de webhook/API/lifespan, sin cron) lo confirma **silenciosamente** con el TC real al llegar la fecha; tasa `fallback` no confirma (reintenta) y `fx_source=manual` se confirma sin recalcular.
+   - **Pago en etapas** ("30% hoy y el resto el 3-sep"): el parser devuelve `installments` (percent/amount/date por etapa, sin aritmética del LLM) y `capture.expand_installments` genera N movimientos hermanos vía el camino batch — montos que cierran exacto con el total (la última etapa absorbe el redondeo) y sufijo `(i/n)` en la descripción.
+   - La lista y el agrupamiento por día siguen por `created_at`; `payment_date` se muestra como dato (card del bot, sheet de la web). **Nunca countdowns.**
 5. **Resolución de ciudad** (`bot/capture.py::resolve_place` + API): (a) ciudad explícita que matchea una parada → esa; (b) ciudad que no matchea (day-trip "Sintra") → la parada base de la fecha de referencia — `city_name` **siempre** sale de un `Stop` o es `null`, nunca texto libre; (c) sin ciudad ni fecha → parada de hoy (estricta: fuera de rango => General); (d) sin ciudad solo con flag `general` explícito o settlements. La API valida `stop_slug` contra paradas reales (422 si no existe) y deriva `city_name` del Stop.
 6. **PATCH con `fx_rate` manual** → `fx_source=manual`; editar descripción después **no** debe pisar la tasa.
 7. **Itinerario** no se hardcodea: usar filas `Stop` sincronizadas.
@@ -191,6 +196,7 @@ Reglas del bot:
 - Strings UX → `bot/copy.py` y `bot/render.py` (voseo rioplatense; nunca exponer errores técnicos).
 - Números en es-AR (`1.234,5`) — mismo criterio en backend `render.ar_number` y frontend `lib/format.ts`.
 - Q&A: tools en `qa/tools.py`; **delete nunca es directo** — crea pending + botones de confirmación.
+- Descripciones estandarizadas: el prompt pide sentence case + nombres propios; `app/textnorm.normalize_description` (nombres propios = Stops de la DB) es la red de seguridad en todos los bordes de escritura (capture, editor, API). One-off para datos viejos: `scripts/normalize_descriptions.py`.
 - Split por defecto shared; cambio de split vía NL (`edit`) o botones legacy `split_*`.
 - **Corrección de gasto reciente** (`editor.recent_movement` + `describe_recent`): tras cargar un gasto, el parser recibe ese último gasto como contexto (`last_expense`, ventana `EDIT_RECENT_TTL_MINUTES`, default 15). Una corrección natural sin monto nuevo (_contalo solo para katia_, _era en Paris_, _fueron 45_, _pagó bruno_, _es transporte_) se clasifica `edit` con `ref_last` y edita ese movimiento. Red de seguridad en `dispatcher`: un `expense` sin monto con un gasto fresco a la vista no da dead-end ("no le pesqué el monto") sino que guía a corregir el último.
 
@@ -243,7 +249,7 @@ Producción / features (ver `config.py` y `DEPLOY.md`):
 ## Antes de cambiar cosas sensibles
 
 - Webhook: Meta timeout ~5s → el 200 **siempre** antes del LLM.
-- Multi-worker / horarios de process → rompe locks y pending del bot **y** las guardas del sync de Andiamo (`_refresh_running`/`_dirty` en `andiamo.py`).
+- Multi-worker / horarios de process → rompe locks y pending del bot **y** las guardas del sync de Andiamo (`_refresh_running`/`_dirty` en `andiamo.py`) **y** el throttle de la liquidación lazy (`_last_check` en `due.py`).
 - Sync de stops: Andiamo pushea `POST /andiamo/sync-hook` en cada alta/edición/borrado (patrón pull-on-ping); el TTL 6h queda como fallback. La reconciliación **archiva** (`Stop.is_archived`) los stops borrados en Andiamo que tienen movimientos y borra los que no; payload vacío o parcial nunca toca el snapshot.
 - Catálogo de categorías (`categories/catalog.py`): el orden es `sort_order` y `Otros` va último. Todo lo demás es derivado (seed, prompt del parser vía `load_categories`, emojis del bot, API) — sumar una categoría son **3 lugares**: la tupla acá, una entrada en `CATEGORY_META` (`frontend/src/lib/chartTheme.ts`: ícono + color + fondo, más su token `--color-accent-*` en `index.css`) y el `MAP` de `andiamo/src/lib/categoryIcons.ts`. Los tres frontends degradan solos (ícono Tag + gris), así que olvidarse no rompe: se ve feo.
   - La **descripción es el clasificador**, no documentación: se inyecta en el prompt del parser. Si dos se pisan (p. ej. "supermercado" viviendo en Comida y en Supermercado), el LLM elige mal. Mantenerlas mutuamente excluyentes y marcar el borde explícito.

@@ -128,11 +128,16 @@ async def main() -> None:
             ))
 
             past_or_current = arrival <= TODAY
-            # Alojamiento: siempre (los futuros quedan como reserva "reservado").
-            _add_mov(s, cats["Alojamiento"], cur, random.randint(*SPEND["Alojamiento"]) * nights,
-                     arrival, slug, name, bruno, "shared", f"Airbnb {name}")
-
-            if not past_or_current:
+            lodging_usd = random.randint(*SPEND["Alojamiento"]) * nights
+            if past_or_current:
+                _add_mov(s, cats["Alojamiento"], cur, lodging_usd,
+                         arrival, slug, name, bruno, "shared", f"Airbnb {name}")
+            else:
+                # Reserva futura: cargada HOY con fecha de pago al check-in =>
+                # pending (TC proxy). Ejercita el feature real de payment_date.
+                _add_mov(s, cats["Alojamiento"], cur, lodging_usd,
+                         TODAY, slug, name, bruno, "shared", f"Airbnb {name}",
+                         payment_date=arrival, status="pending")
                 continue  # futuro: solo la reserva de alojamiento
 
             # Gastos diarios variados hasta HOY (nada más allá).
@@ -189,8 +194,11 @@ def _created(day: date) -> datetime:
     return datetime.combine(day, time(hour=random.randint(9, 22), minute=random.randint(0, 59)))
 
 
-def _add_mov(s, cat, cur, usd_amount, day, slug, city, paid_by, split, desc) -> None:
-    """`usd_amount` está en USD; se convierte a la moneda local del stop."""
+def _add_mov(s, cat, cur, usd_amount, day, slug, city, paid_by, split, desc,
+             *, payment_date=None, status="confirmed") -> None:
+    """`usd_amount` está en USD; se convierte a la moneda local del stop.
+    `day` es el día de CARGA (created_at); una reserva futura va con
+    payment_date + status='pending'."""
     rate = FX[cur]
     usd = Decimal(str(usd_amount))
     local = (usd / rate).quantize(Decimal("0.01"))
@@ -200,6 +208,7 @@ def _add_mov(s, cat, cur, usd_amount, day, slug, city, paid_by, split, desc) -> 
         fx_rate=rate, fx_source="manual", paid_by=paid_by.id, split=split,
         description=desc, category_id=cat.id if cat else None,
         stop_slug=slug, city_name=city, created_by=paid_by.id,
+        payment_date=payment_date, status=status,
         created_at=_created(day),
     ))
 
