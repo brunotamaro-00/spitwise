@@ -9,8 +9,9 @@ import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
 import Skeleton from "@/components/ui/Skeleton";
+import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { formatShortDate, formatUsd, isZeroMoney } from "@/lib/format";
-import type { CityPace } from "@/types";
+import type { CityPace, TripBlock } from "@/types";
 
 function Chapter({ city, onOpen }: { city: CityPace; onOpen: () => void }) {
   const future = city.status === "future";
@@ -81,7 +82,6 @@ function Chapter({ city, onOpen }: { city: CityPace; onOpen: () => void }) {
  *  "día X de Y": los capítulos futuros existen, pero nadie los cuenta. */
 export default function Trip() {
   const pace = useQuery({ queryKey: ["dashboard", "pace"], queryFn: getPace });
-  const navigate = useNavigate();
 
   if (pace.isError) {
     return (
@@ -91,26 +91,34 @@ export default function Trip() {
       </div>
     );
   }
-  if (!pace.data) {
-    return (
-      <div className="flex flex-col gap-5">
-        <PageTitle>Viaje</PageTitle>
-        <Skeleton className="h-24" />
-        <Skeleton className="h-20" />
-        <Skeleton className="h-20" />
-      </div>
-    );
-  }
-
-  const { trip, cities } = pace.data;
-  const chapters = cities.filter((c) => !c.is_archived).sort((a, b) => a.order - b.order);
-
   return (
     <div className="flex flex-col gap-5">
       <div className="animate-rise-in">
         <PageTitle>Viaje</PageTitle>
       </div>
 
+      <SkeletonReveal
+        ready={!!pace.data}
+        skeleton={
+          <div className="flex flex-col gap-5">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
+          </div>
+        }
+      >
+        {() => <TripBody trip={pace.data!.trip} cities={pace.data!.cities} />}
+      </SkeletonReveal>
+    </div>
+  );
+}
+
+function TripBody({ trip, cities }: { trip: TripBlock; cities: CityPace[] }) {
+  const navigate = useNavigate();
+  const chapters = cities.filter((c) => !c.is_archived).sort((a, b) => a.order - b.order);
+
+  return (
+    <div className="flex flex-col gap-5">
       {!isZeroMoney(trip.general_usd) && (
         <div className="animate-rise-in stagger-1">
           <Card className="flex items-center justify-between gap-3 p-4">
@@ -131,17 +139,20 @@ export default function Trip() {
       )}
 
       {/* Línea vertical detrás de los capítulos */}
-      <div className="animate-rise-in stagger-2 relative flex flex-col gap-3">
+      <div className="relative flex flex-col gap-3">
         <span
           aria-hidden="true"
-          className="absolute bottom-5 left-[10px] top-5 w-px bg-border"
+          className="animate-fade-in stagger-2 absolute bottom-5 left-[10px] top-5 w-px bg-border"
         />
-        {chapters.map((c) => (
-          <Chapter
+        {/* Stagger por capítulo, capeado a 200ms para que el último no llegue tarde. */}
+        {chapters.map((c, i) => (
+          <div
             key={c.stop_slug}
-            city={c}
-            onOpen={() => navigate(`/ciudades?c=${c.stop_slug}`)}
-          />
+            className="animate-rise-in"
+            style={{ animationDelay: `${Math.min(80 + i * 40, 200)}ms` }}
+          >
+            <Chapter city={c} onOpen={() => navigate(`/ciudades?c=${c.stop_slug}`)} />
+          </div>
         ))}
       </div>
     </div>

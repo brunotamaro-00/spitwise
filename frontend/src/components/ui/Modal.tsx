@@ -26,7 +26,17 @@ export default function Modal({ title, onClose, children, size = "md", locked = 
   const dragControls = useDragControls();
   const reduced = useReducedMotion();
   // Sheet solo en mobile: en desktop el diálogo centrado no se arrastra.
-  const isSheet = typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
+  // Reactivo a resize/rotación: si cambia el breakpoint con el modal abierto,
+  // el modo (drag, animación de salida) acompaña.
+  const [isSheet, setIsSheet] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches,
+  );
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 639px)");
+    const onChange = (e: MediaQueryListEvent) => setIsSheet(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
 
   function requestClose() {
     if (lockedRef.current) return;

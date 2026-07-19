@@ -24,6 +24,7 @@ import ErrorState from "@/components/ui/ErrorState";
 import { Label } from "@/components/ui/Field";
 import Kpi from "@/components/ui/Kpi";
 import Skeleton from "@/components/ui/Skeleton";
+import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { useToast } from "@/components/ui/Toast";
 import { formatAmount, formatDayHeader, formatShortDate, formatUsd, parseMoney } from "@/lib/format";
 import { useAndiamoUrl } from "@/lib/useConfig";
@@ -190,9 +191,8 @@ export default function Cities() {
 
       {/* Itinerario: una tarjeta por parada, en el orden del viaje, con su
           $/día (alojamiento prorrateado) — comparable entre estadías. */}
-      {loadingPace ? (
-        <Skeleton className="h-24" />
-      ) : cities.length === 0 ? null : (
+      <SkeletonReveal ready={!loadingPace} skeleton={<Skeleton className="h-24" />}>
+        {() => cities.length === 0 ? null : (
         <div className="animate-rise-in stagger-1 -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:-mx-8 lg:px-8">
           <motion.button
             onClick={() => setParams(new URLSearchParams(), { replace: true })}
@@ -253,7 +253,8 @@ export default function Cities() {
             );
           })}
         </div>
-      )}
+        )}
+      </SkeletonReveal>
 
       {/* Header / hero de la selección */}
       <Card className="animate-rise-in stagger-1 relative overflow-hidden p-5 text-white hero-gradient soft-hero">
@@ -337,15 +338,19 @@ export default function Cities() {
       {/* Detalle de movimientos */}
       <div>
         <h2 className="mb-2 px-1 text-sm font-bold text-ink">Detalle de movimientos</h2>
-        {loadingMovs ? (
-          <div className="flex flex-col gap-2">
-            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-16" />)}
-          </div>
-        ) : movements.length === 0 ? (
+        <SkeletonReveal
+          ready={!loadingMovs}
+          skeleton={
+            <div className="flex flex-col gap-2">
+              {[0, 1, 2].map((i) => <Skeleton key={i} className="h-16" />)}
+            </div>
+          }
+        >
+          {() => movements.length === 0 ? (
           <Card>
             <EmptyState icon={Receipt} title="Sin movimientos" description="No hay gastos para esta selección." />
           </Card>
-        ) : (
+          ) : (
           <div className="flex flex-col gap-4">
             {groups.map((g) => (
               <section key={g.date}>
@@ -375,7 +380,8 @@ export default function Cities() {
               </section>
             ))}
           </div>
-        )}
+          )}
+        </SkeletonReveal>
       </div>
 
       {viewing && (

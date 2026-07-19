@@ -113,25 +113,23 @@ export default function Dashboard() {
       </div>
 
       <div className="animate-rise-in stagger-3">
-        {pace.data ? <TripPaceCard pace={pace.data} /> : <Skeleton className="h-40" />}
+        <SkeletonReveal ready={!!pace.data} skeleton={<Skeleton className="h-40" />}>
+          {() => <TripPaceCard pace={pace.data!} />}
+        </SkeletonReveal>
       </div>
 
       {/* items-stretch + grid 12: el donut (denso) va angosto, el ritmo por
           ciudad respira en la columna ancha; nadie deja huecos. */}
       <div className="animate-rise-in stagger-4 grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
         <div className="lg:col-span-5">
-          {byCat.data ? (
-            <CategoryDonut data={byCat.data} subtitle="Todo el viaje" />
-          ) : (
-            <Skeleton className="h-64" />
-          )}
+          <SkeletonReveal ready={!!byCat.data} skeleton={<Skeleton className="h-64" />}>
+            {() => <CategoryDonut data={byCat.data!} subtitle="Todo el viaje" />}
+          </SkeletonReveal>
         </div>
         <div className="lg:col-span-7">
-          {pace.data ? (
-            <CityPaceChart cities={pace.data.cities} trip={pace.data.trip} />
-          ) : (
-            <Skeleton className="h-64" />
-          )}
+          <SkeletonReveal ready={!!pace.data} skeleton={<Skeleton className="h-64" />}>
+            {() => <CityPaceChart cities={pace.data!.cities} trip={pace.data!.trip} />}
+          </SkeletonReveal>
         </div>
       </div>
 

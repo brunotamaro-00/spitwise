@@ -60,10 +60,10 @@ export default function Login() {
         <Card className="animate-rise-in stagger-2 p-6">
           <form onSubmit={submit} className="flex flex-col gap-4">
             <Field label="Usuario">
-              <Input value={u} onChange={(e) => setU(e.target.value)} autoComplete="username" autoFocus />
+              <Input value={u} onChange={(e) => setU(e.target.value)} autoComplete="username" autoFocus required />
             </Field>
             <Field label="Contraseña">
-              <Input type="password" value={p} onChange={(e) => setP(e.target.value)} autoComplete="current-password" />
+              <Input type="password" value={p} onChange={(e) => setP(e.target.value)} autoComplete="current-password" required />
             </Field>
             {err && <p role="alert" className="text-sm font-semibold text-danger">{err}</p>}
             <Button type="submit" disabled={busy} className="mt-1">

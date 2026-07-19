@@ -7,6 +7,7 @@ import Cities from "@/pages/Cities";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import Movements from "@/pages/Movements";
+import NotFound from "@/pages/NotFound";
 import Trip from "@/pages/Trip";
 
 function Guard({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/viaje" element={<Trip />} />
           <Route path="/ciudades" element={<Cities />} />
           <Route path="/movimientos" element={<Movements />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </ToastProvider>

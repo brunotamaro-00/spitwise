@@ -247,6 +247,7 @@ Rutas (`App.tsx`): `/login`, `/` Dashboard, `/ciudades`, `/movimientos` (JWT en 
 - Primitivos en `components/ui/*`; charts con Recharts + `lib/chartTheme.ts`.
 - Iconos: Lucide (no emoji en chrome UI; banderas de país OK).
 - Alias `@/` → `src/`.
+- **Pruebas visuales / browser (MCP Playwright o Claude in Chrome):** siempre con viewport **iPhone 17** — `402×874` CSS px, `deviceScaleFactor: 3`, mobile UA. No probar el frontend en desktop por defecto.
 
 ## Patrones a seguir
 

@@ -219,22 +219,6 @@ body {
   .seg-pill { transition: none; }
 }
 
-/* Acordeón: expande/colapsa la altura vía grid-rows 0fr↔1fr (animable, a
-   diferencia de height:auto). El padding va SIEMPRE en .t-acc-panel-inner,
-   nunca en el track, o el panel no cierra del todo. (patrón accordion) */
-@layer utilities {
-  .t-acc-panel {
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows var(--duration-fast) var(--ease-smooth-out);
-  }
-  .t-acc-panel.is-open { grid-template-rows: 1fr; }
-  .t-acc-panel-inner { min-height: 0; overflow: hidden; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .t-acc-panel { transition: none; }
-}
-
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }

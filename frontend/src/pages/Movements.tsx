@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Receipt, SearchX, SlidersHorizontal, X } from "lucide-react";
+import { Receipt, Search, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
@@ -7,6 +7,7 @@ import { listCategories } from "@/api/categories";
 import { getStops } from "@/api/cities";
 import { deleteMovement, listMovements } from "@/api/movements";
 import AddMovementDialog from "@/components/AddMovementDialog";
+import MovementFiltersSheet, { type CityOption } from "@/components/MovementFiltersSheet";
 import MovementRow from "@/components/MovementRow";
 import MovementSheet from "@/components/MovementSheet";
 import { PageTitle } from "@/components/ui/Brand";
@@ -14,16 +15,34 @@ import Card from "@/components/ui/Card";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
-import { Field, Input, Select } from "@/components/ui/Field";
+import { Input } from "@/components/ui/Field";
 import Skeleton from "@/components/ui/Skeleton";
+import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { useToast } from "@/components/ui/Toast";
-import { formatAmount, formatDayHeader, formatUsd } from "@/lib/format";
+import { formatAmount, formatDayHeader, formatShortDate, formatUsd } from "@/lib/format";
 import { createdDayKey, dayTotalShare, dayTotalUsd, groupByDay } from "@/lib/groupByDay";
 import { involvesMe, myShare } from "@/lib/share";
 import { useMe } from "@/lib/useMe";
 import type { Category, Movement } from "@/types";
 
 const EMPTY = { onlyMine: false, city: "", categoryId: "", from: "", to: "", q: "" };
+
+/** Pill removible de un filtro activo. */
+function FilterPill({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="animate-fade-in inline-flex items-center gap-0.5 rounded-full border border-brick-border bg-brick-bg py-1 pl-2.5 pr-1 text-xs font-semibold text-brick">
+      {label}
+      <button
+        type="button"
+        aria-label={`Quitar filtro ${label}`}
+        onClick={onRemove}
+        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-brick/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+      >
+        <X size={12} strokeWidth={2.25} aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
 
 export default function Movements() {
   const qc = useQueryClient();
@@ -73,10 +92,16 @@ export default function Movements() {
     () => Object.fromEntries(stops.map((s) => [s.slug, s.country_flag])) as Record<string, string | null>,
     [stops],
   );
-  const cities = useMemo(
-    () => [...new Set(data.map((m) => m.city_name).filter(Boolean))] as string[],
-    [data],
-  );
+  // Ciudades con movimientos, con su bandera (vía el stop del primer movimiento).
+  const cityOptions = useMemo<CityOption[]>(() => {
+    const seen = new Map<string, string | null>();
+    for (const m of data) {
+      if (m.city_name && !seen.has(m.city_name)) {
+        seen.set(m.city_name, m.stop_slug ? flagMap[m.stop_slug] ?? null : null);
+      }
+    }
+    return [...seen].map(([name, flag]) => ({ name, flag }));
+  }, [data, flagMap]);
   const usedCategoryIds = useMemo(
     () => new Set(data.map((m) => m.category_id).filter((x): x is number => x != null)),
     [data],
@@ -132,10 +157,10 @@ export default function Movements() {
       <div className="mb-3 flex items-center justify-between gap-2">
         <PageTitle>Movimientos</PageTitle>
         <button
-          onClick={() => setShowFilters((v) => !v)}
-          aria-expanded={showFilters}
+          onClick={() => setShowFilters(true)}
           aria-label="Filtros"
-          className={`relative flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-lg border border-border bg-surface transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${showFilters ? "text-brick" : "text-ink-3"}`}
+          aria-haspopup="dialog"
+          className="relative flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-lg border border-border bg-surface text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
         >
           <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
           {activeCount > 0 && (
@@ -152,56 +177,66 @@ export default function Movements() {
         </div>
       )}
 
-      <div className={`t-acc-panel ${showFilters ? "is-open" : ""}`}>
-        <div className="t-acc-panel-inner" inert={!showFilters}>
-        <Card className="mb-3 p-5">
-          <label className="mb-3 flex cursor-pointer items-center gap-2.5">
-            <input
-              type="checkbox"
-              className="h-5 w-5 accent-brick"
-              checked={f.onlyMine}
-              onChange={(e) => setF({ ...f, onlyMine: e.target.checked })}
-            />
-            <span className="text-sm font-semibold text-ink">Solo movimientos míos</span>
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Ciudad">
-              <Select value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })}>
-                <option value="">Todas</option>
-                {cities.map((c) => <option key={c} value={c}>{c}</option>)}
-              </Select>
-            </Field>
-            <Field label="Categoría">
-              <Select value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}>
-                <option value="">Todas</option>
-                {categories.filter((c) => usedCategoryIds.has(c.id)).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Desde">
-              <Input type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
-            </Field>
-            <Field label="Hasta">
-              <Input type="date" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} />
-            </Field>
-          </div>
-          <div className="mt-3">
-            <Field label="Buscar">
-              <Input placeholder="descripción o ciudad…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
-            </Field>
-          </div>
-          {activeCount > 0 && (
-            <button
-              onClick={() => setF(EMPTY)}
-              className="mt-3 flex cursor-pointer items-center gap-1 rounded text-xs font-medium text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
-            >
-              <X size={14} strokeWidth={2} aria-hidden="true" /> Limpiar filtros
-            </button>
-          )}
-        </Card>
-        </div>
+      {/* Búsqueda siempre a mano; el resto de los filtros viven en el sheet. */}
+      <div className="relative mb-3">
+        <Search
+          size={16}
+          strokeWidth={2}
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-faint"
+        />
+        <Input
+          placeholder="Buscar descripción o ciudad…"
+          aria-label="Buscar movimientos"
+          value={f.q}
+          onChange={(e) => setF({ ...f, q: e.target.value })}
+          className="pl-10 pr-11"
+        />
+        {f.q && (
+          <button
+            type="button"
+            aria-label="Limpiar búsqueda"
+            onClick={() => setF({ ...f, q: "" })}
+            className="animate-fade-in absolute inset-y-0 right-0 flex w-11 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+          >
+            <X size={16} strokeWidth={2} aria-hidden="true" />
+          </button>
+        )}
       </div>
+
+      {/* Pills de filtros activos (la búsqueda tiene su propia X). */}
+      {(f.onlyMine || f.city || f.categoryId || f.from || f.to) && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          {f.onlyMine && (
+            <FilterPill label="Solo míos" onRemove={() => setF({ ...f, onlyMine: false })} />
+          )}
+          {f.categoryId && (
+            <FilterPill
+              label={catMap[Number(f.categoryId)]?.name ?? "Categoría"}
+              onRemove={() => setF({ ...f, categoryId: "" })}
+            />
+          )}
+          {f.city && <FilterPill label={f.city} onRemove={() => setF({ ...f, city: "" })} />}
+          {(f.from || f.to) && (
+            <FilterPill
+              label={
+                f.from && f.to
+                  ? `${formatShortDate(f.from)} – ${formatShortDate(f.to)}`
+                  : f.from
+                    ? `desde ${formatShortDate(f.from)}`
+                    : `hasta ${formatShortDate(f.to)}`
+              }
+              onRemove={() => setF({ ...f, from: "", to: "" })}
+            />
+          )}
+          <button
+            onClick={() => setF(EMPTY)}
+            className="cursor-pointer rounded px-1 text-xs font-medium text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+          >
+            Limpiar todo
+          </button>
+        </div>
+      )}
 
       {!isLoading && data.length > 0 && (
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-xl border border-border bg-surface-2 px-4 py-2.5">
@@ -216,27 +251,25 @@ export default function Movements() {
         </div>
       )}
 
-      {isLoading && (
-        <div className="flex flex-col gap-2">
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16" />)}
-        </div>
-      )}
-
-      {!isLoading && data.length === 0 && (
+      <SkeletonReveal
+        ready={!isLoading}
+        skeleton={
+          <div className="flex flex-col gap-2">
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16" />)}
+          </div>
+        }
+      >
+        {() => data.length === 0 ? (
         <Card>
           <EmptyState icon={Receipt} title="Sin movimientos todavía"
             description="Tocá el botón + para cargar el primer gasto del viaje." />
         </Card>
-      )}
-
-      {!isLoading && data.length > 0 && filtered.length === 0 && (
+        ) : filtered.length === 0 ? (
         <Card>
           <EmptyState icon={SearchX} title="Nada coincide"
             description="Ningún movimiento coincide con los filtros aplicados." />
         </Card>
-      )}
-
-      {groups.length > 0 && (
+        ) : (
         <div className="flex flex-col gap-4">
           {groups.map((g) => (
             <section key={g.date}>
@@ -264,7 +297,8 @@ export default function Movements() {
             </section>
           ))}
         </div>
-      )}
+        )}
+      </SkeletonReveal>
 
       {viewing && (
         <MovementSheet
@@ -275,6 +309,17 @@ export default function Movements() {
           onEdit={(mv) => { setViewing(null); setEditing(mv); setEditOpen(true); }}
           onDelete={(mv) => { setViewing(null); setDeleteErr(null); setToDelete(mv); }}
           onClose={() => setViewing(null)}
+        />
+      )}
+      {showFilters && (
+        <MovementFiltersSheet
+          filters={f}
+          categories={categories.filter((c) => usedCategoryIds.has(c.id))}
+          cities={cityOptions}
+          activeCount={activeCount}
+          onChange={(patch) => setF((prev) => ({ ...prev, ...patch }))}
+          onClear={() => setF(EMPTY)}
+          onClose={() => setShowFilters(false)}
         />
       )}
       {editOpen && <AddMovementDialog editing={editing} onClose={() => setEditOpen(false)} />}
