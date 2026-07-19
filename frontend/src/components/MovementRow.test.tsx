@@ -7,6 +7,7 @@ const mv = {
   id: 1, type: "expense", amount: "45.00", currency: "GBP", amount_usd: "57.15",
   fx_rate: "1.27", fx_source: "frankfurter", paid_by: 1, split: "shared",
   description: "cena", category_id: 2, stop_slug: "londres", city_name: "Londres",
+  payment_date: null, status: "confirmed",
   created_at: "2026-08-06T12:00:00Z",
 };
 
@@ -21,5 +22,11 @@ describe("MovementRow", () => {
     render(<MovementRow mv={mv} myId={1} onEdit={() => {}} onDelete={() => {}} />);
     // shared: mitad de 57,15 = 28,575 -> "USD 28,58"
     expect(screen.getByText(/tu parte/i)).toBeTruthy();
+  });
+
+  it("marca los pendientes con un pill", () => {
+    const pending = { ...mv, status: "pending", payment_date: "2026-09-03" };
+    render(<MovementRow mv={pending} onEdit={() => {}} onDelete={() => {}} />);
+    expect(screen.getByText(/pendiente/i)).toBeTruthy();
   });
 });

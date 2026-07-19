@@ -79,6 +79,14 @@ export default function MovementSheet({ mv, category, flag, myId, onEdit, onDele
       <dl className="mt-4">
         {!isSettlement && <Row label="Categoría">{category?.name ?? "Sin categoría"}</Row>}
         <Row label="Cargado">{capitalize(formatDayHeader(createdDayKey(mv)))}</Row>
+        {!isSettlement && mv.payment_date && (
+          <Row label={mv.status === "pending" ? "Se paga" : "Pagado"}>
+            {capitalize(formatDayHeader(mv.payment_date))}
+            {mv.status === "pending" && (
+              <span className="ml-1.5 font-semibold text-accent-amber">· TC provisorio</span>
+            )}
+          </Row>
+        )}
         {!isSettlement && (
           <Row label="Ciudad">
             {mv.city_name ? (

@@ -125,6 +125,7 @@ export default function AddMovementDialog({ editing, onClose }: {
     editing?.stop_slug ?? (editing && !editing.city_name ? GENERAL : ""),
   );
   const [paidBy, setPaidBy] = useState<string>(editing?.paid_by?.toString() ?? "");
+  const [paymentDate, setPaymentDate] = useState(editing?.payment_date ?? "");
   const [err, setErr] = useState<string | null>(null);
   // `completing`: partimos de un gasto existente y cargamos SOLO la parte que
   // falta como un movimiento nuevo. El original no se toca.
@@ -173,6 +174,11 @@ export default function AddMovementDialog({ editing, onClose }: {
       if (paidBy) body.paid_by = Number(paidBy);
 
       if (isExpense) {
+        // Fecha de pago: mandarla solo si está seteada; al editar, vaciarla
+        // vuelve explícitamente a "día de carga" (null).
+        if (paymentDate) body.payment_date = paymentDate;
+        else if (isEdit && editing?.payment_date) body.payment_date = null;
+
         // Categoría y división solo aplican a gastos.
         body.category_id = categoryId ? Number(categoryId) : null;
         body.split = split;
@@ -322,6 +328,19 @@ export default function AddMovementDialog({ editing, onClose }: {
                 <option key={s.slug} value={s.slug}>{s.name}</option>
               ))}
             </Select>
+          </Field>
+        )}
+
+        {/* Fecha de pago opcional: vacía = hoy. Futura => queda pendiente con
+            TC provisorio (se ajusta solo al llegar el día); pasada => TC
+            histórico de esa fecha. */}
+        {isExpense && (
+          <Field label="Fecha de pago" hint="Vacía = hoy · futura queda pendiente">
+            <Input
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+            />
           </Field>
         )}
 

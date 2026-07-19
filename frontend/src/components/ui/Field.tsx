@@ -33,11 +33,19 @@ export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<H
   },
 );
 
-/** Campo etiquetado: <Label> + control en columna. */
-export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** Campo etiquetado: <Label> + control en columna. `hint` = ayuda breve a la
+ *  derecha del label. */
+export function Field({ label, hint, children }: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="flex flex-col gap-1.5">
-      <Label>{label}</Label>
+      <span className="flex items-baseline justify-between gap-2">
+        <Label>{label}</Label>
+        {hint && <span className="text-[11px] text-ink-faint">{hint}</span>}
+      </span>
       {children}
     </label>
   );

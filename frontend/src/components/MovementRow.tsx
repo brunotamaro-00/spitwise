@@ -46,6 +46,11 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold text-ink">
           {mv.description || (isSettlement ? "Pago (saldo)" : "Sin descripción")}
+          {mv.status === "pending" && (
+            <span className="ml-1.5 inline-block rounded-full bg-accent-amber-bg px-1.5 py-px align-[2px] text-[10px] font-bold uppercase tracking-wide text-accent-amber">
+              Pendiente
+            </span>
+          )}
         </p>
         <p className="mt-0.5 truncate text-xs text-ink-3">
           {mv.city_name ? (
