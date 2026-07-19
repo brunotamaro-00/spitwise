@@ -71,13 +71,26 @@ async def test_edit_amount_by_reference(db_session):
     assert cena.amount_usd == Decimal("25.00")  # USD recalculado
 
 
-async def test_edit_date_recalculates_city(db_session):
-    # "era del 23/9": la fecha no se guarda; solo re-imputa la ciudad por itinerario.
+async def test_edit_date_alone_keeps_city(db_session):
+    # "se paga el 23/9": la fecha de pago cambia, la ciudad NO se arrastra a la
+    # parada de esa fecha (el gasto sigue siendo de donde ocurrió).
     u1, _ = await _setup(db_session)
     db_session.add(_mv(u1, "cena", "10", date(2026, 8, 5), "Londres", "londres"))
     await db_session.commit()
     fake = FakeLLM(_payload(ref_last=True, new_date="2026-09-23"))
-    reply = await dispatch(db_session, "549111", "text", "la fecha era el 23/9", None, TODAY, llm_client=fake)
+    reply = await dispatch(db_session, "549111", "text", "se paga el 23/9", None, TODAY, llm_client=fake)
+    mv = (await db_session.execute(select(Movement))).scalar_one()
+    assert mv.city_name == "Londres" and mv.stop_slug == "londres"
+    assert mv.payment_date == date(2026, 9, 23)
+    assert "Roma" not in (reply.text or "")
+
+
+async def test_edit_city_explicit_still_resolves_stop(db_session):
+    u1, _ = await _setup(db_session)
+    db_session.add(_mv(u1, "cena", "10", date(2026, 8, 5), "Londres", "londres"))
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, new_city="Roma"))
+    reply = await dispatch(db_session, "549111", "text", "era en roma", None, TODAY, llm_client=fake)
     mv = (await db_session.execute(select(Movement))).scalar_one()
     assert mv.city_name == "Roma" and mv.stop_slug == "roma"
     assert "Londres → *Roma*" in (reply.text or "")
@@ -191,7 +204,151 @@ async def test_edit_date_to_future_marks_pending(db_session):
     await db_session.refresh(mv)
     assert mv.payment_date == date(2026, 9, 22)
     assert mv.status == "pending"
-    assert mv.city_name == "Roma"  # re-imputada por el itinerario de esa fecha
+    assert mv.city_name is None  # la fecha sola no re-imputa la ciudad
+
+
+async def test_edit_only_user_relative_to_new_payer(db_session):
+    """'lo pagó katia y es solo de ella': el split se deriva server-side contra
+    el pagador NUEVO (payer_only), sin depender de la aritmética del LLM."""
+    u1, u2 = await _setup(db_session)
+    db_session.add(_mv(u1, "paseo", "28", date(2026, 8, 6)))
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, new_paid_by="katia", new_only_user="katia"))
+    await dispatch(db_session, "549111", "text", "lo pagó katia y es solo de ella",
+                   None, TODAY, llm_client=fake)
+    mv = (await db_session.execute(select(Movement))).scalar_one()
+    assert mv.paid_by == u2.id
+    assert mv.split == "payer_only"
+
+
+async def test_edit_only_user_shared(db_session):
+    u1, _ = await _setup(db_session)
+    mv = _mv(u1, "super", "22", date(2026, 8, 6))
+    mv.split = "other_only"
+    db_session.add(mv)
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, new_only_user="shared"))
+    await dispatch(db_session, "549111", "text", "en realidad era compartido",
+                   None, TODAY, llm_client=fake)
+    await db_session.refresh(mv)
+    assert mv.split == "shared"
+
+
+async def test_edit_paid_by_alone_preserves_owner(db_session):
+    """Cambiar solo el pagador no cambia de quién es el gasto: el split relativo
+    se da vuelta para conservar al dueño."""
+    u1, u2 = await _setup(db_session)
+    mv = _mv(u1, "paseo", "28", date(2026, 8, 6))
+    mv.split = "other_only"  # pagó bruno, es de katia
+    db_session.add(mv)
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, new_paid_by="katia"))
+    await dispatch(db_session, "549111", "text", "lo pagó katia", None, TODAY, llm_client=fake)
+    await db_session.refresh(mv)
+    assert mv.paid_by == u2.id
+    assert mv.split == "payer_only"  # sigue siendo de katia
+
+
+async def test_ref_text_wins_over_ref_last(db_session):
+    """'el taxi era compartido' con ref_last=true del parser: el match por texto
+    manda y edita el taxi, no el último cargado."""
+    u1, _ = await _setup(db_session)
+    taxi = _mv(u1, "taxi", "12", date(2026, 8, 6))
+    taxi.split = "payer_only"
+    db_session.add_all([taxi, _mv(u1, "helado", "5", date(2026, 8, 6))])
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, ref_text="taxi", new_only_user="shared"))
+    reply = await dispatch(db_session, "549111", "text", "el taxi era compartido",
+                           None, TODAY, llm_client=fake)
+    await db_session.refresh(taxi)
+    assert taxi.split == "shared"
+    assert "Editado" in (reply.text or "")
+
+
+async def test_edit_batch_total_rescales_siblings(db_session):
+    """'el total era 480' sobre cuotas: redistribuye el batch en proporción; la
+    última fila absorbe el redondeo."""
+    u1, _ = await _setup(db_session)
+    a = _mv(u1, "hostel (1/2)", "129", date(2026, 8, 6))
+    b = _mv(u1, "hostel (2/2)", "301", date(2026, 8, 6))
+    for m in (a, b):
+        m.batch_key = "abc123"
+    b.payment_date = date(2026, 9, 3)
+    b.status = "pending"
+    db_session.add_all([a, b])
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_text="hostel", ref_last=True,
+                            new_amount="480", new_amount_is_total=True))
+    reply = await dispatch(db_session, "549111", "text", "no, el total era 480",
+                           None, TODAY, llm_client=fake)
+    await db_session.refresh(a)
+    await db_session.refresh(b)
+    assert a.amount == Decimal("144.00")
+    assert b.amount == Decimal("336.00")
+    assert a.amount + b.amount == Decimal("480.00")
+    assert b.status == "pending"  # la cuota futura sigue pendiente
+    assert "Total" in (reply.text or "")
+
+
+async def test_edit_amount_without_total_flag_edits_single(db_session):
+    u1, _ = await _setup(db_session)
+    a = _mv(u1, "hostel (1/2)", "129", date(2026, 8, 6))
+    b = _mv(u1, "hostel (2/2)", "301", date(2026, 8, 6))
+    for m in (a, b):
+        m.batch_key = "abc123"
+    db_session.add_all([a, b])
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, new_amount="310"))
+    await dispatch(db_session, "549111", "text", "la segunda cuota fue 310",
+                   None, TODAY, llm_client=fake)
+    await db_session.refresh(a)
+    await db_session.refresh(b)
+    assert a.amount == Decimal("129")
+    assert b.amount == Decimal("310")
+
+
+async def test_noop_edit_on_last_retries_with_message_text(db_session):
+    """Parser flaky: 'el taxi era compartido' llega como ref_last sin ref_text y
+    el último (helado) ya es shared. La red usa el texto del mensaje para
+    encontrar el taxi y editarlo."""
+    u1, _ = await _setup(db_session)
+    taxi = _mv(u1, "taxi", "12", date(2026, 8, 6))
+    taxi.split = "payer_only"
+    db_session.add_all([taxi, _mv(u1, "helado", "5", date(2026, 8, 6))])
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, ref_text=None, new_only_user="shared"))
+    reply = await dispatch(db_session, "549111", "text", "el taxi en realidad era compartido",
+                           None, TODAY, llm_client=fake)
+    await db_session.refresh(taxi)
+    assert taxi.split == "shared"
+    assert "Editado" in (reply.text or "")
+
+
+async def test_noop_edit_without_named_movement_stays_noop(db_session):
+    """'contalo solo para katia' sobre un último que ya estaba así: el texto no
+    nombra otro movimiento → 'Nada que cambiar' legítimo."""
+    u1, u2 = await _setup(db_session)
+    tren = _mv(u2, "tren", "39", date(2026, 8, 6))
+    tren.paid_by = u2.id
+    tren.split = "payer_only"
+    db_session.add(tren)
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_last=True, new_only_user="katia"))
+    reply = await dispatch(db_session, "549222", "text", "no, contalo solo para katia",
+                           None, TODAY, llm_client=fake)
+    assert "Nada que cambiar" in (reply.text or "")
+
+
+async def test_ref_date_is_hint_not_hard_filter(db_session):
+    """'borrá el museo' con una ref_date mal adivinada por el parser: la fecha
+    es una pista — si ese día no hay match, se busca sin fecha."""
+    u1, _ = await _setup(db_session)
+    db_session.add(_mv(u1, "museo", "20", date(2026, 8, 5)))
+    await db_session.commit()
+    fake = FakeLLM(_payload(intent="delete", ref_text="museo", ref_date="2026-08-20"))
+    reply = await dispatch(db_session, "549111", "text", "borrá el museo", None, TODAY, llm_client=fake)
+    assert reply.buttons and reply.buttons[0][0].startswith("del_confirm:")
+    assert "Museo" in (reply.text or "")
 
 
 async def test_edit_amount_keeps_manual_fx(db_session):

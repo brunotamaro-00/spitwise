@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-haiku-4-5"
     anthropic_timeout_seconds: float = 20.0
     openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-5-mini"  # parser: con reasoning minimal (ver client.py)
 
     # Agente Q&A conversacional (modelo más capaz, separado del parser).
     openai_chat_model: str = "gpt-5-mini"

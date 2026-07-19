@@ -126,8 +126,10 @@ async def test_get_balance(db_session):
     # katia debe: 50 (cena) + 60 (museo other_only) - 30 (settlement que pagó) = 80
     assert got == {
         "debtor": "katia", "creditor": "bruno", "amount_usd": "80.00",
+        "pending_excluded_count": 0, "pending_excluded_usd": "0.00",
         "note": got["note"],
     }
+    assert "pending" in got["note"]
 
 
 async def test_get_itinerary_days(db_session):

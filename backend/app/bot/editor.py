@@ -77,19 +77,34 @@ async def find_candidates(session: AsyncSession, *, ref_last: bool, ref_text: st
              .order_by(Movement.id.desc()).limit(_SEARCH_LIMIT))
     movements = (await session.execute(q)).scalars().all()
     if not movements:
+        # La fecha del parser es una pista, no un filtro duro: si no hay nada
+        # cargado ese día ("el museo de ayer" con la fecha mal adivinada),
+        # reintentar la búsqueda sin fecha antes de dar el dead-end.
+        if ref_date is not None:
+            return await find_candidates(
+                session, ref_last=ref_last, ref_text=ref_text, ref_date=None
+            )
         return []
 
-    if ref_last or not ref_text:
-        return movements[:1]
-
-    ref_tokens = {t for t in _fold(ref_text).split() if len(t) > 2}
-    if not ref_tokens:
-        return movements[:1]
-    scored = [(m, _score(m, ref_tokens)) for m in movements]
-    best = max(s for _, s in scored)
-    if best == 0:
+    # ref_text manda: si el mensaje nombra un movimiento ('el taxi'), el match
+    # por texto va primero aunque el parser también haya marcado ref_last. El
+    # último queda como fallback (ref_last o sin match usable).
+    if ref_text:
+        ref_tokens = {t for t in _fold(ref_text).split() if len(t) > 2}
+        if ref_tokens:
+            scored = [(m, _score(m, ref_tokens)) for m in movements]
+            best = max(s for _, s in scored)
+            if best > 0:
+                return [m for m, s in scored if s == best]
+            if ref_date is not None:
+                # El texto no aparece en lo cargado ese día: probar sin fecha.
+                return await find_candidates(
+                    session, ref_last=ref_last, ref_text=ref_text, ref_date=None
+                )
+        if ref_last:
+            return movements[:1]
         return []
-    return [m for m, s in scored if s == best]
+    return movements[:1]
 
 
 async def _payer_name(session, mv: Movement) -> str:
@@ -131,6 +146,21 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
             if new_payer is not None:
                 diffs.append(("👤", f"Pagó {old_name.capitalize()}", f"Pagó {new_payer.username.capitalize()}"))
                 mv.paid_by = new_payer.id
+                # El dueño de un gasto individual no cambia por cambiar el
+                # pagador: el split (relativo al pagador) se da vuelta para
+                # conservarlo, salvo que el edit también pida otro reparto.
+                if (mv.split in ("payer_only", "other_only")
+                        and "only_user" not in changes and "split" not in changes):
+                    mv.split = "other_only" if mv.split == "payer_only" else "payer_only"
+
+    # only_user ('shared' | username) → split concreto contra el pagador EFECTIVO
+    # (ya con new_paid_by aplicado): la aritmética relativa es del server.
+    if "only_user" in changes:
+        from app.llm.parser import split_for
+        changes["split"] = split_for(
+            None if changes["only_user"] == "shared" else changes["only_user"],
+            await _payer_name(session, mv),
+        )
 
     if "split" in changes and changes["split"] != mv.split:
         payer = await _payer_name(session, mv)
@@ -141,15 +171,14 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
                       split_label(changes["split"], payer.capitalize(), other_name)))
         mv.split = changes["split"]
 
-    # Fecha ("era de ayer", "se paga el 3-sep"): re-imputa la ciudad mirando el
-    # itinerario de esa fecha Y se persiste como fecha de pago (status derivado:
-    # futura => pending, pasada/hoy => confirmed). Con ciudad explícita, un único
-    # resolve con ambas.
+    # Ciudad explícita: se re-resuelve contra el itinerario (day-trip incluido,
+    # usando la fecha nueva si también viene). Un edit de fecha SOLA no toca la
+    # ciudad: "poné que se paga hoy" no debe arrastrar el gasto a otra parada.
     new_date = changes.get("date")
     date_changed = False
-    if (new_date is not None or "city" in changes) and mv.type != "settlement":
+    if "city" in changes and mv.type != "settlement":
         slug, city, _cur = await resolve_place(
-            session, new_date or today, changes.get("city"), username
+            session, new_date or today, changes["city"], username
         )
         if (slug, city) != (mv.stop_slug, mv.city_name):
             diffs.append(("📍", mv.city_name or "Sin ciudad", city or "Sin ciudad"))
@@ -172,6 +201,7 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
         mv.currency = changes["currency"]
         money_changed = True
     if money_changed or date_changed:
+        old_usd = mv.amount_usd
         if mv.fx_source == "manual":
             # Invariante 6: una tasa manual nunca se pisa; solo recalcular el monto.
             mv.amount_usd = (Decimal(mv.amount) * Decimal(mv.fx_rate)).quantize(
@@ -183,6 +213,10 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
                 session, mv.amount, mv.currency, fx_reference_date(mv.payment_date, today)
             )
             mv.amount_usd, mv.fx_rate, mv.fx_source = amount_usd, rate, _map_source(src, mv.currency)
+        # El efecto en USD del cambio, visible en la card (salvo gasto ya en USD,
+        # donde la línea de monto lo dice igual).
+        if mv.currency != "USD" and old_usd is not None and mv.amount_usd != old_usd:
+            diffs.append(("💵", f"USD {ar_number(old_usd)}", f"USD {ar_number(mv.amount_usd)}"))
 
     await session.commit()
     return diffs
@@ -197,7 +231,8 @@ async def _pick_buttons(session, candidates, action: str, payload: dict, owner: 
     return buttons_reply(question, buttons)
 
 
-async def handle_edit(session, user: User, wa_id: str, parsed, today: date) -> BotReply:
+async def handle_edit(session, user: User, wa_id: str, parsed, today: date,
+                      text: str | None = None) -> BotReply:
     if not parsed.changes:
         return text_reply(
             f"{copy.H_HUH} Entendí que querés *editar*, pero no qué cambiar. "
@@ -209,16 +244,81 @@ async def handle_edit(session, user: User, wa_id: str, parsed, today: date) -> B
     if not candidates:
         return text_reply(f"{copy.H_WARN} No encontré ningún movimiento que matchee esa referencia.")
     if len(candidates) > 1:
+        # Editar el TOTAL de un batch: si todos los matches son hermanos del
+        # mismo batch, no hay ambigüedad — cualquiera representa al conjunto.
+        if (parsed.changes.get("amount_is_total")
+                and len({m.batch_key for m in candidates}) == 1
+                and candidates[0].batch_key):
+            return await apply_edit_to(session, user, candidates[0], parsed.changes, today)
         payload = {"changes": _serialize_changes(parsed.changes)}
         return await _pick_buttons(session, candidates, "edit_pick", payload, user.username, "¿Cuál querés editar?")
-    return await apply_edit_to(session, user, candidates[0], parsed.changes, today)
+    reply = await apply_edit_to(session, user, candidates[0], parsed.changes, today)
+    # Red determinística: el parser dijo "el último" (sin ref_text) pero el
+    # último ya estaba así. Si el TEXTO del mensaje nombra otro movimiento
+    # ('el taxi era compartido' con el helado como último), editar ese.
+    if (reply.text and reply.text.startswith("Nada que cambiar")
+            and not parsed.ref_text and text):
+        alt = [m for m in await find_candidates(
+            session, ref_last=False, ref_text=text, ref_date=parsed.ref_date
+        ) if m.id != candidates[0].id]
+        if len(alt) == 1:
+            return await apply_edit_to(session, user, alt[0], parsed.changes, today)
+    return reply
 
 
 async def apply_edit_to(session, user: User, mv: Movement, changes: dict, today: date) -> BotReply:
+    # "El total era 480" sobre un gasto en partes/cuotas: redistribuir el batch
+    # entero en proporción, no editar un renglón suelto.
+    if changes.get("amount_is_total") and mv.batch_key and "amount" in changes:
+        reply = await _apply_batch_total(session, mv, changes["amount"], today)
+        if reply is not None:
+            return reply
+    changes = {k: v for k, v in changes.items() if k != "amount_is_total"}
     diffs = await apply_changes(session, mv, changes, today, user.username)
     if not diffs:
         return text_reply("Nada que cambiar: ya estaba así. 👌")
     return text_reply(edit_card(mv, diffs))
+
+
+async def _apply_batch_total(session, mv: Movement, new_total: Decimal,
+                             today: date) -> BotReply | None:
+    """Re-escala todos los hermanos del batch a un total nuevo, conservando las
+    proporciones (misma regla que expand_installments: la última fila absorbe el
+    redondeo). Devuelve None si el batch no es re-escalable (moneda mixta, total
+    inválido…): el edit cae al camino puntual de siempre."""
+    from app.bot.render import batch_total_card
+
+    siblings = (await session.execute(
+        select(Movement).where(Movement.batch_key == mv.batch_key).order_by(Movement.id)
+    )).scalars().all()
+    if len(siblings) < 2 or len({m.currency for m in siblings}) != 1:
+        return None
+    old_total = sum((Decimal(m.amount) for m in siblings), Decimal(0))
+    if old_total <= 0 or new_total <= 0 or new_total == old_total:
+        return None
+
+    cent = Decimal("0.01")
+    amounts = [
+        (Decimal(m.amount) / old_total * new_total).quantize(cent, rounding=ROUND_HALF_UP)
+        for m in siblings[:-1]
+    ]
+    remainder = new_total - sum(amounts)
+    if remainder <= 0 or any(a <= 0 for a in amounts):
+        return None
+    amounts.append(remainder)
+
+    for m, amt in zip(siblings, amounts):
+        m.amount = amt
+        if m.fx_source == "manual":
+            # Invariante 6: la tasa manual no se pisa; solo recalcular el monto.
+            m.amount_usd = (amt * Decimal(m.fx_rate)).quantize(cent, rounding=ROUND_HALF_UP)
+        else:
+            amount_usd, rate, src = await convert_to_usd(
+                session, amt, m.currency, fx_reference_date(m.payment_date, today)
+            )
+            m.amount_usd, m.fx_rate, m.fx_source = amount_usd, rate, _map_source(src, m.currency)
+    await session.commit()
+    return text_reply(batch_total_card(siblings, old_total, new_total))
 
 
 async def handle_delete(session, user: User, wa_id: str, parsed, today: date) -> BotReply:

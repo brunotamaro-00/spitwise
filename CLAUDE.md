@@ -93,32 +93,41 @@ cd frontend && npm test
 ## Escenarios del bot WhatsApp (sin Meta)
 
 Para validar que el bot entiende bien charlas reales **sin pasar por Meta**: el
-script llama directo a `dispatch()` con LLM real (OpenAI desde `.env`) y una DB
-SQLite in-memory sembrada.
+script espeja `webhook.process_message` (stops → due → **dispatch**) con LLM real
+(OpenAI desde `.env`) y DB SQLite in-memory. No llama a Graph API.
 
 | Qué | Dónde |
 |-----|--------|
 | Runner | `backend/scripts/bot_scenario_runner.py` |
 | Transcript de la última corrida | `backend/scripts/bot_scenarios.md` |
-| Catálogo de escenarios | `CONVERSATIONS` dentro del runner (15 flujos) |
+| Suite crítica (default, **10**) | `SUITE_CRITICAL` — óptima para **una** sesión Claude/Fable |
+| Extras de valor (**4**) | `CONVERSATIONS_EXTRA` — con `--all` / `--only` |
+
+**Default = 10 críticas** (cuotas, batch+split, day-trip, pending+saldo, corrección
+corta, delete, settlement, batch+borrar, Pititas owner, moneda). Cada escenario
+lleva checklist **Mirar** (qué falla / qué DB esperar) + **Dónde tocar**.
 
 **Contrato del `.md`:** cada corrida **borra y reescribe** `bot_scenarios.md`.
-No acumula historial — el archivo siempre refleja solo la última corrida. El
-catálogo editable es el Python, no el markdown.
+No acumula historial. Por mensaje publica latencia `stops_s` / `due_s` /
+`dispatch_s` / `total_s` + tabla resumen al final. El catálogo editable es el
+Python, no el markdown.
 
 ```bash
 cd backend
-# Todo el catálogo (secuencial, con pausas para no quemar la API)
+# Suite crítica (10)
 .venv/bin/python scripts/bot_scenario_runner.py
 
+# Crítica + 4 extras (14)
+.venv/bin/python scripts/bot_scenario_runner.py --all
+
 # Subconjunto
-.venv/bin/python scripts/bot_scenario_runner.py --from 6 --to 10
-.venv/bin/python scripts/bot_scenario_runner.py --only 7,12,15
+.venv/bin/python scripts/bot_scenario_runner.py --only 1,4,6
+.venv/bin/python scripts/bot_scenario_runner.py --from 11 --to 14
 ```
 
 Requiere `OPENAI_API_KEY` (y `LLM_PROVIDER=openai` si también hay Anthropic).
 Hoy ficticio fijo mid-trip (`2026-08-20`, Lisboa). Seed incluye Pititas
-(`is_local`, `owner_username=katia`). No usa webhook ni Graph API.
+(`is_local`, `owner_username=katia`).
 
 ## Demo local (datos dummy, mid-trip)
 
@@ -275,7 +284,7 @@ Producción / features (ver `config.py` y `DEPLOY.md`):
 | Frontend routes | `frontend/src/App.tsx` |
 | Design tokens | `frontend/src/index.css` |
 | Deploy | `DEPLOY.md` |
-| Escenarios bot (sin Meta) | `backend/scripts/bot_scenario_runner.py` → `bot_scenarios.md` |
+| Escenarios bot (sin Meta) | `backend/scripts/bot_scenario_runner.py` (default 10 críticas) → `bot_scenarios.md` |
 
 ## Antes de cambiar cosas sensibles
 

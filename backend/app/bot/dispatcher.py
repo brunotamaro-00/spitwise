@@ -126,7 +126,7 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
     )
 
     if parsed.intent == "edit":
-        return await handle_edit(session, user, wa_id, parsed, today)
+        return await handle_edit(session, user, wa_id, parsed, today, text=stripped)
     if parsed.intent == "delete":
         return await handle_delete(session, user, wa_id, parsed, today)
     if parsed.intent == "question":

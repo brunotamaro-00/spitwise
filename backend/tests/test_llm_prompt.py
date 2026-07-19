@@ -51,7 +51,25 @@ def test_el_prompt_aclara_que_solo_nombre_no_es_quien_pago():
     assert "no dice quién pagó" in s
 
 
-def test_el_split_sigue_siendo_relativo_a_quien_pago():
+def test_el_reparto_lo_calcula_el_server_no_el_llm():
+    """El LLM solo dice DE QUIÉN es el gasto (only_user); la aritmética relativa
+    al pagador (payer_only/other_only) es del server (parser.split_for)."""
     s = _render_system(USERS, "bruno").lower()
-    assert "relativo a quien pagó" in s
-    assert "payer_only" in s and "other_only" in s
+    assert "only_user" in s
+    assert "calcula el sistema" in s
+    assert "payer_only" not in s and "other_only" not in s
+
+
+def test_ciudad_desconocida_no_se_mapea_a_una_parada():
+    """'Sintra' no está en el catálogo: tiene que volver tal cual, nunca
+    reemplazada por una parada 'parecida' (bug real: Sintra → Pititas)."""
+    s = _render_system(USERS, "bruno").lower()
+    assert "tal cual" in s
+    assert "parecida" in s
+
+
+def test_settlement_acotado_y_con_direccion():
+    s = _render_system(USERS, "bruno").lower()
+    assert "entre las dos personas" in s
+    assert "me cobraron" in s  # pagar a un tercero es expense
+    assert "entregó la plata" in s  # dirección del settlement

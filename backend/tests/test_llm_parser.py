@@ -129,6 +129,52 @@ async def test_legacy_payload_without_intent_defaults_to_unknown():
     assert got.intent == "unknown"
 
 
+# --- only_user: el reparto lo calcula el server, no el LLM ---
+
+async def test_only_user_sender_is_payer_only():
+    # bruno escribe, nadie más pagó ⇒ paga bruno; 'solo mío' ⇒ payer_only.
+    got = await _parse(_payload(amount="10", only_user="bruno"))
+    assert got.split == "payer_only"
+
+
+async def test_only_user_other_person_is_other_only():
+    got = await _parse(_payload(amount="10", only_user="katia"))
+    assert got.split == "other_only"
+
+
+async def test_only_user_with_same_paid_by_is_payer_only():
+    # 'solo de katia, pagó katia' ⇒ es de quien pagó ⇒ payer_only.
+    got = await _parse(_payload(amount="25", only_user="katia", paid_by="katia"))
+    assert got.split == "payer_only"
+
+
+async def test_only_user_null_stays_shared_even_with_paid_by():
+    # 'cena 45 pagó katia' no es individual: shared.
+    got = await _parse(_payload(amount="45", paid_by="katia"))
+    assert got.split == "shared"
+
+
+async def test_only_user_invalid_falls_back_to_shared():
+    got = await _parse(_payload(amount="10", only_user="fulano"))
+    assert got.split == "shared"
+
+
+async def test_new_only_user_goes_to_changes():
+    got = await _parse(_payload(intent="edit", ref_last=True, new_only_user="katia"))
+    assert got.changes == {"only_user": "katia"}
+    got = await _parse(_payload(intent="edit", ref_last=True, new_only_user="shared"))
+    assert got.changes == {"only_user": "shared"}
+
+
+async def test_new_amount_is_total_flag():
+    got = await _parse(_payload(intent="edit", ref_last=True, new_amount="480",
+                                new_amount_is_total=True))
+    assert got.changes == {"amount": Decimal("480"), "amount_is_total": True}
+    # Sin monto, el flag solo no genera cambio.
+    got = await _parse(_payload(intent="edit", ref_last=True, new_amount_is_total=True))
+    assert got.changes == {}
+
+
 # --- multi-gasto: lista `expenses` → ParsedMessage.batch ---
 
 def _item(**over):

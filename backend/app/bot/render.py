@@ -222,6 +222,25 @@ def edit_card(mv, diffs: list[tuple[str, str, str]]) -> str:
     return f"{copy.H_EDIT} · _{desc}_\n\n{lines}"
 
 
+def batch_total_card(siblings, old_total: Decimal, new_total: Decimal) -> str:
+    """Card de un batch/cuotas re-escalado a un total nuevo: total viejo → nuevo
+    y cómo quedó cada parte."""
+    import re
+    first = siblings[0]
+    base_desc = re.sub(r"\s*\(\d+/\d+\)$", "", first.description or "gasto")
+    lines = [
+        f"{copy.H_EDIT} · _{_cap(base_desc)}_",
+        "",
+        f"💰 Total: {first.currency} {ar_number(old_total)} → *{first.currency} {ar_number(new_total)}*",
+    ]
+    for m in siblings:
+        line = f"- {m.description or 'gasto'} · {fmt_money(m.amount, m.currency, m.amount_usd)}"
+        if getattr(m, "status", "confirmed") == "pending" and m.payment_date:
+            line += f" · 📅 {fmt_date(m.payment_date)}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def deleted_card(summary: str, *, plural: int | None = None) -> str:
     """Confirmación de borrado con desglose de lo que se borró."""
     if plural and plural > 1:

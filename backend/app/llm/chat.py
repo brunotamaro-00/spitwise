@@ -6,6 +6,7 @@ duck-typed `run()` en ambos, espejando el `.parse()` de client.py.
 """
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
@@ -14,6 +15,10 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 _FALLBACK = "😵 Me enredé buscando eso. Probá preguntarlo un poco más simple."
+
+# Presupuesto TOTAL del loop de tool-use, como múltiplo del timeout por request:
+# acota el peor caso (antes: max_iterations × timeout ≈ 150s de silencio).
+_LOOP_BUDGET_FACTOR = 2.0
 
 
 @dataclass
@@ -52,12 +57,15 @@ def make_chat_llm():
 
 
 class AnthropicChat:
+    _budget_s = 60.0  # default para instancias armadas a mano (tests)
+
     def __init__(self) -> None:
         from anthropic import AsyncAnthropic
 
         s = get_settings()
         self._client = AsyncAnthropic(api_key=s.anthropic_api_key, timeout=s.chat_timeout_seconds)
         self._model = s.anthropic_chat_model
+        self._budget_s = s.chat_timeout_seconds * _LOOP_BUDGET_FACTOR
 
     async def run(self, *, system: str, history: list[dict], user_text: str,
                   tools: list[ToolSpec], max_iterations: int = 8) -> str:
@@ -70,7 +78,10 @@ class AnthropicChat:
         # Bot de charla corta: effort bajo + thinking adaptivo para minimizar latencia.
         # El system se cachea (estable dentro del día por remitente).
         system_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
-        for _ in range(max_iterations):
+        deadline = time.monotonic() + self._budget_s
+        for i in range(max_iterations):
+            if i and time.monotonic() > deadline:
+                return _FALLBACK
             resp = await self._client.messages.create(
                 model=self._model, max_tokens=2048, system=system_blocks,
                 messages=messages, tools=api_tools,
@@ -96,12 +107,15 @@ class AnthropicChat:
 
 
 class OpenAIChat:
+    _budget_s = 60.0  # default para instancias armadas a mano (tests)
+
     def __init__(self) -> None:
         from openai import AsyncOpenAI
 
         s = get_settings()
         self._client = AsyncOpenAI(api_key=s.openai_api_key, timeout=s.chat_timeout_seconds)
         self._model = s.openai_chat_model
+        self._budget_s = s.chat_timeout_seconds * _LOOP_BUDGET_FACTOR
 
     async def run(self, *, system: str, history: list[dict], user_text: str,
                   tools: list[ToolSpec], max_iterations: int = 8) -> str:
@@ -113,9 +127,17 @@ class OpenAIChat:
         ]
         messages = [{"role": "system", "content": system}, *history,
                     {"role": "user", "content": user_text}]
-        for _ in range(max_iterations):
+        # Bot de charla corta: razonamiento al mínimo en los modelos que lo
+        # traen (gpt-5*) — es el driver principal de latencia del agente.
+        extra: dict = {}
+        if self._model.startswith(("gpt-5", "o1", "o3", "o4")):
+            extra["reasoning_effort"] = "low"
+        deadline = time.monotonic() + self._budget_s
+        for i in range(max_iterations):
+            if i and time.monotonic() > deadline:
+                return _FALLBACK
             resp = await self._client.chat.completions.create(
-                model=self._model, messages=messages, tools=api_tools,
+                model=self._model, messages=messages, tools=api_tools, **extra,
             )
             msg = resp.choices[0].message
             if not msg.tool_calls:

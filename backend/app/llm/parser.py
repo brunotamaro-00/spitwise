@@ -20,6 +20,15 @@ _VALID_INTENTS = {"expense", "settlement", "edit", "delete", "question", "unknow
 EDIT_FIELDS = ("amount", "currency", "date", "city", "category", "description", "split", "paid_by")
 
 
+def split_for(only_user: str | None, payer_username: str) -> str:
+    """Split del movimiento a partir de DE QUIÉN es el gasto (`only_user`) y de
+    quién lo pagó. La aritmética relativa al pagador (payer_only/other_only) es
+    del server: el LLM solo dice de quién es el gasto, nunca calcula el reparto."""
+    if not only_user or only_user == "shared":
+        return "shared"
+    return "payer_only" if only_user == payer_username else "other_only"
+
+
 @dataclass
 class Installment:
     """Una etapa de un gasto pagado en partes ('30% hoy y el resto el 3-sep').
@@ -112,23 +121,38 @@ def normalize_changes(raw: dict, category_names, usernames) -> dict:
         changes["category"] = raw["new_category"]
     if raw.get("new_description"):
         changes["description"] = str(raw["new_description"]).strip()
-    if raw.get("new_split") in _VALID_SPLIT:
+    # only_user = de quién pasa a ser el gasto ('shared' | username). El split
+    # concreto lo deriva el editor contra el pagador EFECTIVO (post new_paid_by).
+    only = str(raw.get("new_only_user") or "").strip().lower()
+    if only == "shared" or only in usernames:
+        changes["only_user"] = only
+    elif raw.get("new_split") in _VALID_SPLIT:  # compat payloads viejos / tests
         changes["split"] = raw["new_split"]
     if (v := str(raw.get("new_paid_by") or "").strip().lower()) in usernames:
         changes["paid_by"] = v
+    # Flag de alcance del monto: el nuevo monto es el TOTAL de un batch/cuotas.
+    if "amount" in changes and raw.get("new_amount_is_total"):
+        changes["amount_is_total"] = True
     return changes
 
 
-def _normalize_expense(raw: dict, category_names, usernames) -> ParsedMessage:
+def _normalize_expense(raw: dict, category_names, usernames, sender: str | None = None) -> ParsedMessage:
     """Normaliza un gasto/settlement (flat o ítem de `expenses`) a ParsedMessage."""
     intent = "settlement" if raw.get("kind") == "settlement" else "expense"
     category = raw.get("category")
     if category not in category_names:
         category = "Otros"
-    split = raw.get("split")
-    if split not in _VALID_SPLIT:
-        split = "shared"
     paid_by = str(raw.get("paid_by") or "").strip().lower()
+    payer = paid_by if paid_by in usernames else sender
+    # only_user (de quién es el gasto) manda; `split` directo queda como compat
+    # de payloads viejos / tests con FakeLLM.
+    only = str(raw.get("only_user") or "").strip().lower()
+    if only in usernames or only == "shared":
+        split = split_for(None if only == "shared" else only, payer or "")
+    else:
+        split = raw.get("split")
+        if split not in _VALID_SPLIT:
+            split = "shared"
     return ParsedMessage(
         intent=intent,
         amount=_to_decimal(raw.get("amount")),
@@ -175,7 +199,7 @@ async def parse_message(
         # Compat: payloads viejos sin intent usaban is_settlement; resto => unknown.
         intent = "settlement" if raw.get("is_settlement") else "unknown"
 
-    parsed = _normalize_expense(raw, category_names, usernames)
+    parsed = _normalize_expense(raw, category_names, usernames, sender)
     parsed.intent = intent
     parsed.ref_last = bool(raw.get("ref_last"))
     parsed.ref_text = raw.get("ref_text") or None
@@ -187,7 +211,7 @@ async def parse_message(
     if intent == "expense":
         items = [
             p for it in (raw.get("expenses") or [])
-            if (p := _normalize_expense(it, category_names, usernames)).amount is not None
+            if (p := _normalize_expense(it, category_names, usernames, sender)).amount is not None
         ]
         if len(items) >= 2:
             parsed.batch = items

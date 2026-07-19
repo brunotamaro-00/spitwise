@@ -10,7 +10,10 @@ _SYSTEM = (
     "({users}). Clasificá la intención del mensaje y extraé campos.\n\n"
     "intent:\n"
     "- 'expense': carga un gasto (caso más común).\n"
-    "- 'settlement': un pago ENTRE las dos personas para saldar deuda ('le pasé 50').\n"
+    "- 'settlement': SOLO una transferencia de plata ENTRE las dos personas para "
+    "saldar deuda ('le pasé 50', 'me pasó 20', 'le transferí'). Pagarle a un "
+    "tercero (un comercio, una entrada, 'me cobraron 35') es 'expense' aunque la "
+    "categoría sea dudosa.\n"
     "- 'edit': corrige un movimiento ya guardado ('la cena de ayer fue 25', "
     "'cambiá la categoría del último a transporte').\n"
     "- 'delete': pide borrar un movimiento ('borrá el museo de ayer').\n"
@@ -27,21 +30,20 @@ _SYSTEM = (
     "nombres propios capitalizados ('Hostel Interlaken', 'Cena con vino'); "
     "sin punto final.\n"
     "- category: exactamente una de la lista dada (null para settlement).\n"
-    "- split: SIEMPRE 'shared' por defecto. Usá payer_only/other_only SOLO si el "
-    "mensaje dice EXPLÍCITAMENTE que el gasto es de una sola persona "
-    "('solo mío', 'solo katia', 'solo para bruno'). Que alguien haya hecho o "
-    "pagado el gasto NO lo hace individual: 'gasté 100 en el teleférico'→shared.\n"
-    "  'solo <nombre>' dice DE QUIÉN ES el gasto, NUNCA quién lo pagó: "
-    "'solo katia' NO significa que pagó Katia. Si el mensaje no dice quién pagó, "
-    "paga {sender} igual.\n"
-    "  El valor es RELATIVO A QUIEN PAGÓ: si el gasto es de quien pagó → "
-    "'payer_only'; si es de la otra persona → 'other_only'. Ejemplos con "
-    "{sender} escribiendo y sin decir quién pagó (⇒ paga {sender}): "
-    "'solo {sender}'/'solo mío' → payer_only; 'solo {other}'/'solo de {other}' → "
-    "other_only.\n"
+    "- only_user: null si el gasto es compartido entre los dos (default, lo más "
+    "común). Poné el USERNAME de la persona SOLO si el mensaje dice "
+    "EXPLÍCITAMENTE que el gasto es de una sola persona: 'solo mío'/'solo para "
+    "mí' → '{sender}'; 'solo katia'/'solo de katia' → 'katia'; 'solo bruno' → "
+    "'bruno'. only_user dice DE QUIÉN ES el gasto, NUNCA quién lo pagó: "
+    "'solo katia' NO significa que pagó Katia. Que alguien haya hecho o pagado "
+    "el gasto NO lo hace individual: 'gasté 100 en el teleférico'→null, "
+    "'cena 45 pagó {other}'→null. El reparto final (quién le debe a quién) lo "
+    "calcula el sistema, vos no.\n"
     "- paid_by: username de quien pagó SOLO si el texto lo dice "
     "('pagó {other}', 'pagué yo'→{sender}); si no lo dice, null. "
-    "'solo {other}' NO dice quién pagó ⇒ null.\n"
+    "'solo {other}' NO dice quién pagó ⇒ null. En un settlement, paid_by es "
+    "quien ENTREGÓ la plata: '{other} me pasó 50' (escribe {sender}) → "
+    "paid_by='{other}'; 'le pasé 50' → '{sender}'.\n"
     "- date: fecha en que se paga o pagó el gasto, en ISO (YYYY-MM-DD), SOLO si el "
     "texto la menciona; puede ser pasada ('ayer', 'el 31 de julio') o FUTURA "
     "('se paga al check-in el 3 de septiembre', 'lo pago en octubre'); resolvela "
@@ -57,15 +59,25 @@ _SYSTEM = (
     "lista y sacala de la descripción. Ojo con el orden de las palabras: la "
     "parada puede venir antes de lo comprado y sin 'en' delante "
     "('10 usd roma en helados' → city 'Roma', description 'helados').\n"
-    "- confidence: 0..1, qué tan clara es la categoría.\n"
+    "  Si la ciudad mencionada NO está en la lista, devolvela TAL CUAL la "
+    "escribió el usuario ('paseo a Sintra' → city 'Sintra'): NUNCA la "
+    "reemplaces por una parada 'parecida' de la lista — el sistema resuelve "
+    "solo dónde imputarla.\n"
+    "- confidence: 0..1, qué tan clara es la categoría. Si la descripción es "
+    "vaga y no dice QUÉ se compró ('aquello', 'eso', 'lo de ayer'), la "
+    "categoría NO puede ser clara: confidence < 0.6 y 2-3 candidates.\n"
     "- candidates: si confidence < 0.6, 2-3 categorías candidatas de la lista; si no, [].\n\n"
     "Multi-gasto: si el mensaje carga MÁS DE UN gasto con montos separados "
     "('cena 40, taxi 12, helado 5'), intent='expense' y llená `expenses` con TODOS "
     "los ítems, con los mismos campos y reglas de arriba. kind='expense', o "
     "'settlement' si ese ítem es un pago entre ustedes (category null). Cada ítem "
     "va COMPLETO y autocontenido: los calificativos a nivel mensaje ('ayer', "
-    "'en Roma', 'pagó katia') se replican en cada ítem, salvo que un ítem diga "
-    "otra cosa. Los campos sueltos (amount, category, …) llevan el PRIMER ítem. "
+    "'en Roma', 'pagó katia') se replican en CADA ítem, salvo que un ítem diga "
+    "otra cosa. Ejemplo: 'en Roma ayer: cena 45, taxi 12' → los DOS ítems "
+    "llevan city 'Roma' y date de ayer. En cada ítem valen las MISMAS reglas de "
+    "arriba: 'cena 45 pagó {other}' es paid_by='{other}' con only_user=null "
+    "(pagar no lo hace individual); 'taxi 12 solo mío' es only_user='{sender}'. "
+    "Los campos sueltos (amount, category, …) llevan el PRIMER ítem. "
     "Con UN solo gasto, `expenses` queda VACÍO. NO inventes ítems: partí SOLO "
     "cuando hay montos separados; 'cena 40 con vino' es UN gasto de 40.\n\n"
     "Pago en etapas: si el mensaje dice que UN gasto se paga en partes "
@@ -88,19 +100,29 @@ _SYSTEM = (
     "categoría, división o quién pagó—, es intent='edit' con ref_last=true y solo "
     "los new_* que cambian. Ejemplos (Último gasto = 'tren · USD 39 · Pititas · "
     "pagó Katia · 50/50'): 'no, contalo solo para katia' → edit, "
-    "new_split='payer_only' (Katia pagó, es de ella); 'ponelo solo de bruno' → "
-    "edit, new_split='other_only'; 'era en Paris' → edit, new_city='Paris'; "
+    "new_only_user='katia'; 'ponelo solo de bruno' → edit, new_only_user='bruno'; "
+    "'en realidad era compartido' → edit, new_only_user='shared'; "
+    "'era en Paris' → edit, new_city='Paris'; "
     "'fueron 45' → edit, new_amount='45'; 'en realidad pagó bruno' → edit, "
     "new_paid_by='bruno'; 'es transporte' → edit, new_category='Transporte'. "
     "Pero si trae un gasto nuevo con su propio monto ('café 5'), es expense, NO "
-    "edit. Sin 'Último gasto' abajo, no apliques esta regla.\n\n"
+    "edit. Y si el mensaje nombra OTRO gasto distinto del último ('el taxi era "
+    "compartido' cuando el último es el helado), es edit con ref_last=false y "
+    "ref_text con esas palabras ('taxi'), no una corrección del último. "
+    "Sin 'Último gasto' abajo, no apliques esta regla.\n\n"
     "Para edit/delete extraé la referencia al movimiento:\n"
-    "- ref_last: true si se refiere al último movimiento o no da ninguna referencia.\n"
+    "- ref_last: true SOLO si se refiere al último movimiento ('el último', "
+    "'eso') o si no da ninguna referencia. Si nombra un movimiento concreto "
+    "('el taxi', 'la cena de ayer'), ref_last=false y las palabras van en ref_text.\n"
     "- ref_text: palabras que identifican el movimiento ('cena', 'museo'), o null.\n"
     "- ref_date: fecha del movimiento referido en ISO si la menciona ('de ayer'), o null.\n"
     "Y para edit, los campos NUEVOS (solo los que el mensaje pide cambiar, resto null):\n"
     "- new_amount, new_currency (ISO), new_date (ISO), new_city, new_category (de la lista), "
-    "new_description, new_split (shared/payer_only/other_only), new_paid_by (username).\n\n"
+    "new_description, new_only_user ('shared' si pasa a compartido 50/50; el "
+    "username si pasa a ser de una sola persona), new_paid_by (username).\n"
+    "- new_amount_is_total: true SOLO si el monto nuevo es el TOTAL de un gasto "
+    "que entró en varias partes o cuotas ('no, el total era 480', 'en total "
+    "fueron 500'); para corregir el monto de un gasto puntual, false.\n\n"
     "No inventes categorías fuera de la lista. Hablan castellano rioplatense."
 )
 
@@ -113,7 +135,7 @@ class ExpenseItemSchema(BaseModel):
     currency: str | None
     description: str | None
     category: str | None
-    split: str | None
+    only_user: str | None  # username si el gasto es de una sola persona; null = compartido
     paid_by: str | None
     date: str | None
     city: str | None
@@ -135,7 +157,7 @@ class ParsedMessageSchema(BaseModel):
     currency: str | None
     description: str | None
     category: str | None
-    split: str | None
+    only_user: str | None  # username si el gasto es de una sola persona; null = compartido
     paid_by: str | None
     date: str | None
     city: str | None
@@ -145,12 +167,15 @@ class ParsedMessageSchema(BaseModel):
     ref_text: str | None
     ref_date: str | None
     new_amount: str | None
+    # true = el monto nuevo es el TOTAL de un gasto en partes/cuotas (se
+    # redistribuye server-side entre los hermanos del batch).
+    new_amount_is_total: bool
     new_currency: str | None
     new_date: str | None
     new_city: str | None
     new_category: str | None
     new_description: str | None
-    new_split: str | None
+    new_only_user: str | None  # 'shared' | username | null (sin cambio)
     new_paid_by: str | None
     # Vacío salvo mensaje con 2+ gastos; ahí lleva TODOS (flat = primer ítem).
     expenses: list[ExpenseItemSchema]
@@ -257,8 +282,15 @@ class OpenAILLM:
 
     async def parse(self, text, *, today, category_names, usernames, sender, categories=None,
                     city_names=None, last_expense=None) -> dict:
+        # Extracción estructurada, no razonamiento: en los gpt-5* el effort
+        # minimal mantiene la latencia cerca de un modelo chico y evita quemar
+        # tokens de reasoning en cada mensaje.
+        extra: dict = {}
+        if self._model.startswith(("gpt-5", "o1", "o3", "o4")):
+            extra["reasoning_effort"] = "minimal"
         resp = await self._client.chat.completions.parse(
             model=self._model,
+            **extra,
             messages=[
                 {"role": "system", "content": _render_system(usernames, sender)},
                 {"role": "user", "content": _render_user(

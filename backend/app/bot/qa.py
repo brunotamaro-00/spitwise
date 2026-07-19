@@ -4,6 +4,7 @@ Responde consultas de gastos/saldos/itinerario en lenguaje natural, con
 memoria corta por wa_id (WhatsAppSessionState) para follow-ups.
 """
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 
 from app.bot.active_stop import get_state_payload, resolve_trip_timezone, update_state_payload
 from app.bot.capture import all_users
@@ -16,8 +17,20 @@ _SYSTEM = (
     "Sos Spitwise, el bot de gastos del viaje por Europa de {users}.\n"
     "Estás chateando por WhatsApp con {sender}. Hoy es {today}.\n\n"
     "REGLAS DE DATOS (no negociables):\n"
-    "- Todo número que digas tiene que salir de las herramientas. Nunca inventes "
-    "montos, fechas ni cantidades.\n"
+    "- Todo número que digas tiene que salir de las herramientas o del bloque "
+    "'Datos actuales' que acompaña cada mensaje (ya verificado contra la DB). "
+    "Nunca inventes montos, fechas ni cantidades.\n"
+    "- Si el bloque 'Datos actuales' alcanza para responder (saldo, un gasto "
+    "reciente, si algo entra o no al saldo), respondé DIRECTO sin llamar "
+    "herramientas: es más rápido.\n"
+    "- OJO: el bloque trae SOLO el saldo y los ÚLTIMOS movimientos, no el "
+    "historial completo. Para totales o sumas con filtro ('cuánto gastamos en "
+    "X', por ciudad/categoría/persona) usá aggregate_expenses SIEMPRE; nunca "
+    "respondas 'no hay gastos' o 'USD 0' mirando solo el bloque.\n"
+    "- Una PREGUNTA sobre un dato ('¿en qué ciudad quedó X?') se responde con "
+    "el dato; no asumas que quieren editar salvo pedido explícito de cambio.\n"
+    "- Un gasto 'pendiente' (fecha de pago futura) NO entra al saldo entre los "
+    "dos hasta que llegue su fecha; sí cuenta en los totales del viaje.\n"
     "- Si las herramientas no devuelven datos para lo que piden, decilo "
     "('no hay gastos cargados para eso').\n"
     "- Los montos están normalizados en USD; aclaralo cuando cites totales.\n\n"
@@ -107,6 +120,84 @@ def _render_system(sender: str, users: list[User], today: date) -> str:
     )
 
 
+_SNAPSHOT_MOVES = 8  # últimos movimientos que viajan en el snapshot
+
+
+async def _context_snapshot(session, users: list[User], today: date,
+                            tz_name: str | None) -> str:
+    """Bloque 'Datos actuales' que acompaña cada pregunta: saldo, pendientes y
+    últimos movimientos, en UNA carga de DB. La mayoría de las consultas se
+    contesta con esto en un solo round-trip, sin herramientas."""
+    from sqlalchemy import select
+
+    from app.balance import compute_balance
+    from app.bot.active_stop import place_for_date
+    from app.bot.render import ar_number, fmt_date
+    from app.db.models import Movement
+    from app.trip_time import day_in_tz
+
+    movements = (await session.execute(
+        select(Movement).order_by(Movement.id)
+    )).scalars().all()
+    names = {u.id: u.username for u in users}
+
+    lines = ["Datos actuales (verificados contra la DB en este momento):"]
+    stop = await place_for_date(session, today, None)
+    if stop is not None:
+        lines.append(f"- Parada activa hoy: {stop.name}")
+
+    if len(users) == 2:
+        bal = compute_balance(movements, users[0].id, users[1].id)
+        if bal.debtor_id is None:
+            lines.append("- Saldo: están a mano (solo cuenta lo confirmado)")
+        else:
+            lines.append(
+                f"- Saldo: {names.get(bal.debtor_id)} le debe "
+                f"USD {ar_number(bal.amount_usd)} a {names.get(bal.creditor_id)} "
+                "(solo cuenta lo confirmado)"
+            )
+    pending = [m for m in movements if m.type == "expense" and m.status == "pending"]
+    if pending:
+        total_p = sum((m.amount_usd for m in pending if m.amount_usd is not None), Decimal(0))
+        lines.append(
+            f"- Pendientes (fecha de pago futura, EXCLUIDOS del saldo hasta pagarse): "
+            f"{len(pending)} por USD {ar_number(total_p)}"
+        )
+
+    if movements:
+        lines.append(
+            f"- Últimos movimientos, más nuevo primero (id interno para "
+            f"edit_movement/delete_movements, no lo muestres):"
+        )
+        for m in reversed(movements[-_SNAPSHOT_MOVES:]):
+            day = fmt_date(day_in_tz(m.created_at, tz_name))
+            payer = names.get(m.paid_by, "?")
+            if m.type == "settlement":
+                other = next((n for n in names.values() if n != payer), "?")
+                lines.append(
+                    f"  · id={m.id} · {day} · pago de saldo {payer}→{other} · "
+                    f"USD {ar_number(m.amount_usd)}"
+                )
+                continue
+            if m.split == "shared":
+                reparto = "50/50"
+            elif m.split == "payer_only":
+                reparto = f"solo {payer}"
+            else:
+                reparto = "solo " + next((n for n in names.values() if n != payer), "?")
+            line = (
+                f"  · id={m.id} · {day} · {m.description or 'gasto'} · "
+                f"{m.currency} {ar_number(m.amount)} (USD {ar_number(m.amount_usd)}) · "
+                f"{m.city_name or 'sin ciudad'} · pagó {payer} · {reparto}"
+            )
+            if m.status == "pending" and m.payment_date:
+                line += f" · PENDIENTE, se paga el {fmt_date(m.payment_date)}"
+            lines.append(line)
+    else:
+        lines.append("- Sin movimientos cargados todavía")
+    return "\n".join(lines)
+
+
 def _fresh_history(entries: list[dict], *, max_turns: int, ttl_minutes: int) -> list[dict]:
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=ttl_minutes)
     fresh = []
@@ -146,10 +237,13 @@ async def handle_question(session, user: User, wa_id: str, text: str, today: dat
 
     ctx = ActionContext()
     tz_name = await resolve_trip_timezone(session, user.username)
+    # Snapshot de la DB junto al mensaje: lo simple se contesta sin herramientas
+    # (menos round-trips = menos latencia). El historial guarda el texto pelado.
+    snapshot = await _context_snapshot(session, users, today, tz_name)
     answer = await chat_client.run(
         system=_render_system(user.username, users, today),
         history=[{"role": e["role"], "content": e["content"]} for e in history],
-        user_text=text,
+        user_text=f"{snapshot}\n\nMensaje de {user.username}: {text}",
         tools=build_tools(session, users, asker=user, today=today, ctx=ctx, tz_name=tz_name),
         max_iterations=s.qa_max_iterations,
     )

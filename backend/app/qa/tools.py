@@ -58,13 +58,20 @@ def _created_day(m: Movement, tz_name: str | None) -> date:
     return day_in_tz(m.created_at, tz_name)
 
 
-async def _load_context(session: AsyncSession):
+async def _load_context(session: AsyncSession, cache: dict | None = None):
+    """Movimientos + stops + categorías. `cache` (por turno del agente) evita
+    recargar toda la DB en cada tool call del mismo turno."""
+    if cache is not None and "ctx" in cache:
+        return cache["ctx"]
     movements = (await session.execute(
         select(Movement).where(Movement.type == "expense").order_by(Movement.created_at, Movement.id)
     )).scalars().all()
     stops = {s.slug: s for s in (await session.execute(select(Stop))).scalars().all()}
     cats = {c.id: c.name for c in (await session.execute(select(Category))).scalars().all()}
-    return movements, stops, cats
+    out = (movements, stops, cats)
+    if cache is not None:
+        cache["ctx"] = out
+    return out
 
 
 def _filter(movements, stops, cats, *, tz_name=None, date_from=None, date_to=None, cities=None,
@@ -110,8 +117,8 @@ def _resolve_person(users: list[User], name: str | None, asker: User) -> User:
 async def aggregate_expenses(session: AsyncSession, users: list[User], asker: User, *,
                              tz_name=None, person=None, attribution="share", date_from=None,
                              date_to=None, cities=None, countries=None, categories=None,
-                             currency=None, group_by="none") -> dict:
-    movements, stops, cats = await _load_context(session)
+                             currency=None, group_by="none", cache=None) -> dict:
+    movements, stops, cats = await _load_context(session, cache)
     rows_src = _filter(movements, stops, cats, tz_name=tz_name, date_from=date_from,
                        date_to=date_to, cities=cities, countries=countries,
                        categories=categories, currency=currency)
@@ -182,8 +189,8 @@ def _app_link(cats: dict, *, date_from, date_to, cities, categories):
 
 async def list_movements(session: AsyncSession, users: list[User], *, tz_name=None,
                          date_from=None, date_to=None, cities=None, countries=None,
-                         categories=None, currency=None, limit=10) -> dict:
-    movements, stops, cats = await _load_context(session)
+                         categories=None, currency=None, limit=10, cache=None) -> dict:
+    movements, stops, cats = await _load_context(session, cache)
     rows_src = _filter(movements, stops, cats, tz_name=tz_name, date_from=date_from,
                        date_to=date_to, cities=cities, countries=countries,
                        categories=categories, currency=currency)
@@ -205,6 +212,8 @@ async def list_movements(session: AsyncSession, users: list[User], *, tz_name=No
             "amount_usd": _money(m.amount_usd),
             "paid_by": usernames.get(m.paid_by),
             "split": m.split,
+            "status": m.status,
+            "payment_date": m.payment_date.isoformat() if m.payment_date else None,
         })
     truncated = len(rows_src) > limit
     out = {"rows": rows, "truncated": truncated, "total_matches": len(rows_src)}
@@ -223,11 +232,18 @@ async def get_balance(session: AsyncSession, users: list[User]) -> dict:
     movements = (await session.execute(select(Movement))).scalars().all()
     bal = compute_balance(movements, users[0].id, users[1].id)
     usernames = {u.id: u.username for u in users}
+    pending = [m for m in movements if m.type == "expense" and m.status == "pending"]
     return {
         "debtor": usernames.get(bal.debtor_id),
         "creditor": usernames.get(bal.creditor_id),
         "amount_usd": _money(bal.amount_usd),
-        "note": "debtor le debe amount_usd a creditor; si ambos son null están a mano",
+        "pending_excluded_count": len(pending),
+        "pending_excluded_usd": _money(sum(
+            (m.amount_usd for m in pending if m.amount_usd is not None), Decimal(0)
+        )),
+        "note": ("debtor le debe amount_usd a creditor; si ambos son null están a mano. "
+                 "Los gastos pending (fecha de pago futura) NO cuentan en este saldo "
+                 "hasta que llegue su fecha."),
     }
 
 
@@ -250,7 +266,7 @@ async def get_itinerary(session: AsyncSession) -> dict:
 
 
 async def edit_movement(session: AsyncSession, users: list[User], today: date,
-                        *, movement_id, **new_fields) -> dict:
+                        asker: User | None = None, *, movement_id, **new_fields) -> dict:
     """Aplica cambios a un movimiento reutilizando el flujo del intent 'edit'
     (normalización + apply_changes, con recálculo de ciudad/FX)."""
     from app.bot.editor import apply_changes
@@ -276,9 +292,10 @@ async def edit_movement(session: AsyncSession, users: list[User], today: date,
     if not changes:
         raise ValueError(
             "ningún cambio válido; campos: amount, currency (ISO), date (YYYY-MM-DD), "
-            "city, category, description, split (shared|payer_only|other_only), paid_by"
+            "city, category, description, only_user ('shared' o un username), paid_by"
         )
-    diffs = await apply_changes(session, mv, changes, today)
+    diffs = await apply_changes(session, mv, changes, today,
+                                asker.username if asker else None)
     return {
         "edited_id": mv.id,
         "changes": [{"campo": label, "antes": before, "despues": after}
@@ -342,12 +359,14 @@ _FILTER_PROPS = {
 def build_tools(session: AsyncSession, users: list[User], asker: User, *,
                 today: date, ctx: ActionContext, tz_name: str | None = None) -> list[ToolSpec]:
     usernames = [u.username for u in users]
+    cache: dict = {}  # contexto de DB compartido entre tool calls del turno
 
     async def _aggregate(**kw):
-        return await aggregate_expenses(session, users, asker, tz_name=tz_name, **kw)
+        return await aggregate_expenses(session, users, asker, tz_name=tz_name,
+                                        cache=cache, **kw)
 
     async def _list(**kw):
-        return await list_movements(session, users, tz_name=tz_name, **kw)
+        return await list_movements(session, users, tz_name=tz_name, cache=cache, **kw)
 
     async def _balance(**kw):
         return await get_balance(session, users)
@@ -356,7 +375,7 @@ def build_tools(session: AsyncSession, users: list[User], asker: User, *,
         return await get_itinerary(session)
 
     async def _edit(**kw):
-        return await edit_movement(session, users, today, **kw)
+        return await edit_movement(session, users, today, asker, **kw)
 
     async def _delete(**kw):
         return await delete_movements(session, users, asker, ctx, **kw)
@@ -421,8 +440,9 @@ def build_tools(session: AsyncSession, users: list[User], asker: User, *,
         ToolSpec(
             name="edit_movement",
             description=("Edita un movimiento YA guardado (los cambios se aplican al instante). "
-                         "Usá el id que devuelve list_movements. 'date' re-imputa la ciudad "
-                         "según el itinerario de esa fecha (la fecha en sí no se guarda)."),
+                         "Usá el id que devuelve list_movements (o el del snapshot de datos). "
+                         "'date' cambia la fecha de pago (futura => queda pendiente) sin tocar "
+                         "la ciudad; para mover de ciudad usá 'city'."),
             input_schema={
                 "type": "object",
                 "properties": {
@@ -430,12 +450,14 @@ def build_tools(session: AsyncSession, users: list[User], asker: User, *,
                     "amount": {"type": "string", "description": "Nuevo monto (decimal como string)."},
                     "currency": {"type": "string", "description": "Nueva moneda ISO 4217."},
                     "date": {"type": "string",
-                             "description": "Fecha YYYY-MM-DD solo para re-imputar la ciudad por itinerario."},
+                             "description": "Nueva fecha de pago YYYY-MM-DD (futura => pendiente)."},
                     "city": {"type": "string", "description": "Nueva ciudad."},
                     "category": {"type": "string", "description": "Nueva categoría (nombre de la lista)."},
                     "description": {"type": "string", "description": "Nueva descripción corta."},
-                    "split": {"type": "string", "enum": ["shared", "payer_only", "other_only"],
-                              "description": "shared = 50/50; payer_only = solo del que pagó; other_only = solo del otro."},
+                    "only_user": {"type": "string", "enum": ["shared", *usernames],
+                                  "description": ("De quién es el gasto: 'shared' = compartido 50/50; "
+                                                  "un username = solo de esa persona (el sistema calcula "
+                                                  "el reparto contra quien pagó).")},
                     "paid_by": {"type": "string", "enum": usernames, "description": "Nuevo pagador."},
                 },
                 "required": ["movement_id"],
