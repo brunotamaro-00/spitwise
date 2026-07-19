@@ -89,6 +89,17 @@ def movement_summary(mv, cat_name: str | None, payer_name: str) -> str:
     return f"{desc} · {mv.currency} {ar_number(mv.amount)} · {fmt_date(mv.created_at.date())}{loc} · Pagó {_cap(payer_name)}"
 
 
+def _payment_line(mv) -> str | None:
+    """Línea de fecha de pago, solo cuando difiere del caso normal (hoy):
+    pending => se paga en el futuro con TC provisorio; confirmed con fecha =>
+    retroactivo pagado ese día. Sin countdowns."""
+    if not getattr(mv, "payment_date", None):
+        return None
+    if getattr(mv, "status", "confirmed") == "pending":
+        return f"📅 Se paga el {fmt_date(mv.payment_date)} · TC provisorio"
+    return f"📅 Pagado el {fmt_date(mv.payment_date)}"
+
+
 def expense_card(mv, cat_name: str | None, payer_name: str, other_name: str) -> str:
     city = mv.city_name or "Sin ciudad"
     lines = [
@@ -99,6 +110,9 @@ def expense_card(mv, cat_name: str | None, payer_name: str, other_name: str) -> 
         f"📍 {city}",
         f"👤 Pagó {_cap(payer_name)} · {split_label(mv.split, _cap(payer_name), _cap(other_name))}",
     ]
+    payment = _payment_line(mv)
+    if payment:
+        lines.append(payment)
     owes = _owes_line(mv, payer_name, other_name)
     if owes:
         lines.append(owes)
@@ -176,6 +190,8 @@ def batch_card(rows: list[BatchRow], usernames: list[str]) -> str:
             line += f" · {mv.city_name}"
         if not common_payer:
             line += f" · pagó {_cap(r.payer_name)}"
+        if getattr(mv, "status", "confirmed") == "pending" and mv.payment_date:
+            line += f" · 📅 {fmt_date(mv.payment_date)}"
         lines.append(line)
 
     total = sum((Decimal(r.mv.amount_usd) for r in rows
