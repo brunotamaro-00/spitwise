@@ -169,6 +169,14 @@ def expand_installments(parsed, today: date) -> list | None:
         key=lambda i: i.pay_date or today,
     ) + rests
 
+    # Guarda anti-replicación: si TODAS las etapas traen la MISMA fecha, el LLM
+    # replicó la fecha del mensaje en cada una ("12% de seña y el resto el
+    # 6-oct" no son dos pagos el 6-oct). Dos pagos el mismo día no son etapas:
+    # la fecha es solo de la ÚLTIMA; las anteriores se pagan hoy.
+    pay_dates = [i.pay_date for i in ordered]
+    if len(set(pay_dates)) == 1 and pay_dates[0] is not None:
+        pay_dates = [None] * (len(ordered) - 1) + [pay_dates[-1]]
+
     amounts: list[Decimal] = []
     for inst in ordered[:-1]:
         if inst.amount is not None:
@@ -186,9 +194,9 @@ def expand_installments(parsed, today: date) -> list | None:
     n = len(ordered)
     base_desc = parsed.description or "gasto"
     return [
-        replace(parsed, amount=amt, payment_date=inst.pay_date,
+        replace(parsed, amount=amt, payment_date=pay_date,
                 description=f"{base_desc} ({idx}/{n})", installments=[], batch=[])
-        for idx, (inst, amt) in enumerate(zip(ordered, amounts), start=1)
+        for idx, (pay_date, amt) in enumerate(zip(pay_dates, amounts), start=1)
     ]
 
 

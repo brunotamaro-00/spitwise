@@ -94,6 +94,33 @@ def test_expand_orders_by_date():
     assert parts[1].payment_date == date(2026, 9, 3) and parts[1].amount == Decimal("301.00")
 
 
+def test_expand_dedupes_replicated_date():
+    """Regresión: el LLM replicó la fecha del mensaje en TODAS las etapas
+    ('12% de seña y el resto al ingresar el 6-oct' → ambas con 6-oct). Dos
+    pagos el mismo día no son etapas: la fecha es solo de la última y la seña
+    se paga hoy."""
+    parsed = _parsed(amount=Decimal("300"), currency="PLN", description="hostel",
+                     installments=[
+                         Installment(percent=Decimal("12"), pay_date=date(2026, 10, 6)),
+                         Installment(pay_date=date(2026, 10, 6)),  # "el resto"
+                     ])
+    parts = expand_installments(parsed, TODAY)
+    assert [p.amount for p in parts] == [Decimal("36.00"), Decimal("264.00")]
+    assert parts[0].payment_date is None  # la seña es de HOY => confirmed
+    assert parts[1].payment_date == date(2026, 10, 6)
+
+
+def test_expand_keeps_distinct_dates():
+    # Fechas distintas legítimas: no se toca nada.
+    parsed = _parsed(installments=[
+        Installment(percent=Decimal("30"), pay_date=date(2026, 8, 1)),
+        Installment(pay_date=date(2026, 9, 3)),
+    ])
+    parts = expand_installments(parsed, TODAY)
+    assert parts[0].payment_date == date(2026, 8, 1)
+    assert parts[1].payment_date == date(2026, 9, 3)
+
+
 def test_expand_invalid_returns_none():
     # Sin total.
     assert expand_installments(_parsed(amount=None, installments=[
