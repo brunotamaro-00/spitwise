@@ -67,7 +67,7 @@ async def test_low_confidence_keeps_candidates():
 async def test_explicit_date_and_paid_by():
     got = await _parse(_payload(amount="10", currency="USD", description="cena",
                                 category="Comida", date="2026-09-23", paid_by="katia"))
-    assert got.movement_date == date(2026, 9, 23)
+    assert got.payment_date == date(2026, 9, 23)
     assert got.paid_by == "katia"
 
 
@@ -192,6 +192,6 @@ async def test_batch_item_fields_normalized_like_flat():
     ]))
     a, b = got.batch
     assert a.currency == "EUR" and a.paid_by == "katia" and a.split == "other_only"
-    assert a.movement_date == date(2026, 8, 5) and a.city == "Roma"
+    assert a.payment_date == date(2026, 8, 5) and a.city == "Roma"
     assert b.amount == Decimal("3.5") and b.currency == "GBP"
     assert b.paid_by is None and b.split == "shared"

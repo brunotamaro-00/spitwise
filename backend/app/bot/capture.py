@@ -14,7 +14,7 @@ from app.bot.render import (
 )
 from app.categories.catalog import CATEGORIES
 from app.db.models import Category, Movement, User
-from app.fx import convert_to_usd
+from app.fx import convert_to_usd, fx_reference_date
 
 _CONF_THRESHOLD = 0.6
 _BATCH_MAX = 10  # más que esto huele a alucinación del parser (y revienta el mensaje)
@@ -136,13 +136,20 @@ async def owner_split(session, stop_slug: str | None, payer: User, split: str) -
     return "payer_only" if owner.lower() == payer.username.lower() else "other_only"
 
 
+def _payment_status(payment_date: date | None, today: date) -> str:
+    """pending = se paga en el futuro con TC proxy; la liquidación lazy (app/due.py)
+    lo confirma con el TC real cuando llega la fecha."""
+    return "pending" if payment_date is not None and payment_date > today else "confirmed"
+
+
 async def _persist(session, *, payer, parsed, amount_usd, rate, src, stop_slug, city_name,
-                   cat_id, created_by, raw):
+                   cat_id, created_by, raw, status="confirmed"):
     mv = Movement(
         type="settlement" if parsed.is_settlement else "expense",
         amount=parsed.amount, currency=parsed.currency, amount_usd=amount_usd,
         fx_rate=rate, fx_source=_map_source(src, parsed.currency), paid_by=payer.id, split=parsed.split,
         description=parsed.description, category_id=cat_id, stop_slug=stop_slug, city_name=city_name,
+        payment_date=parsed.payment_date, status=status,
         created_by=created_by.id, raw_message=raw,
     )
     session.add(mv)
@@ -167,18 +174,20 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
     if parsed.amount is None:
         return text_reply(f"{copy.H_WARN} No le pesqué el *monto*. Probá: _cena 20 euros_.")
 
-    # La fecha del mensaje ("ayer") solo elige la parada; no se persiste.
-    # La ciudad la define el remitente, no el pagador: si Katia carga "pagó
-    # bruno 30" desde Pititas, el gasto ocurrió donde está ella.
+    # La fecha del mensaje elige la parada mirando el itinerario (un gasto futuro
+    # en Interlaken cae en la parada del 3-sep) y además se persiste como fecha
+    # de pago. La ciudad la define el remitente, no el pagador: si Katia carga
+    # "pagó bruno 30" desde Pititas, el gasto ocurrió donde está ella.
     stop_slug, city_name, place_currency = await resolve_place(
-        session, parsed.movement_date or today, parsed.city, user.username
+        session, parsed.payment_date or today, parsed.city, user.username
     )
     if parsed.currency is None:
         parsed.currency = place_currency
 
-    # Un saldo nunca lleva ciudad: siempre queda como gasto general.
+    # Un saldo nunca lleva ciudad ni fecha de pago diferida: siempre es general y de hoy.
     if parsed.is_settlement:
         stop_slug, city_name = None, None
+        parsed.payment_date = None
 
     payer = user
     if parsed.paid_by and parsed.paid_by != user.username:
@@ -189,8 +198,12 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
     if not parsed.is_settlement:
         parsed.split = await owner_split(session, stop_slug, payer, parsed.split)
 
-    # Regla: el TC es siempre el de la fecha de CARGA, no la del gasto.
-    amount_usd, rate, src = await convert_to_usd(session, parsed.amount, parsed.currency, today)
+    # Regla: TC de la fecha de pago, capeada a hoy — pasada => histórico
+    # Frankfurter; futura => proxy de hoy (se ajusta al liquidar, app/due.py).
+    status = _payment_status(parsed.payment_date, today)
+    amount_usd, rate, src = await convert_to_usd(
+        session, parsed.amount, parsed.currency, fx_reference_date(parsed.payment_date, today)
+    )
 
     # Categoría ambigua → pending con botones (solo gastos, no settlement).
     if not parsed.is_settlement and parsed.confidence < _CONF_THRESHOLD and len(parsed.category_candidates) >= 2:
@@ -198,6 +211,8 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
             "amount": str(parsed.amount), "currency": parsed.currency, "amount_usd": str(amount_usd),
             "fx_rate": str(rate), "fx_source": _map_source(src, parsed.currency), "split": parsed.split,
             "description": parsed.description, "stop_slug": stop_slug, "city_name": city_name,
+            "payment_date": parsed.payment_date.isoformat() if parsed.payment_date else None,
+            "status": status,
             "paid_by": payer.id, "raw_message": text,
         }
         token = await create_pending(session, owner=user.username, payload=payload, kind="cat_pick")
@@ -213,7 +228,7 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
     cat_id = None if parsed.is_settlement else await _category_id(session, parsed.category_name)
     mv = await _persist(session, payer=payer, parsed=parsed, amount_usd=amount_usd, rate=rate, src=src,
                         stop_slug=stop_slug, city_name=city_name, cat_id=cat_id,
-                        created_by=user, raw=text)
+                        created_by=user, raw=text, status=status)
     other_name = other.username if other else "el otro"
     if parsed.is_settlement:
         reply = text_reply(settlement_card(mv, payer.username, other_name))
@@ -241,11 +256,12 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
     rows: list[BatchRow] = []
     for item in items:
         stop_slug, city_name, place_currency = await resolve_place(
-            session, item.movement_date or today, item.city, user.username
+            session, item.payment_date or today, item.city, user.username
         )
         currency = item.currency or place_currency
         if item.is_settlement:
             stop_slug, city_name = None, None
+            item.payment_date = None
         payer = user
         if item.paid_by and item.paid_by != user.username:
             payer = (await user_by_username(session, item.paid_by)) or user
@@ -253,8 +269,11 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
         split = item.split if item.is_settlement else await owner_split(
             session, stop_slug, payer, item.split
         )
-        # Regla: el TC es siempre el de la fecha de CARGA, no la del gasto.
-        amount_usd, rate, src = await convert_to_usd(session, item.amount, currency, today)
+        # Regla: TC de la fecha de pago, capeada a hoy (proxy si es futura).
+        status = _payment_status(item.payment_date, today)
+        amount_usd, rate, src = await convert_to_usd(
+            session, item.amount, currency, fx_reference_date(item.payment_date, today)
+        )
         cat_name = None if item.is_settlement else item.category_name
         cat_id = None if item.is_settlement else await _category_id(session, cat_name)
         mv = Movement(
@@ -263,6 +282,7 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
             fx_rate=rate, fx_source=_map_source(src, currency), paid_by=payer.id,
             split=split, description=item.description, category_id=cat_id,
             stop_slug=stop_slug, city_name=city_name,
+            payment_date=item.payment_date, status=status,
             created_by=user.id, raw_message=text, batch_key=batch_key,
         )
         uncertain = (not item.is_settlement and item.confidence < _CONF_THRESHOLD
@@ -283,12 +303,15 @@ async def apply_category_pick(session, user: User, token: str, category_id: int)
     if data is None:
         return text_reply("⚠️ Expiró: ese pending ya no está disponible.")
     payer_id = int(data.get("paid_by") or user.id)
+    pay_date = data.get("payment_date")
     mv = Movement(
         type="expense", amount=Decimal(data["amount"]), currency=data["currency"],
         amount_usd=Decimal(data["amount_usd"]), fx_rate=Decimal(data["fx_rate"]),
         fx_source=data["fx_source"], paid_by=payer_id, split=data["split"],
         description=data.get("description"), category_id=category_id,
         stop_slug=data.get("stop_slug"), city_name=data.get("city_name"),
+        payment_date=date.fromisoformat(pay_date) if pay_date else None,
+        status=data.get("status") or "confirmed",
         created_by=user.id, raw_message=data.get("raw_message"),
     )
     session.add(mv)

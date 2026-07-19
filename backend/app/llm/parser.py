@@ -30,8 +30,10 @@ class ParsedMessage:
     category_name: str | None = None
     split: str = "shared"
     paid_by: str | None = None  # username, None => quien escribe
-    # Efímera: solo elige la parada mirando el itinerario ("ayer"); NO se persiste.
-    movement_date: date | None = None  # None => hoy
+    # Fecha en que se paga/pagó el gasto ("ayer", "el 3 de septiembre"). Elige la
+    # parada mirando el itinerario Y se persiste como Movement.payment_date
+    # (futura => pending con TC proxy; pasada => TC histórico). None => hoy.
+    payment_date: date | None = None
     city: str | None = None  # None => itinerario estricto por fecha (fuera de rango => General)
     confidence: float = 1.0
     category_candidates: list[str] = field(default_factory=list)
@@ -120,7 +122,7 @@ def _normalize_expense(raw: dict, category_names, usernames) -> ParsedMessage:
         category_name=category,
         split=split,
         paid_by=paid_by if paid_by in usernames else None,
-        movement_date=_to_date(raw.get("date")),
+        payment_date=_to_date(raw.get("date")),
         city=(str(raw.get("city")).strip() if raw.get("city") else None),
         confidence=float(raw.get("confidence", 1.0)),
         category_candidates=[c for c in (raw.get("candidates") or []) if c in category_names],
