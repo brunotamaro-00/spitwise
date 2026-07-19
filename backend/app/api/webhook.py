@@ -13,6 +13,7 @@ from app.users import username_for_wa_id
 from app.bot.dispatcher import dispatch
 from app.config import get_settings
 from app.db.engine import get_session, get_sessionmaker
+from app.due import ensure_due_settled
 from app.trip_time import today_in_tz
 from app.whatsapp.dedupe import claim_wamid
 from app.whatsapp.meta_client import MetaClient
@@ -79,7 +80,11 @@ async def process_message(m: IncomingMessage) -> None:
                 tz = await resolve_trip_timezone(
                     session, await username_for_wa_id(session, m.wa_id)
                 )
-                reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, today_in_tz(tz))
+                today = today_in_tz(tz)
+                # Liquidar pendings vencidos antes de responder: "saldo" ya
+                # ve los ajustes de TC del día.
+                await ensure_due_settled(session, today)
+                reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, today)
         try:
             if reply.buttons:
                 await meta.send_buttons(m.wa_id, reply.text or "", reply.buttons)

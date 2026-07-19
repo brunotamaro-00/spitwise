@@ -8,6 +8,7 @@ class MovementLike:
     split: str
     paid_by: int
     amount_usd: Decimal
+    status: str = "confirmed"
 
 
 @dataclass
@@ -24,6 +25,10 @@ def compute_balance(movements, user_a: int, user_b: int) -> Balance:
     """
     net = Decimal("0")
     for m in movements:
+        # Un pending aún no se pagó: cuenta en totales/analytics pero no genera
+        # deuda entre los dos hasta que la liquidación lo confirme.
+        if getattr(m, "status", "confirmed") == "pending":
+            continue
         payer = m.paid_by
         amt = m.amount_usd
         if m.type == "settlement":

@@ -9,6 +9,7 @@ from app.api.schemas import MovementIn, MovementOut, MovementUpdate
 from app.bot.active_stop import place_for_date, resolve_trip_timezone
 from app.db.engine import get_session
 from app.db.models import Movement, Stop, User
+from app.due import ensure_due_settled
 from app.fx import convert_to_usd
 from app.trip_time import today_in_tz
 
@@ -107,6 +108,7 @@ async def list_movements(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[Movement]:
+    await ensure_due_settled(session)
     rows = (
         await session.execute(
             select(Movement).order_by(Movement.created_at.desc(), Movement.id.desc())

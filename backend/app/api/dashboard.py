@@ -16,6 +16,7 @@ from app.api.schemas import (
 from app.bot.active_stop import resolve_trip_timezone
 from app.db.engine import get_session
 from app.db.models import Category, Movement, Stop, User
+from app.due import ensure_due_settled
 from app.spend import user_share
 from app.trip_time import today_in_tz
 
@@ -42,6 +43,7 @@ async def summary(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> SummaryOut:
+    await ensure_due_settled(session)
     rows = await _expenses(session)
     shares = [user_share(m, user.id) for m in rows]
     total = sum(shares, Decimal("0"))

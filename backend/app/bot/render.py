@@ -69,6 +69,9 @@ def _owes_line(mv, payer_name: str, other_name: str) -> str | None:
     shared → mitad; other_only → total; payer_only → nada (sin línea)."""
     if mv.type == "settlement" or mv.amount_usd is None:
         return None
+    # Un pending todavía no entra al balance: no mostrar deuda por esto.
+    if getattr(mv, "status", "confirmed") == "pending":
+        return None
     factor = {"shared": Decimal("0.5"), "other_only": Decimal("1")}.get(mv.split)
     if factor is None:
         return None
@@ -121,6 +124,9 @@ def _batch_owes_line(rows: list[BatchRow], usernames: list[str]) -> str | None:
     for r in rows:
         mv = r.mv
         if mv.amount_usd is None or r.payer_name not in owed:
+            continue
+        # Los pending no entran al balance todavía.
+        if getattr(mv, "status", "confirmed") == "pending":
             continue
         if mv.type == "settlement":
             owed[r.payer_name] += Decimal(mv.amount_usd)

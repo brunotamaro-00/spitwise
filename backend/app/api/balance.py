@@ -7,6 +7,7 @@ from app.api.schemas import BalanceOut
 from app.balance import compute_balance
 from app.db.engine import get_session
 from app.db.models import Movement, User
+from app.due import ensure_due_settled
 from app.users import get_trip_users
 
 router = APIRouter(tags=["balance"])
@@ -17,6 +18,7 @@ async def get_balance(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> BalanceOut:
+    await ensure_due_settled(session)
     a, b = await get_trip_users(session)
     rows = (await session.execute(select(Movement))).scalars().all()
     bal = compute_balance(rows, a.id, b.id)

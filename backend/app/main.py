@@ -12,6 +12,7 @@ from app.andiamo import sync_stops
 from app.categories.seed import seed_categories
 from app.config import get_settings, parse_cors
 from app.db.engine import get_sessionmaker
+from app.due import ensure_due_settled
 from app.stops_local import seed_local_stops
 from app.users import seed_users_from_env
 
@@ -50,6 +51,8 @@ async def lifespan(app: FastAPI):
             await sync_stops(session)  # primer sync; tolerante a fallo
         # Después del sync: el orden de Pititas se deriva del snapshot.
         await seed_local_stops(session)
+        # Pendings vencidos durante un deploy sin tráfico: una pasada al boot.
+        await ensure_due_settled(session)
     yield
 
 
