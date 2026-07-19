@@ -11,6 +11,7 @@ from app.db.engine import get_session
 from app.db.models import Movement, Stop, User
 from app.due import ensure_due_settled
 from app.fx import convert_to_usd, fx_reference_date
+from app.textnorm import load_proper_nouns, normalize_description
 from app.trip_time import today_in_tz
 
 router = APIRouter(prefix="/movements", tags=["movements"])
@@ -97,7 +98,7 @@ async def create_movement(
         fx_source=fx_source,
         paid_by=body.paid_by or user.id,
         split=body.split,
-        description=body.description,
+        description=normalize_description(body.description, await load_proper_nouns(session)),
         category_id=None if body.type == "settlement" else body.category_id,
         stop_slug=stop_slug,
         city_name=city_name,
@@ -137,9 +138,13 @@ async def update_movement(
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
 
     sent = body.model_fields_set  # solo lo que vino en el body
-    for field in ("type", "split", "paid_by", "description", "category_id"):
+    for field in ("type", "split", "paid_by", "category_id"):
         if field in sent:
             setattr(mv, field, getattr(body, field))
+    if "description" in sent:
+        mv.description = normalize_description(
+            body.description, await load_proper_nouns(session)
+        )
     if "amount" in sent:
         mv.amount = body.amount
     if "currency" in sent:

@@ -15,6 +15,7 @@ from app.bot.render import (
 from app.categories.catalog import CATEGORIES
 from app.db.models import Category, Movement, User
 from app.fx import convert_to_usd, fx_reference_date
+from app.textnorm import load_proper_nouns, normalize_description
 
 _CONF_THRESHOLD = 0.6
 _BATCH_MAX = 10  # más que esto huele a alucinación del parser (y revienta el mensaje)
@@ -234,6 +235,10 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
     if parsed.amount is None:
         return text_reply(f"{copy.H_WARN} No le pesqué el *monto*. Probá: _cena 20 euros_.")
 
+    parsed.description = normalize_description(
+        parsed.description, await load_proper_nouns(session)
+    )
+
     # La fecha del mensaje elige la parada mirando el itinerario (un gasto futuro
     # en Interlaken cae en la parada del 3-sep) y además se persiste como fecha
     # de pago. La ciudad la define el remitente, no el pagador: si Katia carga
@@ -311,10 +316,12 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
     batch_key = secrets.token_hex(8)
     users = await all_users(session)
     usernames = [u.username for u in users]
+    nouns = await load_proper_nouns(session)
 
     movements: list[Movement] = []
     rows: list[BatchRow] = []
     for item in items:
+        item.description = normalize_description(item.description, nouns)
         stop_slug, city_name, place_currency = await resolve_place(
             session, item.payment_date or today, item.city, user.username
         )

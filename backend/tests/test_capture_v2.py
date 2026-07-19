@@ -143,7 +143,7 @@ async def test_full_card_contents(db_session):
     reply = await handle_capture(db_session, u1, "549111", "cena 10usd", TODAY, llm_client=fake)
     text = reply.text or ""
     assert "✅ *Gasto guardado*" in text
-    assert "🍽️ Comida — cena" in text
+    assert "🍽️ Comida — Cena" in text
     assert "USD 10,0" in text
     assert "Londres" in text  # parada activa de hoy
     assert "Pagó Bruno" in text

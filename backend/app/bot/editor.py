@@ -14,6 +14,7 @@ from app.bot.render import (
 )
 from app.db.models import Category, Movement, User
 from app.fx import convert_to_usd, fx_reference_date
+from app.textnorm import load_proper_nouns, normalize_description
 
 _SEARCH_LIMIT = 50  # movimientos recientes donde buscar referencias
 
@@ -109,9 +110,13 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
     """Aplica cambios a un movimiento con recálculo en cascada. Devuelve diffs (label, antes, después)."""
     diffs: list[tuple[str, str, str]] = []
 
-    if "description" in changes and changes["description"] != mv.description:
-        diffs.append(("📝", mv.description or "—", changes["description"]))
-        mv.description = changes["description"]
+    if "description" in changes:
+        new_desc = normalize_description(
+            changes["description"], await load_proper_nouns(session)
+        )
+        if new_desc != mv.description:
+            diffs.append(("📝", mv.description or "—", new_desc))
+            mv.description = new_desc
 
     if "category" in changes:
         old = await _cat_name(session, mv)

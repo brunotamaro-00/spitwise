@@ -141,7 +141,7 @@ async def test_partial_patch_keeps_manual_fx(app_client):
     p = await app_client.patch(f"/api/v1/movements/{mid}", headers=h, json={"description": "cena rica"})
     assert p.status_code == 200
     body = p.json()
-    assert body["description"] == "cena rica"
+    assert body["description"] == "Cena rica"  # normalizada server-side
     assert body["fx_source"] == "manual"
     # Comparar como Decimal: la DB devuelve la tasa con scale 6 ("1.300000").
     assert Decimal(body["fx_rate"]) == Decimal("1.30")

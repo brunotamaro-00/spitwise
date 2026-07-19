@@ -75,7 +75,7 @@ async def test_batch_creates_all_movements_one_key(db_session):
     assert not reply.buttons
     text = reply.text or ""
     assert "3 gastos guardados" in text
-    assert "cena" in text and "taxi" in text and "helado" in text
+    assert "Cena" in text and "Taxi" in text and "Helado" in text
     # Total 57 USD, Katia debe la mitad (todo shared, pagó bruno).
     assert "USD 57,0" in text
     assert "*Katia* le debe *USD 28,5*" in text
@@ -178,4 +178,4 @@ async def test_edit_by_reference_matches_only_named_item(db_session):
     # Los 3 comparten raw_message; "cena" debe matchear solo la cena.
     got = await find_candidates(db_session, ref_last=False, ref_text="cena", ref_date=None)
     assert len(got) == 1
-    assert got[0].description == "cena"
+    assert got[0].description == "Cena"
