@@ -36,7 +36,7 @@ class Settings(BaseSettings):
 
     # Auth
     secret_key: str = "change-me-in-production-use-a-long-random-string"
-    jwt_expire_days: int = 30
+    jwt_expire_days: int = 90
     bot_api_key: str = "change-me-bot-key"
     auth_users: str = ""  # "user:pass:wa_id,user2:pass2:wa_id2"
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")

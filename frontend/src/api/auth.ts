@@ -2,8 +2,8 @@ import { resetSessionCache } from "@/lib/queryClient";
 
 import { api } from "./client";
 
-export async function login(username: string, password: string): Promise<string> {
-  const form = new URLSearchParams({ username, password });
+export async function loginAs(username: string): Promise<string> {
+  const form = new URLSearchParams({ username, password: "-" });
   const { data } = await api.post("/auth/login", form, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });

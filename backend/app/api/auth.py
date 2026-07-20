@@ -55,12 +55,17 @@ async def login(
     form: OAuth2PasswordRequestForm = Depends(),
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
+    """Passwordless picker login: any existing username (bruno/katia) gets a JWT.
+
+    The OAuth2 form still accepts ``password`` so older clients/tests keep working;
+    the password is ignored.
+    """
     username = form.username.strip().lower()
     user = (
         await session.execute(select(User).where(User.username == username))
     ).scalar_one_or_none()
-    if user is None or not user.password_hash or not verify_password(form.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Usuario o contraseña inválidos")
+    if user is None:
+        raise HTTPException(status_code=401, detail="Usuario inválido")
     return TokenResponse(access_token=create_jwt(username))
 
 

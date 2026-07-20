@@ -14,7 +14,8 @@ async def test_login_and_protected_route(app_client):
         s.add(User(username="bruno", password_hash=hash_password("pw")))
         await s.commit()
 
-    r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
+    # Passwordless: password is ignored; username must exist.
+    r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "anything"})
     assert r.status_code == 200
     token = r.json()["access_token"]
 
@@ -24,6 +25,11 @@ async def test_login_and_protected_route(app_client):
 
     r3 = await app_client.get("/api/v1/auth/me")
     assert r3.status_code == 401
+
+
+async def test_login_unknown_user(app_client):
+    r = await app_client.post("/api/v1/auth/login", data={"username": "nadie", "password": "-"})
+    assert r.status_code == 401
 
 
 async def test_users_endpoint(app_client):

@@ -150,7 +150,7 @@ AUTH_USERS="bruno:demo:5491111,katia:demo:5492222" \
 ENVIRONMENT=dev \
 .venv/bin/python scripts/seed_demo_data.py
 
-# 2) Levantar el backend contra esa DB (login: bruno/demo o katia/demo)
+# 2) Levantar el backend contra esa DB (login: elegir Bruno o Katia en /login)
 DATABASE_URL="sqlite+aiosqlite:///$(pwd)/demo.db" \
 SECRET_KEY=demo-secret-key-local-only ENVIRONMENT=dev \
 AUTH_USERS="bruno:demo:5491111,katia:demo:5492222" \

@@ -1,40 +1,42 @@
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 
-import { login } from "@/api/auth";
+import { isAuthenticated, loginAs } from "@/api/auth";
 import { Wordmark } from "@/components/ui/Brand";
-import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import { Field, Input } from "@/components/ui/Field";
+
+const PEOPLE = [
+  { username: "bruno", label: "Bruno" },
+  { username: "katia", label: "Katia" },
+] as const;
 
 export default function Login() {
-  const [u, setU] = useState("");
-  const [p, setP] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  async function submit(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault();
+  if (isAuthenticated()) {
+    return <Navigate to="/" replace />;
+  }
+
+  async function choose(username: string) {
     setErr(null);
-    setBusy(true);
+    setBusy(username);
     try {
-      await login(u, p);
+      await loginAs(username);
       // Full reload: remonta PersistQueryClient con buster del JWT nuevo.
       window.location.assign("/");
     } catch {
-      setErr("Usuario o contraseña inválidos");
-    } finally {
-      setBusy(false);
+      setErr("No se pudo entrar. Probá de nuevo.");
+      setBusy(null);
     }
   }
 
   return (
     <div className="relative min-h-dvh overflow-hidden">
-      {/* Trail de puntitos de marca sobre el canvas, esquina superior derecha. */}
       <div className="spit-dots-ink pointer-events-none absolute inset-0" aria-hidden="true" />
 
       <div className="relative mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-6">
         <header className="animate-rise-in espresso-panel relative overflow-hidden rounded-2xl px-6 py-7 soft-hero">
-          {/* Firma de marca: escupitajo tenue hacia la esquina superior derecha. */}
           <div className="spit-dots pointer-events-none absolute inset-0" aria-hidden="true" />
           <div className="hero-sheen pointer-events-none absolute inset-0" aria-hidden="true" />
           <div className="relative flex flex-col items-start">
@@ -58,18 +60,23 @@ export default function Login() {
         </header>
 
         <Card className="animate-rise-in stagger-2 p-6">
-          <form onSubmit={submit} className="flex flex-col gap-4">
-            <Field label="Usuario">
-              <Input value={u} onChange={(e) => setU(e.target.value)} autoComplete="username" autoFocus required />
-            </Field>
-            <Field label="Contraseña">
-              <Input type="password" value={p} onChange={(e) => setP(e.target.value)} autoComplete="current-password" required />
-            </Field>
-            {err && <p role="alert" className="text-sm font-semibold text-danger">{err}</p>}
-            <Button type="submit" disabled={busy} className="mt-1">
-              {busy ? "Entrando…" : "Entrar"}
-            </Button>
-          </form>
+          <p className="mb-4 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-3">
+            ¿Quién sos?
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {PEOPLE.map(({ username, label }) => (
+              <button
+                key={username}
+                type="button"
+                disabled={busy !== null}
+                onClick={() => { void choose(username); }}
+                className="flex min-h-[64px] items-center justify-center rounded-xl border-2 border-border bg-surface-2 text-sm font-extrabold uppercase tracking-[0.08em] text-ink transition-all duration-150 hover:border-brick hover:bg-brick-bg hover:text-brick active:translate-y-px disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+              >
+                {busy === username ? "Entrando…" : label}
+              </button>
+            ))}
+          </div>
+          {err && <p role="alert" className="mt-4 text-sm font-semibold text-danger">{err}</p>}
         </Card>
       </div>
     </div>
