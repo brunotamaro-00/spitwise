@@ -41,7 +41,7 @@ async def _setup(db_session):
         Stop(slug="portugal", order=7, name="Portugal", arrival_date=date(2026, 9, 4),
              departure_date=date(2026, 9, 12), currency_code="EUR", timezone="Europe/Lisbon",
              owner_username="bruno"),
-        Stop(slug="pititas", order=7, name="Pititas", country_flag="😊",
+        Stop(slug="pititas", order=7, name="Pititas", country_flag="👭",
              arrival_date=date(2026, 9, 4), departure_date=date(2026, 9, 12),
              currency_code="EUR", timezone="Europe/Paris",
              is_local=True, owner_username="katia"),

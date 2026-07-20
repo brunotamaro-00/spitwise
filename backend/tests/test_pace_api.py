@@ -148,7 +148,7 @@ async def test_pace_pititas_visible_for_both(app_client, monkeypatch):
         s.add_all([
             Stop(slug="portugal", order=3, name="Portugal",
                  arrival_date=date(2026, 9, 4), departure_date=date(2026, 9, 12)),
-            Stop(slug="pititas", order=4, name="Pititas", country_flag="😊",
+            Stop(slug="pititas", order=4, name="Pititas", country_flag="👭",
                  arrival_date=date(2026, 9, 4), departure_date=date(2026, 9, 12),
                  is_local=True, owner_username="katia"),
             Movement(type="expense", amount=Decimal("40"), currency="EUR",

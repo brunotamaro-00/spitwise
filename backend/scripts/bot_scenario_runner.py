@@ -377,7 +377,7 @@ async def seed(session: AsyncSession) -> None:
              departure_date=date(2026, 9, 6), currency_code="CHF", timezone="Europe/Zurich"),
         Stop(slug="pititas", order=5, name="Pititas", arrival_date=date(2026, 9, 4),
              departure_date=date(2026, 9, 12), currency_code="EUR", timezone="Europe/Paris",
-             is_local=True, owner_username="katia", country_flag="😊"),
+             is_local=True, owner_username="katia", country_flag="👭"),
         Stop(slug="fort-william", order=6, name="Fort William", arrival_date=date(2026, 9, 12),
              departure_date=date(2026, 9, 15), currency_code="GBP", timezone="Europe/London"),
         Stop(slug="portree", order=7, name="Portree", arrival_date=date(2026, 9, 15),

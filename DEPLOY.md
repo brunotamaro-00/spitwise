@@ -80,7 +80,7 @@ Redeploy de Andiamo después de agregarlas (habilita `GET /api/stops` y el chip 
 
 ## Stop local Pititas
 
-Del **4 al 11 de septiembre de 2026** Bruno está solo en Portugal y Katia viaja con sus amigas. Los gastos de Katia en ese tramo se imputan a una parada **Pititas** (😊, EUR, `Europe/Paris`) en vez de Portugal; los de Bruno siguen yendo a Portugal. El 12 ya es Estrasburgo para los dos.
+Del **4 al 11 de septiembre de 2026** Bruno está solo en Portugal y Katia viaja con sus amigas. Los gastos de Katia en ese tramo se imputan a una parada **Pititas** (👭, EUR, `Europe/Paris`) en vez de Portugal; los de Bruno siguen yendo a Portugal. El 12 ya es Estrasburgo para los dos.
 
 Pititas es un **stop local** (`Stop.is_local`): existe solo en Spitwise.
 

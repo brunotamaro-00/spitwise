@@ -25,7 +25,7 @@ async def _seed(app_client):
         s.add_all([
             Stop(slug="portugal", order=7, name="Portugal", currency_code="EUR",
                  arrival_date=date(2026, 9, 4), departure_date=date(2026, 9, 12)),
-            Stop(slug="pititas", order=7, name="Pititas", country_flag="😊",
+            Stop(slug="pititas", order=7, name="Pititas", country_flag="👭",
                  currency_code="EUR", arrival_date=date(2026, 9, 4),
                  departure_date=date(2026, 9, 12), is_local=True, owner_username="katia"),
         ])

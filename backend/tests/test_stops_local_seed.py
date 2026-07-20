@@ -35,7 +35,7 @@ async def test_siembra_pititas(db_session, owner):
 
     s = (await db_session.execute(select(Stop).where(Stop.slug == PITITAS_SLUG))).scalar_one()
     assert s.name == "Pititas"
-    assert s.country_flag == "😊"
+    assert s.country_flag == "👭"
     assert s.currency_code == "EUR"
     assert s.timezone == "Europe/Paris"
     assert s.is_local is True
