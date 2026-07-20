@@ -6,6 +6,7 @@ import { listCategories } from "@/api/categories";
 import { createMovement, updateMovement } from "@/api/movements";
 import { listStops, listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
+import DateField from "@/components/ui/DateField";
 import { Field, Input, Label, Select } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -311,10 +312,11 @@ export default function AddMovementDialog({ editing, onClose }: {
             histórico de esa fecha. */}
         {isExpense && (
           <Field label="Fecha de pago" hint="Vacía = hoy · futura queda pendiente">
-            <Input
-              type="date"
+            <DateField
               value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
+              placeholder="Hoy"
+              aria-label="Fecha de pago"
+              onChange={setPaymentDate}
             />
           </Field>
         )}

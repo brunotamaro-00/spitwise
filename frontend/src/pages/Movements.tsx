@@ -221,7 +221,9 @@ export default function Movements() {
             <FilterPill
               label={
                 f.from && f.to
-                  ? `${formatShortDate(f.from)} – ${formatShortDate(f.to)}`
+                  ? f.from === f.to
+                    ? formatShortDate(f.from)
+                    : `${formatShortDate(f.from)} – ${formatShortDate(f.to)}`
                   : f.from
                     ? `desde ${formatShortDate(f.from)}`
                     : `hasta ${formatShortDate(f.to)}`

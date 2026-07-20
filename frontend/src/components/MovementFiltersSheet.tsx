@@ -2,7 +2,8 @@ import { motion } from "motion/react";
 
 import Flag from "@/components/Flag";
 import Button from "@/components/ui/Button";
-import { Field, Input, Label } from "@/components/ui/Field";
+import DateRangeField from "@/components/ui/DateRangeField";
+import { Label } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { categoryBg, categoryColor } from "@/lib/chartTheme";
@@ -134,13 +135,13 @@ export default function MovementFiltersSheet({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Desde">
-            <Input type="date" value={filters.from} onChange={(e) => onChange({ from: e.target.value })} />
-          </Field>
-          <Field label="Hasta">
-            <Input type="date" value={filters.to} onChange={(e) => onChange({ to: e.target.value })} />
-          </Field>
+        <div className="flex flex-col gap-2">
+          <Label>Fechas</Label>
+          <DateRangeField
+            from={filters.from}
+            to={filters.to}
+            onChange={(r) => onChange(r)}
+          />
         </div>
       </div>
 
