@@ -14,6 +14,7 @@ import MovementFiltersSheet, {
 } from "@/components/MovementFiltersSheet";
 import MovementRow from "@/components/MovementRow";
 import MovementSheet from "@/components/MovementSheet";
+import PendingConfirmBanner from "@/components/PendingConfirmBanner";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -25,7 +26,7 @@ import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { useToast } from "@/components/ui/Toast";
 import { formatAmount, formatDayHeader, formatShortDate, formatUsd } from "@/lib/format";
 import { createdDayKey, dayTotalShare, dayTotalUsd, groupByDay } from "@/lib/groupByDay";
-import { involvesMe, myShare } from "@/lib/share";
+import { involvesMe, myShare, needsConfirmation } from "@/lib/share";
 import { useMe } from "@/lib/useMe";
 import type { Category, Movement } from "@/types";
 
@@ -133,6 +134,9 @@ export default function Movements() {
     onError: () => setDeleteErr("No se pudo borrar. Probá de nuevo."),
   });
 
+  // Gastos vencidos que esperan confirmación (aviso arriba, sin importar filtros).
+  const toConfirm = useMemo(() => data.filter((m) => needsConfirmation(m)), [data]);
+
   const filtered = useMemo(() => {
     const q = f.q.trim().toLowerCase();
     return data.filter((m) => {
@@ -188,6 +192,8 @@ export default function Movements() {
           <ErrorState onRetry={() => refetch()} />
         </div>
       )}
+
+      <PendingConfirmBanner items={toConfirm} />
 
       {/* Búsqueda siempre a mano; el resto de los filtros viven en el sheet. */}
       <div className="relative mb-3">

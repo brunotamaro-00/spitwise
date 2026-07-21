@@ -14,3 +14,21 @@ export function myShare(mv: Movement, userId: number): number {
 export function involvesMe(mv: Movement, userId: number): boolean {
   return mv.type === "settlement" || myShare(mv, userId) > 0;
 }
+
+/** ¿Este gasto necesita confirmación manual (aviso en /movimientos)?
+ *  - `awaiting`: llegó la fecha, TC lockeado por el server → siempre.
+ *  - `pending`: aviso desde 1 día antes de su fecha de pago.
+ *  Sale del aviso al confirmarse (status → confirmed). */
+export function needsConfirmation(mv: Movement, today = new Date()): boolean {
+  if (mv.type !== "expense") return false;
+  if (mv.status === "awaiting") return true;
+  if (mv.status === "pending" && mv.payment_date) {
+    const cutoff = new Date(today);
+    cutoff.setDate(cutoff.getDate() + 1); // hasta 1 día antes de la fecha
+    // payment_date es YYYY-MM-DD (fecha pura). Armar la key con partes locales
+    // (no toISOString, que corre a UTC y desfasa un día en husos positivos).
+    const cutoffKey = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}-${String(cutoff.getDate()).padStart(2, "0")}`;
+    return mv.payment_date <= cutoffKey;
+  }
+  return false;
+}

@@ -85,6 +85,9 @@ export default function MovementSheet({ mv, category, flag, myId, onEdit, onDele
             {mv.status === "pending" && (
               <span className="ml-1.5 font-semibold text-accent-amber">· TC provisorio</span>
             )}
+            {mv.status === "awaiting" && (
+              <span className="ml-1.5 font-semibold text-accent-amber">· por confirmar</span>
+            )}
           </Row>
         )}
         {!isSettlement && (

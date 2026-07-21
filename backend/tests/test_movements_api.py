@@ -203,3 +203,77 @@ async def test_patch_payment_date_null_resets_and_status_not_writable(app_client
     assert p.status_code == 200, p.text
     assert p.json()["payment_date"] is None
     assert p.json()["status"] == "confirmed"
+
+
+async def _second_user_id(app_client):
+    """id de katia (el segundo usuario del viaje) para probar cambio de pagador."""
+    from sqlalchemy import select
+    from app.db.models import User
+    async with app_client._maker() as s:
+        return (await s.execute(select(User.id).where(User.username == "katia"))).scalar_one()
+
+
+async def test_confirm_accepts_current_payer(app_client):
+    from datetime import date, timedelta
+    h = await _auth(app_client)
+    # Un movimiento vencido esperando confirmación (status awaiting via DB directa).
+    past = (date.today() - timedelta(days=2)).isoformat()
+    r = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "100", "currency": "USD", "description": "tren (2/2)",
+    })
+    mid = r.json()["id"]
+    from sqlalchemy import update
+    from app.db.models import Movement
+    async with app_client._maker() as s:
+        await s.execute(update(Movement).where(Movement.id == mid).values(
+            status="awaiting", payment_date=date.today() - timedelta(days=2)))
+        await s.commit()
+
+    c = await app_client.post(f"/api/v1/movements/{mid}/confirm", headers=h, json={})
+    assert c.status_code == 200, c.text
+    assert c.json()["status"] == "confirmed"
+    assert past  # (payment_date se preserva)
+    # Ya confirmado: segundo confirm es 409.
+    again = await app_client.post(f"/api/v1/movements/{mid}/confirm", headers=h, json={})
+    assert again.status_code == 409
+
+
+async def test_confirm_changes_payer(app_client):
+    from datetime import date, timedelta
+    h = await _auth(app_client)
+    katia = await _second_user_id(app_client)
+    r = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "80", "currency": "USD", "description": "hostel (2/2)",
+    })
+    mid = r.json()["id"]
+    from sqlalchemy import update
+    from app.db.models import Movement
+    async with app_client._maker() as s:
+        await s.execute(update(Movement).where(Movement.id == mid).values(
+            status="awaiting", payment_date=date.today() - timedelta(days=1)))
+        await s.commit()
+
+    c = await app_client.post(f"/api/v1/movements/{mid}/confirm", headers=h,
+                              json={"paid_by": katia})
+    assert c.status_code == 200, c.text
+    assert c.json()["status"] == "confirmed"
+    assert c.json()["paid_by"] == katia
+
+
+async def test_confirm_rejects_unknown_payer(app_client):
+    from datetime import date, timedelta
+    h = await _auth(app_client)
+    r = await app_client.post("/api/v1/movements", headers=h, json={
+        "amount": "40", "currency": "USD",
+    })
+    mid = r.json()["id"]
+    from sqlalchemy import update
+    from app.db.models import Movement
+    async with app_client._maker() as s:
+        await s.execute(update(Movement).where(Movement.id == mid).values(
+            status="awaiting", payment_date=date.today() - timedelta(days=1)))
+        await s.commit()
+
+    c = await app_client.post(f"/api/v1/movements/{mid}/confirm", headers=h,
+                              json={"paid_by": 99999})
+    assert c.status_code == 422

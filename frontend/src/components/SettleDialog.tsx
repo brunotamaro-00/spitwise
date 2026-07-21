@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { createMovement } from "@/api/movements";
 import { listUsers } from "@/api/users";
@@ -17,13 +17,10 @@ export default function SettleDialog({ balance, onClose }: {
 }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const firstRef = useRef<HTMLSelectElement>(null);
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
   const [amount, setAmount] = useState(balance ? toInputValue(balance.amount_usd) : "");
   const [paidBy, setPaidBy] = useState<string>(balance?.debtor_id ? String(balance.debtor_id) : "");
   const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => { firstRef.current?.focus(); }, []);
 
   const save = useMutation({
     mutationFn: () =>
@@ -59,7 +56,7 @@ export default function SettleDialog({ balance, onClose }: {
     <Modal title="Saldar deuda" onClose={onClose} size="sm">
       <form onSubmit={submit} className="flex flex-col gap-3">
         <Field label="Quién paga">
-          <Select ref={firstRef} value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+          <Select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
             {users.map((u) => <option key={u.id} value={u.id}>{capitalize(u.username)}</option>)}
           </Select>
         </Field>

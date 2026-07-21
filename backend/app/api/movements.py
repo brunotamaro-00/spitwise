@@ -5,7 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
-from app.api.schemas import MovementIn, MovementOut, MovementUpdate
+from app.api.schemas import MovementConfirm, MovementIn, MovementOut, MovementUpdate
+from app.balance import UNSETTLED
 from app.bot.active_stop import place_for_date, resolve_trip_timezone
 from app.db.engine import get_session
 from app.db.models import Movement, Stop, User
@@ -203,6 +204,38 @@ async def update_movement(
             mv.fx_source = _map_source(src, mv.currency)
     # Si no cambió nada relevante al FX, no se toca (no pisar correcciones).
 
+    await session.commit()
+    await session.refresh(mv)
+    return mv
+
+
+@router.post("/{movement_id}/confirm", response_model=MovementOut)
+async def confirm_movement(
+    movement_id: int,
+    body: MovementConfirm,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Movement:
+    """Confirma manualmente un gasto vencido (pending/awaiting): opcionalmente
+    corrige el pagador y lo pasa a confirmed, recién ahí entra al balance.
+    No recalcula el FX (ya quedó lockeado al vencer; un confirm 1 día antes
+    acepta el TC proxy). Única vía de confirmación — el cliente nunca escribe
+    `status` directo (invariante 4)."""
+    mv = (await session.execute(select(Movement).where(Movement.id == movement_id))).scalar_one_or_none()
+    if mv is None:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    if mv.status not in UNSETTLED:
+        raise HTTPException(status_code=409, detail="El movimiento ya está confirmado")
+
+    if body.paid_by is not None:
+        from app.users import get_trip_users
+
+        valid_ids = {u.id for u in await get_trip_users(session)}
+        if body.paid_by not in valid_ids:
+            raise HTTPException(status_code=422, detail="paid_by no es un usuario del viaje")
+        mv.paid_by = body.paid_by
+
+    mv.status = "confirmed"
     await session.commit()
     await session.refresh(mv)
     return mv

@@ -165,6 +165,31 @@ async def main() -> None:
             created_at=_created(TODAY - timedelta(days=3)),
         ))
 
+        # Gastos futuros que YA llegaron a su fecha y esperan confirmación manual
+        # (status='awaiting': TC lockeado, pero afuera del balance hasta confirmar).
+        # Ejercita la alerta de /movimientos. Se cargaron hace tiempo (con la 1a
+        # cuota) y su fecha de pago ya cayó.
+        current = next(
+            (st for st in (await s.execute(select(Stop))).scalars().all()
+             if st.arrival_date <= TODAY < st.departure_date),
+            None,
+        )
+        cur_slug = current.slug if current else None
+        cur_city = current.name if current else None
+        cur_code = current.currency_code if current else "EUR"
+        # Vencido ayer, cargado hace 10 días por Bruno.
+        _add_mov(s, cats["Alojamiento"], cur_code, 420, TODAY - timedelta(days=10),
+                 cur_slug, cur_city, bruno, "shared", "Airbnb — saldo (2/2)",
+                 payment_date=TODAY - timedelta(days=1), status="awaiting")
+        # Vencido hace una semana, cargado hace ~20 días por Katia.
+        _add_mov(s, cats["Actividades"], cur_code, 96, TODAY - timedelta(days=20),
+                 cur_slug, cur_city, katia, "shared", "Entradas tour — saldo (3/3)",
+                 payment_date=TODAY - timedelta(days=7), status="awaiting")
+        # Aún futuro pero a 1 día: aparece en la alerta (caso "desde 1 día antes").
+        _add_mov(s, cats["Transporte"], cur_code, 60, TODAY,
+                 cur_slug, cur_city, bruno, "shared", "Tren — saldo (2/2)",
+                 payment_date=TODAY + timedelta(days=1), status="pending")
+
         await s.commit()
         movs = (await s.execute(select(Movement))).scalars().all()
         print(

@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
+# Estados que todavía NO liquidaron: no generan deuda entre los dos ni aparecen
+# en las líneas "le debe". `pending` = fecha de pago futura (TC proxy);
+# `awaiting` = fecha alcanzada y TC lockeado, esperando confirmación manual.
+UNSETTLED = frozenset({"pending", "awaiting"})
+
 
 @dataclass
 class MovementLike:
@@ -25,9 +30,9 @@ def compute_balance(movements, user_a: int, user_b: int) -> Balance:
     """
     net = Decimal("0")
     for m in movements:
-        # Un pending aún no se pagó: cuenta en totales/analytics pero no genera
-        # deuda entre los dos hasta que la liquidación lo confirme.
-        if getattr(m, "status", "confirmed") == "pending":
+        # Un pending/awaiting aún no se confirmó: cuenta en totales/analytics
+        # pero no genera deuda entre los dos hasta que se confirme el pagador.
+        if getattr(m, "status", "confirmed") in UNSETTLED:
             continue
         payer = m.paid_by
         amt = m.amount_usd

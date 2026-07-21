@@ -73,8 +73,10 @@ class Movement(Base):
     batch_key: Mapped[str | None] = mapped_column(String(16))
     # Fecha en que se paga/pagó el gasto. NULL = el día de carga (caso normal).
     payment_date: Mapped[date | None] = mapped_column(Date)
-    # confirmed | pending. pending = payment_date futura con TC proxy; la
-    # liquidación lazy (app/due.py) lo confirma con el TC real de esa fecha.
+    # confirmed | pending | awaiting. pending = payment_date futura con TC proxy;
+    # al vencer, la liquidación lazy (app/due.py) recalcula el TC real y lo deja
+    # en `awaiting` (esperando confirmación manual en la web); confirm lo pasa a
+    # confirmed. pending y awaiting NO entran al balance (ver balance.UNSETTLED).
     # Columna real (no derivada de la fecha): un pending vencido con Frankfurter
     # caído sigue pending hasta poder liquidarse.
     status: Mapped[str] = mapped_column(String(12), server_default=text("'confirmed'"), index=True)

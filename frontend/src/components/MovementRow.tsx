@@ -46,9 +46,9 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold text-ink">
           {mv.description || (isSettlement ? "Pago (saldo)" : "Sin descripción")}
-          {mv.status === "pending" && (
+          {(mv.status === "pending" || mv.status === "awaiting") && (
             <span className="ml-1.5 inline-block rounded-full bg-accent-amber-bg px-1.5 py-px align-[2px] text-[10px] font-bold uppercase tracking-wide text-accent-amber">
-              Pendiente
+              {mv.status === "awaiting" ? "Por confirmar" : "Pendiente"}
             </span>
           )}
         </p>

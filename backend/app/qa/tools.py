@@ -15,7 +15,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.balance import compute_balance
+from app.balance import UNSETTLED, compute_balance
 from app.bot.render import BotReply
 from app.db.models import Category, Movement, Stop, User
 from app.llm.chat import ToolSpec
@@ -232,7 +232,7 @@ async def get_balance(session: AsyncSession, users: list[User]) -> dict:
     movements = (await session.execute(select(Movement))).scalars().all()
     bal = compute_balance(movements, users[0].id, users[1].id)
     usernames = {u.id: u.username for u in users}
-    pending = [m for m in movements if m.type == "expense" and m.status == "pending"]
+    pending = [m for m in movements if m.type == "expense" and m.status in UNSETTLED]
     return {
         "debtor": usernames.get(bal.debtor_id),
         "creditor": usernames.get(bal.creditor_id),
@@ -242,8 +242,8 @@ async def get_balance(session: AsyncSession, users: list[User]) -> dict:
             (m.amount_usd for m in pending if m.amount_usd is not None), Decimal(0)
         )),
         "note": ("debtor le debe amount_usd a creditor; si ambos son null están a mano. "
-                 "Los gastos pending (fecha de pago futura) NO cuentan en este saldo "
-                 "hasta que llegue su fecha."),
+                 "Los gastos pending (fecha de pago futura) y los que esperan "
+                 "confirmación NO cuentan en este saldo hasta que se confirmen."),
     }
 
 

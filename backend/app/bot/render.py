@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
+from app.balance import UNSETTLED
 from app.bot import copy
 from app.categories.catalog import CATEGORIES
 
@@ -69,8 +70,8 @@ def _owes_line(mv, payer_name: str, other_name: str) -> str | None:
     shared → mitad; other_only → total; payer_only → nada (sin línea)."""
     if mv.type == "settlement" or mv.amount_usd is None:
         return None
-    # Un pending todavía no entra al balance: no mostrar deuda por esto.
-    if getattr(mv, "status", "confirmed") == "pending":
+    # Un pending/awaiting todavía no entra al balance: no mostrar deuda por esto.
+    if getattr(mv, "status", "confirmed") in UNSETTLED:
         return None
     factor = {"shared": Decimal("0.5"), "other_only": Decimal("1")}.get(mv.split)
     if factor is None:
@@ -139,8 +140,8 @@ def _batch_owes_line(rows: list[BatchRow], usernames: list[str]) -> str | None:
         mv = r.mv
         if mv.amount_usd is None or r.payer_name not in owed:
             continue
-        # Los pending no entran al balance todavía.
-        if getattr(mv, "status", "confirmed") == "pending":
+        # Los pending/awaiting no entran al balance todavía.
+        if getattr(mv, "status", "confirmed") in UNSETTLED:
             continue
         if mv.type == "settlement":
             owed[r.payer_name] += Decimal(mv.amount_usd)

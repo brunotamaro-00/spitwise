@@ -66,6 +66,14 @@ class MovementUpdate(BaseModel):
         return v.upper() if v else v
 
 
+class MovementConfirm(BaseModel):
+    """Confirmación manual de un gasto vencido (status pending/awaiting): valida
+    el pagador y lo pasa a confirmed. `paid_by` opcional => corrige quién pagó;
+    sin él, se acepta el pagador actual. No toca monto/split/ciudad/FX."""
+
+    paid_by: int | None = None
+
+
 class MovementOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

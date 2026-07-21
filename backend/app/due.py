@@ -1,8 +1,15 @@
 """Liquidación lazy de gastos pendientes (payment_date futura).
 
 Un pending nace con TC proxy de su fecha de carga; cuando llega su fecha de
-pago, acá se recalcula con el TC real de ese día y pasa a confirmed —
-silencioso, sin mensajes. Sin cron: el proceso es único (invariante del
+pago, acá se recalcula con el TC real de ese día y pasa a `awaiting` —
+silencioso, sin mensajes. `awaiting` = TC lockeado, esperando confirmación
+manual en la web (`POST /movements/{id}/confirm`): recién ahí valida el
+pagador y pasa a `confirmed`. Un `awaiting` NO entra al balance todavía (lo
+excluye `compute_balance` junto con `pending`).
+
+Se flipea a `awaiting` una sola vez (el query filtra solo `pending`), así que
+el FX no se recalcula en cada corrida — clave para ARS, cuyo MEP es vivo y
+driftearía si se re-liquidara. Sin cron: el proceso es único (invariante del
 deploy), así que alcanza con colgar `ensure_due_settled` de los puntos de
 tráfico (webhook del bot, lecturas de la API, lifespan) con un throttle
 módulo-level, mismo patrón que `andiamo.ensure_stops_fresh`.
@@ -25,16 +32,18 @@ _last_check: datetime | None = None
 
 
 async def settle_due_movements(session: AsyncSession, today: date) -> int:
-    """Confirma los pending con payment_date <= today recalculando el TC real
-    de esa fecha. Idempotente (solo toca status='pending'). Reglas:
+    """Liquida los pending con payment_date <= today recalculando el TC real
+    de esa fecha y dejándolos en `awaiting` (esperan confirmación manual, no
+    entran al balance todavía). Idempotente (solo toca status='pending').
+    Reglas:
 
-    - fx_source == 'manual' → flip a confirmed SIN recalcular (invariante 6).
+    - fx_source == 'manual' → flip a awaiting SIN recalcular (invariante 6).
     - Tasa 'fallback' (Frankfurter caído) → NO tocar: sigue pending y se
-      reintenta en el próximo touch. Nunca confirmar con fallback.
-    - ARS: dolarapi solo publica MEP vivo → se confirma con la tasa del día en
+      reintenta en el próximo touch. Nunca liquidar con fallback.
+    - ARS: dolarapi solo publica MEP vivo → se liquida con la tasa del día en
       que corre esta pasada (limitación documentada en fx.fx_reference_date).
 
-    Devuelve cuántos confirmó.
+    Devuelve cuántos liquidó.
     """
     from app.bot.capture import _map_source
 
@@ -50,7 +59,7 @@ async def settle_due_movements(session: AsyncSession, today: date) -> int:
             mv.fx_rate = rate
             mv.fx_source = _map_source(src, mv.currency)
             mv.amount_usd = (Decimal(mv.amount) * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
-        mv.status = "confirmed"
+        mv.status = "awaiting"
         settled += 1
     if settled:
         await session.commit()

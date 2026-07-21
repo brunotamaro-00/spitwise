@@ -32,7 +32,7 @@ def _pending(u, *, amount="430", currency="CHF", rate="1.20", pay=date(2026, 9, 
     )
 
 
-async def test_settle_confirms_with_payment_date_rate(db_session):
+async def test_settle_locks_fx_and_leaves_awaiting(db_session):
     u1, _ = await _users(db_session)
     db_session.add_all([
         _pending(u1),
@@ -43,7 +43,8 @@ async def test_settle_confirms_with_payment_date_rate(db_session):
     n = await settle_due_movements(db_session, TODAY)
     assert n == 1
     mv = (await db_session.execute(select(Movement))).scalar_one()
-    assert mv.status == "confirmed"
+    # Vencido: TC lockeado, pero espera confirmación manual (no confirmed).
+    assert mv.status == "awaiting"
     assert mv.fx_rate == Decimal("1.25")
     assert mv.amount_usd == Decimal("537.50")
     assert mv.fx_source == "frankfurter"
@@ -91,7 +92,7 @@ async def test_settle_manual_fx_flips_without_recompute(db_session):
     await db_session.commit()
     assert await settle_due_movements(db_session, TODAY) == 1
     mv = (await db_session.execute(select(Movement))).scalar_one()
-    assert mv.status == "confirmed"
+    assert mv.status == "awaiting"
     assert mv.fx_rate == Decimal("1.20")  # la tasa manual no se pisa (invariante 6)
     assert mv.fx_source == "manual"
 
@@ -106,7 +107,7 @@ async def test_ensure_due_settled_throttles(db_session, monkeypatch):
     monkeypatch.setattr(due, "_last_check", None)
     await ensure_due_settled(db_session, TODAY)
     mv = (await db_session.execute(select(Movement))).scalar_one()
-    assert mv.status == "confirmed"
+    assert mv.status == "awaiting"
     # Dentro del TTL: no vuelve a mirar la DB aunque haya nuevos pendientes.
     db_session.add(_pending(u1))
     await db_session.commit()
@@ -117,13 +118,16 @@ async def test_ensure_due_settled_throttles(db_session, monkeypatch):
     assert len(still) == 1
 
 
-def test_compute_balance_excludes_pending():
+def test_compute_balance_excludes_pending_and_awaiting():
     mvs = [
         MovementLike(type="expense", split="shared", paid_by=1, amount_usd=Decimal("100")),
         MovementLike(type="expense", split="shared", paid_by=1, amount_usd=Decimal("500"),
                      status="pending"),
+        # Vencido pero sin confirmar: tampoco genera deuda todavía.
+        MovementLike(type="expense", split="shared", paid_by=1, amount_usd=Decimal("800"),
+                     status="awaiting"),
     ]
     bal = compute_balance(mvs, 1, 2)
-    # Solo el confirmado genera deuda: 50, no 300.
+    # Solo el confirmado genera deuda: 50, no 300 ni 700.
     assert bal.amount_usd == Decimal("50")
     assert bal.debtor_id == 2
