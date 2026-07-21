@@ -7,7 +7,11 @@ import { listCategories } from "@/api/categories";
 import { getStops } from "@/api/cities";
 import { deleteMovement, listMovements } from "@/api/movements";
 import AddMovementDialog from "@/components/AddMovementDialog";
-import MovementFiltersSheet, { type CityOption } from "@/components/MovementFiltersSheet";
+import MovementFiltersSheet, {
+  type CityOption,
+  NO_CITY,
+  NO_CITY_LABEL,
+} from "@/components/MovementFiltersSheet";
 import MovementRow from "@/components/MovementRow";
 import MovementSheet from "@/components/MovementSheet";
 import { PageTitle } from "@/components/ui/Brand";
@@ -93,14 +97,22 @@ export default function Movements() {
     [stops],
   );
   // Ciudades con movimientos, con su bandera (vía el stop del primer movimiento).
+  // Si hay gastos sin parada, se agrega al final la opción "Sin ciudad" (General).
   const cityOptions = useMemo<CityOption[]>(() => {
     const seen = new Map<string, string | null>();
+    let hasNone = false;
     for (const m of data) {
-      if (m.city_name && !seen.has(m.city_name)) {
-        seen.set(m.city_name, m.stop_slug ? flagMap[m.stop_slug] ?? null : null);
+      if (m.city_name) {
+        if (!seen.has(m.city_name)) {
+          seen.set(m.city_name, m.stop_slug ? flagMap[m.stop_slug] ?? null : null);
+        }
+      } else {
+        hasNone = true;
       }
     }
-    return [...seen].map(([name, flag]) => ({ name, flag }));
+    const opts: CityOption[] = [...seen].map(([name, flag]) => ({ name, flag }));
+    if (hasNone) opts.push({ name: NO_CITY, flag: null });
+    return opts;
   }, [data, flagMap]);
   const usedCategoryIds = useMemo(
     () => new Set(data.map((m) => m.category_id).filter((x): x is number => x != null)),
@@ -125,7 +137,7 @@ export default function Movements() {
     const q = f.q.trim().toLowerCase();
     return data.filter((m) => {
       if (f.onlyMine && me && !involvesMe(m, me.id)) return false;
-      if (f.city && m.city_name !== f.city) return false;
+      if (f.city && (f.city === NO_CITY ? m.city_name != null : m.city_name !== f.city)) return false;
       if (f.categoryId && String(m.category_id) !== f.categoryId) return false;
       if (f.from && createdDayKey(m) < f.from) return false;
       if (f.to && createdDayKey(m) > f.to) return false;
@@ -216,7 +228,12 @@ export default function Movements() {
               onRemove={() => setF({ ...f, categoryId: "" })}
             />
           )}
-          {f.city && <FilterPill label={f.city} onRemove={() => setF({ ...f, city: "" })} />}
+          {f.city && (
+            <FilterPill
+              label={f.city === NO_CITY ? NO_CITY_LABEL : f.city}
+              onRemove={() => setF({ ...f, city: "" })}
+            />
+          )}
           {(f.from || f.to) && (
             <FilterPill
               label={

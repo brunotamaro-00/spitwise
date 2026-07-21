@@ -86,7 +86,7 @@ async def test_batch_uncertain_category_saves_without_buttons(db_session):
     payload = _payload(amount="40", expenses=[
         _item(amount="40", category="Comida", description="cena"),
         _item(amount="9", category="Compras", description="cosa",
-              confidence=0.3, candidates=["Compras", "Regalos"]),
+              confidence=0.3, candidates=["Compras", "Cafetería"]),
     ])
     reply = await handle_capture(db_session, bruno, "549110", "cena 40 y cosa 9",
                                  TODAY, llm_client=FakeLLM(payload))

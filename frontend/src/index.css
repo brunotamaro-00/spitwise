@@ -76,8 +76,10 @@
   --color-accent-plum-bg: #F3E6F2;
   --color-accent-green: #55902F;  /* Salidas */
   --color-accent-green-bg: #EAF2DF;
-  --color-accent-brown: #96530D;  /* Regalos */
+  --color-accent-brown: #96530D;  /* Cafetería */
   --color-accent-brown-bg: #F5EADB;
+  --color-accent-rose: #B0327C;   /* Lavandería */
+  --color-accent-rose-bg: #F6E2EE;
   --color-accent-cyan: #0F86B0;   /* Salud */
   --color-accent-cyan-bg: #DFF0F7;
   --color-accent-indigo: #7A5AC4; /* Otros */

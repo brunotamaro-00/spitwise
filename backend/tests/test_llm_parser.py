@@ -4,8 +4,8 @@ from decimal import Decimal
 from app.llm.parser import parse_message
 
 CATS = [
-    "Alojamiento", "Comida", "Supermercado", "Transporte", "Actividades",
-    "Compras", "Salidas", "Regalos", "Salud", "Otros",
+    "Alojamiento", "Comida", "Cafetería", "Supermercado", "Transporte",
+    "Actividades", "Compras", "Salidas", "Lavandería", "Salud", "Otros",
 ]
 USERS = ["bruno", "katia"]
 TODAY = date(2026, 8, 6)

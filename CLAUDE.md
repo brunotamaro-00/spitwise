@@ -47,7 +47,7 @@ spitwise/
 │   │   ├── qa/tools.py       # tools del agente Q&A financiero
 │   │   ├── qa/trip_tools.py  # tools del agente Q&A de viaje (guías/notas)
 │   │   ├── whatsapp/         # Meta client, dedupe, signature
-│   │   ├── categories/       # catálogo fijo de 10 categorías
+│   │   ├── categories/       # catálogo fijo de 11 categorías
 │   │   ├── andiamo.py        # sync de stops
 │   │   ├── andiamo_content.py # sync de guías + notas (Q&A de viaje)
 │   │   ├── balance.py        # neto puro (sin I/O)
@@ -184,7 +184,7 @@ Definido en `backend/app/db/models.py`. Tipos API en `api/schemas.py`; mirror TS
 | Entidad | Rol |
 |---------|-----|
 | **User** | Login web + `whatsapp_wa_id` |
-| **Category** | 10 fijas: Alojamiento, Comida, Supermercado, Transporte, Actividades, Compras, Bebidas/Salidas, Regalos, Salud, Otros |
+| **Category** | 11 fijas: Alojamiento, Comida, Cafetería, Supermercado, Transporte, Actividades, Compras, Salidas, Lavandería, Salud, Otros |
 | **Movement** | `expense` \| `settlement`; `split`: `shared` \| `payer_only` \| `other_only`; FX + ciudad. Eje temporal de lista/agrupación: `created_at` (fecha de carga). `payment_date` opcional (fecha en que se paga/pagó) + `status`: `confirmed` \| `pending` (futuro con TC proxy) |
 | **Stop** | Parada de itinerario cacheada desde Andiamo (+ locales: ver `is_local`) |
 | **GuideDoc / StopGuide / TripNote / SyncMeta** | Cache del contenido de viaje de Andiamo (guías markdown, mapeo stop→guía, notas, version del export) para el Q&A de viaje del bot — sync en `app/andiamo_content.py` |
@@ -255,6 +255,7 @@ Reglas del bot:
 - **Q&A de viaje** (`bot/trip_qa.py` + `qa/trip_tools.py`): canal AISLADO del financiero — prompt, tools (search/list/read de guías + notas) e historial propios. Grounded: solo responde con lo que hay en `guide_docs`/`trip_notes`; si no está, lo dice. Respuestas cortas + deep-link `{andiamo_url}/guias/<guide>/<doc>`. Preguntas de plata las deriva al canal financiero. No mezclar tools/prompt entre los dos agentes.
 - Descripciones estandarizadas: el prompt pide sentence case + nombres propios; `app/textnorm.normalize_description` (nombres propios = Stops de la DB) es la red de seguridad en todos los bordes de escritura (capture, editor, API). One-off para datos viejos: `scripts/normalize_descriptions.py`.
 - Split por defecto shared; cambio de split vía NL (`edit`) o botones legacy `split_*`.
+- **Canal documentos** (`bot/documents/` + `llm/vision.py` + `andiamo_documents.py`): un adjunto (imagen/PDF) NUNCA entra al parser financiero — rama propia en `dispatch` antes del camino de texto. Vision (OpenAI, `OPENAI_VISION_MODEL`) extrae `{kind, doc_date, stop_slug, label, note}` con catálogo dinámico de Stops y kinds (`documents/kinds.py`, espejo del enum de Andiamo; desync degrada a `other`). Reglas del prompt: `doc_date` = fecha en que se NECESITA el doc (nunca compra/emisión; rango → primera), traslados → parada DESTINO, caption del usuario pisa ciudad/fecha y alimenta la nota (la IA redacta, no pega). Preview + botones `doc_save:`/`doc_cancel:` (pending `doc_upload`); al confirmar se re-descarga de Meta y se sube multipart a `POST {ANDIAMO_URL}/api/integration/documents` (X-Api-Key; Andiamo es dueño del storage R2). Con preview fresco (`DOC_PENDING_FRESH_MINUTES`), un texto puede corregirlo ('es en York') — costo en el camino financiero: UNA query indexada; sin pending, cero.
 - **Corrección de gasto reciente** (`editor.recent_movement` + `describe_recent`): tras cargar un gasto, el parser recibe ese último gasto como contexto (`last_expense`, ventana `EDIT_RECENT_TTL_MINUTES`, default 15). Una corrección natural sin monto nuevo (_contalo solo para katia_, _era en Paris_, _fueron 45_, _pagó bruno_, _es transporte_) se clasifica `edit` con `ref_last` y edita ese movimiento. Red de seguridad en `dispatcher`: un `expense` sin monto con un gasto fresco a la vista no da dead-end ("no le pesqué el monto") sino que guía a corregir el último.
 
 ## Frontend
@@ -315,7 +316,7 @@ Producción / features (ver `config.py` y `DEPLOY.md`):
 - Sync de contenido (guías/notas, `andiamo_content.py`): **NUNCA** colgarlo del path caliente del webhook — solo lifespan, sync-hook y lazy dentro de `handle_trip_question` (dispara task, no bloquea). Andiamo lo alimenta con `GET /api/guides/export` (bulk con `version`; no-op si no cambió) y `GET /api/notes`; las server actions de notas de Andiamo pingean `notes.changed`. Payload inválido nunca arrasa el snapshot.
 - Catálogo de categorías (`categories/catalog.py`): el orden es `sort_order` y `Otros` va último. Todo lo demás es derivado (seed, prompt del parser vía `load_categories`, emojis del bot, API) — sumar una categoría son **3 lugares**: la tupla acá, una entrada en `CATEGORY_META` (`frontend/src/lib/chartTheme.ts`: ícono + color + fondo, más su token `--color-accent-*` en `index.css`) y el `MAP` de `andiamo/src/lib/categoryIcons.ts`. Los tres frontends degradan solos (ícono Tag + gris), así que olvidarse no rompe: se ve feo.
   - La **descripción es el clasificador**, no documentación: se inyecta en el prompt del parser. Si dos se pisan (p. ej. "supermercado" viviendo en Comida y en Supermercado), el LLM elige mal. Mantenerlas mutuamente excluyentes y marcar el borde explícito.
-  - Color nuevo: correr `scripts/validate_palette.js` de la skill dataviz sobre los 10 hex antes de commitear. La paleta está validada a **pares adyacentes** (no all-pairs, que no pasa ni con los 6 originales); el peor caso CVD está en la banda 6–8, legal porque el color siempre viene con ícono + label.
+  - Color nuevo: correr `scripts/validate_palette.js` de la skill dataviz sobre los 11 hex antes de commitear. La paleta está validada a **pares adyacentes** (no all-pairs, que no pasa ni con los 6 originales); el peor caso CVD está en la banda 6–8, legal porque el color siempre viene con ícono + label.
   - Actualizar `tests/test_categories_seed.py` (lista exacta + count).
 - Contrato Andiamo (`/cities/spend`, sync de stops): coordinar key `TRIP_SHARED_API_KEY` en ambos servicios.
 - `?user=` en `/cities/spend-detail` y `/trip/spend`: filtra a la parte de esa persona vía `user_share` (mitad de un compartido, entero de uno propio) y **omite los privados del otro** — Andiamo lo usa para que cada uno vea solo sus gastos. `amount` se escala junto al share para que la moneda local cierre con el USD. Sin el param, gross del hogar (contrato original intacto). Un username desconocido es **400, nunca fallback a gross**: degradar le filtraría a uno los gastos privados del otro. `/cities/spend` sigue siendo gross-only.

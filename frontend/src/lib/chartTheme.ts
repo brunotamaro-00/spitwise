@@ -1,7 +1,7 @@
 import {
   BedDouble,
   Bus,
-  Gift,
+  Coffee,
   HeartPulse,
   type LucideIcon,
   ShoppingBag,
@@ -9,6 +9,7 @@ import {
   Tag,
   Ticket,
   UtensilsCrossed,
+  WashingMachine,
   Wine,
 } from "lucide-react";
 
@@ -38,12 +39,13 @@ export type CategoryMeta = {
 export const CATEGORY_META = {
   Alojamiento: { icon: BedDouble, color: "#C44428", bg: "var(--color-brick-bg)" },
   Comida: { icon: UtensilsCrossed, color: "#2E6FBF", bg: "var(--color-accent-blue-bg)" },
+  Cafetería: { icon: Coffee, color: "#96530D", bg: "var(--color-accent-brown-bg)" },
   Supermercado: { icon: ShoppingCart, color: "#C2185B", bg: "var(--color-accent-pink-bg)" },
   Transporte: { icon: Bus, color: "#A67F2A", bg: "var(--color-accent-amber-bg)" },
   Actividades: { icon: Ticket, color: "#0B8F80", bg: "var(--color-accent-teal-bg)" },
   Compras: { icon: ShoppingBag, color: "#8E3D88", bg: "var(--color-accent-plum-bg)" },
   Salidas: { icon: Wine, color: "#55902F", bg: "var(--color-accent-green-bg)" },
-  Regalos: { icon: Gift, color: "#96530D", bg: "var(--color-accent-brown-bg)" },
+  Lavandería: { icon: WashingMachine, color: "#B0327C", bg: "var(--color-accent-rose-bg)" },
   Salud: { icon: HeartPulse, color: "#0F86B0", bg: "var(--color-accent-cyan-bg)" },
   Otros: { icon: Tag, color: "#7A5AC4", bg: "var(--color-accent-indigo-bg)" },
 } satisfies Record<string, CategoryMeta>;

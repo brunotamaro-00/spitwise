@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { MapPinOff } from "lucide-react";
 
 import Flag from "@/components/Flag";
 import Button from "@/components/ui/Button";
@@ -19,6 +20,11 @@ export type MovementFilters = {
 };
 
 export type CityOption = { name: string; flag: string | null };
+
+/** Valor centinela para el filtro de gastos sin parada (General / Sin ciudad).
+ *  No colisiona con ningún `city_name` real (siempre derivado de un Stop). */
+export const NO_CITY = "__general__";
+export const NO_CITY_LABEL = "Sin ciudad";
 
 /** Toggle switch con el acento de marca (reemplaza al checkbox nativo). */
 function Switch({ checked, onChange, label }: {
@@ -117,6 +123,7 @@ export default function MovementFiltersSheet({
             <div className="flex flex-wrap gap-1.5">
               {cities.map((c) => {
                 const active = filters.city === c.name;
+                const isNone = c.name === NO_CITY;
                 return (
                   <motion.button
                     key={c.name}
@@ -126,8 +133,10 @@ export default function MovementFiltersSheet({
                     whileTap={{ scale: 0.94 }}
                     className={`${chipBase} ${active ? "border-brick bg-brick-bg text-brick" : chipIdle}`}
                   >
-                    {c.flag && <Flag flag={c.flag} className="text-sm leading-none" />}
-                    {c.name}
+                    {isNone
+                      ? <MapPinOff size={13} strokeWidth={2} aria-hidden="true" />
+                      : c.flag && <Flag flag={c.flag} className="text-sm leading-none" />}
+                    {isNone ? NO_CITY_LABEL : c.name}
                   </motion.button>
                 );
               })}
