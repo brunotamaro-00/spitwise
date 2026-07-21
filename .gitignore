@@ -6,3 +6,4 @@
 
 # Logs locales
 *.log
+.claude/
