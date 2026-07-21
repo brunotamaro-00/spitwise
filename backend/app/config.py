@@ -74,6 +74,14 @@ class Settings(BaseSettings):
     # naturales ('contalo solo para katia', 'era en Paris') como edit.
     edit_recent_ttl_minutes: int = 15
 
+    # Canal documentos (adjuntos WPP → Andiamo). Vision separado del parser:
+    # lee PDFs/imágenes y extrae kind/fecha/parada, siempre por OpenAI.
+    openai_vision_model: str = "gpt-5"
+    vision_timeout_seconds: float = 90.0  # PDFs de varias páginas tardan
+    # Ventana en la que un preview de documento sin confirmar acepta
+    # correcciones por texto ('es en York', 'fecha 15-ago').
+    doc_pending_fresh_minutes: int = 15
+
     # WhatsApp Cloud — usado en Plan 3
     whatsapp_access_token: str = ""
     whatsapp_phone_number_id: str = ""

@@ -33,6 +33,7 @@ def _help_reply() -> BotReply:
             "*Borrar*: _borrá el último_",
             "*Consultar*: _¿cuánto gastamos en Roma?_ · _¿quién debe plata?_",
             "*Preguntar del viaje*: _¿qué hacemos mañana?_ · _¿cómo llegamos a Sintra?_",
+            "*Archivar documentos*: mandame el PDF o foto de una reserva/entrada y lo guardo en Andiamo",
         ]),
         "⚡ Atajos al instante: *saldo* · *total*",
     ]
@@ -84,7 +85,7 @@ async def _handle_delete_command(session, user: User) -> BotReply:
 
 
 async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, today,
-                          *, llm_client, chat_client) -> BotReply:
+                          *, llm_client, chat_client, media=None, vision_client=None) -> BotReply:
     user = await resolve_user_by_wa_id(session, wa_id)
     if user is None:
         if not get_settings().whatsapp_auto_register:
@@ -95,6 +96,14 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
 
     if message_type == "interactive":
         return await handle_interactive(session, user, wa_id, interactive_id or "", today)
+
+    # Canal documentos: un adjunto va a Andiamo, nunca al parser financiero.
+    if message_type in ("image", "document"):
+        from app.bot.documents.pipeline import handle_document_media
+        return await handle_document_media(session, user, wa_id, media, today,
+                                           vision_client=vision_client)
+    if message_type in ("audio", "video", "sticker"):
+        return text_reply(copy.MEDIA_NOT_SUPPORTED)
 
     stripped = (text or "").strip()
     if not stripped:
@@ -113,6 +122,15 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
         return await quick.handle_balance(session, user)
     if quick_intent == "total":
         return await quick.handle_total(session, user)
+
+    # Preview de documento fresco sin confirmar: un texto puede corregirlo
+    # ('es en York'). El costo sin preview pendiente es UNA query indexada;
+    # si el texto no es corrección, sigue el flujo financiero intacto.
+    from app.bot.documents.pipeline import maybe_apply_correction
+    doc_reply = await maybe_apply_correction(session, user, wa_id, stripped, today,
+                                             vision_client=vision_client)
+    if doc_reply is not None:
+        return doc_reply
 
     from app.llm.parser import parse_message
     from app.bot.editor import describe_recent, recent_movement
@@ -167,10 +185,11 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
 
 
 async def dispatch(session: AsyncSession, wa_id, message_type, text, interactive_id, today: date,
-                   *, llm_client=None, chat_client=None) -> BotReply:
+                   *, llm_client=None, chat_client=None, media=None, vision_client=None) -> BotReply:
     try:
         return await _dispatch_inner(session, wa_id, message_type, text, interactive_id, today,
-                                     llm_client=llm_client, chat_client=chat_client)
+                                     llm_client=llm_client, chat_client=chat_client,
+                                     media=media, vision_client=vision_client)
     except Exception:  # borde único de errores
         logger.exception("dispatch_error wa_id=%s", wa_id)
         return text_reply(copy.SOMETHING_FAILED)

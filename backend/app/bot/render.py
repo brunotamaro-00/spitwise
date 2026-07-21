@@ -273,3 +273,34 @@ def trip_card(total: Decimal, mine: Decimal, count: int, days: int, avg: Decimal
 
 def unknown_reply() -> BotReply:
     return text_reply(copy.NOT_UNDERSTOOD)
+
+
+def _document_lines(kind: str, label: str, note: str | None, stop_name: str | None,
+                    doc_date: date | None) -> list[str]:
+    from app.bot.documents.kinds import kind_label
+    lines = [
+        f"{kind_label(kind)} — *{label}*",
+        f"📍 {stop_name or 'General'}",
+        f"📅 {fmt_date(doc_date) if doc_date else 'Sin fecha'}",
+    ]
+    if note:
+        lines.append(f"📝 {note}")
+    return lines
+
+
+def document_preview_card(kind: str, label: str, note: str | None, stop_name: str | None,
+                          doc_date: date | None, *, not_travel: bool = False) -> str:
+    lines = [copy.H_DOC, ""] + _document_lines(kind, label, note, stop_name, doc_date)
+    if not_travel:
+        lines.append(copy.DOC_NOT_TRAVEL_HINT)
+    lines.append("")
+    lines.append(copy.DOC_PREVIEW_HINT)
+    return "\n".join(lines)
+
+
+def document_saved_card(kind: str, label: str, note: str | None, stop_name: str | None,
+                        doc_date: date | None, link: str | None) -> str:
+    lines = [copy.H_DOC_SAVED, ""] + _document_lines(kind, label, note, stop_name, doc_date)
+    if link:
+        lines.append(f"📲 {link}")
+    return "\n".join(lines)

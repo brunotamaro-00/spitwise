@@ -4,7 +4,8 @@ import httpx
 class MetaClient:
     def __init__(self, access_token: str, phone_number_id: str, graph_version: str = "v21.0") -> None:
         self._token = access_token
-        self._url = f"https://graph.facebook.com/{graph_version}/{phone_number_id}/messages"
+        self._graph_base = f"https://graph.facebook.com/{graph_version}"
+        self._url = f"{self._graph_base}/{phone_number_id}/messages"
         self._client = httpx.AsyncClient(timeout=15.0)
 
     async def _post(self, payload: dict) -> None:
@@ -47,6 +48,17 @@ class MetaClient:
                 ]},
             },
         })
+
+    async def download_media(self, media_id: str) -> tuple[bytes, str | None]:
+        """Baja un adjunto de la Graph API: GET /{media_id} da una URL lookaside
+        efímera (~5 min) que se descarga con el mismo Bearer token."""
+        headers = {"Authorization": f"Bearer {self._token}"}
+        meta = await self._client.get(f"{self._graph_base}/{media_id}", headers=headers)
+        meta.raise_for_status()
+        info = meta.json()
+        blob = await self._client.get(info["url"], headers=headers, timeout=60.0)
+        blob.raise_for_status()
+        return blob.content, info.get("mime_type")
 
     async def aclose(self) -> None:
         await self._client.aclose()

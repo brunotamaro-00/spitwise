@@ -35,6 +35,30 @@ SAVED_BUT_UNCONFIRMED = (
     "Revisá la app por las dudas."
 )
 EMPTY_MESSAGE = "Mandame un gasto, ej: _cena 20 euros_."
+
+# --- Canal documentos (adjuntos → Andiamo) ---
+H_DOC = "📎 *Documento*"
+H_DOC_SAVED = "📎 *Documento guardado en Andiamo*"
+DOC_UNSUPPORTED = (
+    f"{H_WARN} Ese tipo de archivo no lo puedo archivar. "
+    "Mandame un PDF, JPG, PNG o WebP."
+)
+DOC_TOO_BIG = f"{H_WARN} El archivo es muy pesado (máximo 20 MB)."
+DOC_NO_ANDIAMO = (
+    f"{H_WARN} No tengo conectado Andiamo, así que no puedo archivar documentos por ahora."
+)
+DOC_READ_FAILED = (
+    f"{H_WARN} No pude leer el archivo. Probá mandarlo de nuevo en un rato."
+)
+DOC_UPLOAD_FAILED = (
+    f"{H_WARN} No pude subirlo a Andiamo. Tocá *Guardar* de nuevo para reintentar."
+)
+DOC_NOT_TRAVEL_HINT = "_No parece un documento de viaje; fijate antes de guardar._"
+DOC_PREVIEW_HINT = "_¿Algo mal? Corregime por texto: 'es en York' · 'fecha 15-ago' · 'es un voucher'._"
+MEDIA_NOT_SUPPORTED = (
+    f"{H_WARN} Audio, video o stickers no puedo procesar. "
+    "Mandame texto, o un PDF/imagen si es un documento del viaje."
+)
 BATCH_CAT_HINT = '_Los ❓ son categorías dudosas: corregime como siempre ("el helado es Comida")._'
 
 
@@ -83,3 +107,11 @@ def link_city(slug: str | None) -> str | None:
 def link_home() -> str | None:
     base = _base_url()
     return f"{base}/" if base else None
+
+
+def link_andiamo_stop(slug: str | None) -> str | None:
+    """Deep-link a los documentos del stop en Andiamo (o a los generales)."""
+    base = (get_settings().andiamo_url or "").rstrip("/")
+    if not base:
+        return None
+    return f"{base}/stops/{slug}" if slug else f"{base}/general"

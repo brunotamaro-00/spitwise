@@ -49,3 +49,12 @@ async def close_pending(session: AsyncSession, token: str) -> None:
     if row is not None:
         row.confirmed_at = _utcnow_naive()
         await session.commit()
+
+
+async def cancel_pending(session: AsyncSession, token: str) -> None:
+    row = (await session.execute(
+        select(BotPendingAction).where(BotPendingAction.token == token)
+    )).scalar_one_or_none()
+    if row is not None and row.cancelled_at is None:
+        row.cancelled_at = _utcnow_naive()
+        await session.commit()

@@ -84,7 +84,8 @@ async def process_message(m: IncomingMessage) -> None:
                 # Liquidar pendings vencidos antes de responder: "saldo" ya
                 # ve los ajustes de TC del día.
                 await ensure_due_settled(session, today)
-                reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, today)
+                reply = await dispatch(session, m.wa_id, m.type, m.text, m.interactive_id, today,
+                                       media=m.media)
         try:
             if reply.buttons:
                 await meta.send_buttons(m.wa_id, reply.text or "", reply.buttons)
