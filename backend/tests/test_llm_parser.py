@@ -119,6 +119,11 @@ async def test_question_intent_is_valid():
     assert got.intent == "question"
 
 
+async def test_trip_question_intent_is_valid():
+    got = await _parse(_payload(intent="trip_question"))
+    assert got.intent == "trip_question"
+
+
 async def test_invalid_intent_defaults_to_unknown():
     got = await _parse(_payload(intent="gibberish", amount="10"))
     assert got.intent == "unknown"

@@ -32,6 +32,7 @@ def _help_reply() -> BotReply:
             "*Editar*: _la cena de ayer fue 25, no 20_",
             "*Borrar*: _borrá el último_",
             "*Consultar*: _¿cuánto gastamos en Roma?_ · _¿quién debe plata?_",
+            "*Preguntar del viaje*: _¿qué hacemos mañana?_ · _¿cómo llegamos a Sintra?_",
         ]),
         "⚡ Atajos al instante: *saldo* · *total*",
     ]
@@ -132,11 +133,24 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
     if parsed.intent == "question":
         from app.bot.qa import handle_question
         return await handle_question(session, user, wa_id, stripped, today, chat_client=chat_client)
+    if parsed.intent == "trip_question":
+        from app.bot.trip_qa import handle_trip_question
+        return await handle_trip_question(session, user, wa_id, stripped, today, chat_client=chat_client)
     if parsed.intent == "unknown":
         # Follow-up corto de una conversación en curso ('sí', 'el segundo') → el
-        # agente tiene el contexto; el enlatado queda para mensajes sueltos.
-        from app.bot.qa import handle_question, has_fresh_history
-        if await has_fresh_history(session, wa_id):
+        # agente que la tenía sigue; el enlatado queda para mensajes sueltos.
+        # Con dos canales (finanzas/viaje) gana el de actividad más reciente.
+        from app.bot.active_stop import get_state_payload
+        from app.bot.qa import handle_question
+        from app.bot.trip_qa import handle_trip_question, latest_fresh_channel
+        s = get_settings()
+        channel = latest_fresh_channel(
+            await get_state_payload(session, wa_id),
+            max_turns=s.qa_history_max_turns, ttl_minutes=s.qa_history_ttl_minutes,
+        )
+        if channel == "trip":
+            return await handle_trip_question(session, user, wa_id, stripped, today, chat_client=chat_client)
+        if channel == "qa":
             return await handle_question(session, user, wa_id, stripped, today, chat_client=chat_client)
         return unknown_reply()
     # Red de seguridad: un "gasto" sin monto justo después de cargar uno casi

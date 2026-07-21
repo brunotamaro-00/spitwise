@@ -73,3 +73,12 @@ def test_settlement_acotado_y_con_direccion():
     assert "entre las dos personas" in s
     assert "me cobraron" in s  # pagar a un tercero es expense
     assert "entregó la plata" in s  # dirección del settlement
+
+
+def test_trip_question_definido_y_deslindado_de_plata():
+    """El intent de guías tiene que llegar al prompt con su regla de borde:
+    plata → 'question' aunque nombre una ciudad."""
+    s = _render_system(USERS, "bruno")
+    assert "'trip_question'" in s
+    assert "CONTENIDO del viaje" in s
+    assert "es 'question' aunque nombre una ciudad" in s

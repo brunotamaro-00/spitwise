@@ -14,7 +14,7 @@ _CURRENCY_ALIASES = {
     "ars": "ARS", "peso": "ARS", "pesos": "ARS",
 }
 _VALID_SPLIT = {"shared", "payer_only", "other_only"}
-_VALID_INTENTS = {"expense", "settlement", "edit", "delete", "question", "unknown"}
+_VALID_INTENTS = {"expense", "settlement", "edit", "delete", "question", "trip_question", "unknown"}
 
 # Campos editables que el LLM devuelve como new_<campo>.
 EDIT_FIELDS = ("amount", "currency", "date", "city", "category", "description", "split", "paid_by")
