@@ -111,6 +111,64 @@ class Stop(Base):
     synced_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
 
+class GuideDoc(Base):
+    """Snapshot local de un doc de guía de Andiamo (content/guides).
+
+    Fuente de verdad = Andiamo (export bulk); acá solo se cachea para el
+    Q&A de viaje del bot. Reconciliación total en cada sync.
+    """
+
+    __tablename__ = "guide_docs"
+    __table_args__ = (UniqueConstraint("guide_slug", "doc_slug"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    guide_slug: Mapped[str] = mapped_column(String(80), index=True)
+    doc_slug: Mapped[str] = mapped_column(String(80))
+    guide_title: Mapped[str] = mapped_column(String(160))
+    title: Mapped[str] = mapped_column(String(200))
+    country: Mapped[str | None] = mapped_column(String(80))
+    # city | daytrip | country | general | resource
+    kind: Mapped[str] = mapped_column(String(16))
+    file: Mapped[str] = mapped_column(String(255))
+    content_md: Mapped[str] = mapped_column(Text)
+    synced_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+class StopGuide(Base):
+    """Mapeo stop→guía (viene de STOP_TO_GUIDES en Andiamo, fuente de verdad).
+    position 0 = guía primaria. Se reemplaza entero en cada sync de guías."""
+
+    __tablename__ = "stop_guides"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    stop_slug: Mapped[str] = mapped_column(String(80), index=True)
+    guide_slug: Mapped[str] = mapped_column(String(80))
+    position: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+
+
+class TripNote(Base):
+    """Snapshot local de las notas de Andiamo (por parada o globales)."""
+
+    __tablename__ = "trip_notes"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    stop_slug: Mapped[str | None] = mapped_column(String(80), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text)
+    pinned: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
+    synced_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+class SyncMeta(Base):
+    """Key-value mínimo para metadata de syncs (hoy: guides_version)."""
+
+    __tablename__ = "sync_meta"
+
+    key: Mapped[str] = mapped_column(String(50), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
 class FxRate(Base):
     __tablename__ = "fx_rates"
     __table_args__ = (UniqueConstraint("currency", "rate_date"),)

@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.andiamo import sync_stops
+from app.andiamo_content import sync_guides, sync_notes
 from app.categories.seed import seed_categories
 from app.config import get_settings, parse_cors
 from app.db.engine import get_sessionmaker
@@ -49,6 +50,9 @@ async def lifespan(app: FastAPI):
         await seed_users_from_env(session)
         if get_settings().andiamo_url:
             await sync_stops(session)  # primer sync; tolerante a fallo
+            # Contenido del Q&A de viaje (guías + notas): mismo criterio.
+            await sync_guides(session)
+            await sync_notes(session)
         # Después del sync: el orden de Pititas se deriva del snapshot.
         await seed_local_stops(session)
         # Pendings vencidos durante un deploy sin tráfico: una pasada al boot.

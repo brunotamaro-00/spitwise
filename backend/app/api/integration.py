@@ -6,7 +6,10 @@ import secrets
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pydantic import BaseModel
+
 from app.andiamo import force_sync_soon, sync_stops
+from app.andiamo_content import force_content_sync_soon
 from app.api.auth import get_current_user
 from app.api.schemas import (
     CitySpendPublicOut,
@@ -202,12 +205,25 @@ async def trip_spend(
     )
 
 
+class SyncHookIn(BaseModel):
+    event: str = ""
+    source: str = ""
+    ts: str = ""
+
+
 @router.post("/andiamo/sync-hook", status_code=202)
-async def sync_hook(_: None = Depends(require_api_key)) -> dict:
-    """Webhook de Andiamo (stops.changed): agenda un re-pull inmediato del
-    itinerario. Responde 202 al instante; el sync corre como task."""
-    force_sync_soon()
-    return {"status": "scheduled"}
+async def sync_hook(body: SyncHookIn | None = None, _: None = Depends(require_api_key)) -> dict:
+    """Webhook de Andiamo: agenda un re-pull inmediato según el evento.
+    Responde 202 al instante; el sync corre como task. Sin body o con
+    evento desconocido → stops (compat con el ping original)."""
+    event = (body.event if body else "") or "stops.changed"
+    if event == "notes.changed":
+        force_content_sync_soon(notes_only=True)
+    elif event == "guides.changed":
+        force_content_sync_soon()
+    else:
+        force_sync_soon()
+    return {"status": "scheduled", "event": event}
 
 
 @router.post("/andiamo/sync")

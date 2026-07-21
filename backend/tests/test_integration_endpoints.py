@@ -119,8 +119,47 @@ async def test_sync_hook_auth_and_schedule(app_client, monkeypatch):
 
     r = await app_client.post("/api/v1/andiamo/sync-hook", headers={"X-Api-Key": "k"})
     assert r.status_code == 202
-    assert r.json() == {"status": "scheduled"}
+    assert r.json() == {"status": "scheduled", "event": "stops.changed"}
     assert called["n"] == 1
+
+    # Compat: body con evento explícito de stops sigue yendo al sync de stops.
+    r = await app_client.post(
+        "/api/v1/andiamo/sync-hook", headers={"X-Api-Key": "k"},
+        json={"event": "stops.changed", "source": "andiamo"},
+    )
+    assert r.status_code == 202
+    assert called["n"] == 2
+
+
+async def test_sync_hook_content_events(app_client, monkeypatch):
+    from app.config import get_settings
+    import app.api.integration as integration_mod
+
+    monkeypatch.setenv("TRIP_SHARED_API_KEY", "k")
+    get_settings.cache_clear()
+
+    calls: list = []
+    monkeypatch.setattr(
+        integration_mod, "force_content_sync_soon",
+        lambda *, notes_only=False: calls.append(notes_only),
+    )
+    monkeypatch.setattr(integration_mod, "force_sync_soon", lambda: calls.append("stops"))
+
+    r = await app_client.post(
+        "/api/v1/andiamo/sync-hook", headers={"X-Api-Key": "k"},
+        json={"event": "notes.changed"},
+    )
+    assert r.status_code == 202
+    assert r.json()["event"] == "notes.changed"
+    assert calls == [True]
+
+    r = await app_client.post(
+        "/api/v1/andiamo/sync-hook", headers={"X-Api-Key": "k"},
+        json={"event": "guides.changed"},
+    )
+    assert r.status_code == 202
+    assert calls == [True, False]
+    get_settings.cache_clear()
     get_settings.cache_clear()
 
 
