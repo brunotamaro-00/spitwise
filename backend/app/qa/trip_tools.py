@@ -87,17 +87,34 @@ async def read_guide_doc(session: AsyncSession, cache: dict, *,
             "link": doc_link(doc.guide_slug, doc.doc_slug), "content": content}
 
 
-async def search_guides(session: AsyncSession, cache: dict, *, query: str) -> dict:
+async def search_guides(session: AsyncSession, cache: dict, *, query: str,
+                        guide_slug: str | None = None) -> dict:
     terms = [t for t in _fold(query).split() if len(t) >= 2]
     if not terms:
         raise ValueError("query vacía o demasiado corta")
     docs = await _load_docs(session, cache)
+    if guide_slug:
+        wanted = _fold(guide_slug)
+        filtered = [d for d in docs if _fold(d.guide_slug) == wanted]
+        if not filtered:
+            known = sorted({d.guide_slug for d in docs})
+            raise ValueError(f"guide_slug desconocido: {guide_slug!r}; válidas: {known}")
+        docs = filtered
+
+    scored: list[tuple[float, GuideDoc]] = []
+    for d in docs:
+        heading = _fold(d.title) + "\n" + _fold(d.guide_title)
+        body = _fold(d.content_md)
+        if not all(t in heading or t in body for t in terms):
+            continue
+        # Relevancia: título/guía pesan mucho más que menciones sueltas del
+        # cuerpo — sin esto gana el primer doc en orden alfabético de guía.
+        score = sum(heading.count(t) * 20 + body.count(t) for t in terms)
+        scored.append((score, d))
+    scored.sort(key=lambda pair: -pair[0])
 
     hits = []
-    for d in docs:
-        haystack = _fold(d.title) + "\n" + _fold(d.guide_title) + "\n" + _fold(d.content_md)
-        if not all(t in haystack for t in terms):
-            continue
+    for _, d in scored[:_MAX_SEARCH_HITS]:
         # Snippet alrededor del primer término que aparece en el cuerpo.
         folded_body = _fold(d.content_md)
         pos = min((p for p in (folded_body.find(t) for t in terms) if p >= 0), default=-1)
@@ -113,12 +130,11 @@ async def search_guides(session: AsyncSession, cache: dict, *, query: str) -> di
             "guide_title": d.guide_title, "kind": d.kind,
             "link": doc_link(d.guide_slug, d.doc_slug), "snippet": snippet,
         })
-        if len(hits) >= _MAX_SEARCH_HITS:
-            break
     return {
         "hits": hits,
-        "note": ("busca todas las palabras (sin tildes) en título y contenido; "
-                 "para el detalle completo usá read_guide_doc"),
+        "note": ("busca todas las palabras (sin tildes) en título y contenido, "
+                 "ordenado por relevancia; para el detalle completo usá "
+                 "read_guide_doc"),
     }
 
 
@@ -163,12 +179,18 @@ def build_trip_tools(session: AsyncSession) -> list[ToolSpec]:
             name="search_guides",
             description=("Busca en el texto completo de las guías del viaje. Es la primera "
                          "herramienta para casi toda pregunta ('tren a Sintra', 'entradas "
-                         "Coliseo'). Devuelve hasta 8 docs con un snippet; para responder con "
-                         "detalle leé el mejor con read_guide_doc."),
+                         "Coliseo'). Devuelve hasta 8 docs por relevancia con un snippet; para "
+                         "responder con detalle leé el mejor con read_guide_doc. En follow-ups "
+                         "sobre la misma ciudad/país pasá guide_slug para no saltar de guía."),
             input_schema={
                 "type": "object",
-                "properties": {"query": {"type": "string",
-                                         "description": "Palabras clave (sin conectores)."}},
+                "properties": {
+                    "query": {"type": "string",
+                              "description": "Palabras clave (sin conectores)."},
+                    "guide_slug": {"type": "string",
+                                   "description": ("Opcional: limita la búsqueda a esa guía "
+                                                   "(slug de list_guides o de un hit previo).")},
+                },
                 "required": ["query"],
                 "additionalProperties": False,
             },

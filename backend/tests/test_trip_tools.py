@@ -51,6 +51,35 @@ async def test_search_guides_multiterm_accent_insensitive(db_session):
     assert out["hits"] == []
 
 
+async def test_search_guides_ranks_by_relevance_not_alphabet(db_session):
+    # Bug real: 'austria' ganaba por orden alfabético aunque 'polonia' fuera
+    # el doc pertinente. El ranking pesa título/guía sobre menciones sueltas.
+    db_session.add_all([
+        GuideDoc(guide_slug="austria", doc_slug="frases-utiles", guide_title="Austria",
+                 title="Frases útiles", kind="country", file="austria/frases-utiles.md",
+                 content_md="# Frases\n\nSaludar al entrar: Grüß Gott."),
+        GuideDoc(guide_slug="polonia", doc_slug="frases-utiles", guide_title="Polonia",
+                 title="Frases útiles", kind="country", file="polonia/frases-utiles.md",
+                 content_md=("# Frases\n\nSaludar: dzień dobry. Saludar al entrar a un "
+                             "negocio: dzień dobry. Saludar siempre.")),
+    ])
+    await db_session.commit()
+    out = await search_guides(db_session, {}, query="saludar")
+    assert out["hits"][0]["guide_slug"] == "polonia"  # 3 menciones vs 1
+
+
+async def test_search_guides_filters_by_guide_slug(db_session):
+    await _seed(db_session)
+    out = await search_guides(db_session, {}, query="tren", guide_slug="roma")
+    assert all(h["guide_slug"] == "roma" for h in out["hits"])
+    assert [h["doc_slug"] for h in out["hits"]] == ["tivoli"]
+    try:
+        await search_guides(db_session, {}, query="tren", guide_slug="nadaqueever")
+        raise AssertionError("debió levantar ValueError")
+    except ValueError as e:
+        assert "lisboa" in str(e)
+
+
 async def test_read_guide_doc_link_and_truncation(db_session, monkeypatch):
     from app.config import get_settings
     monkeypatch.setenv("ANDIAMO_URL", "http://andiamo.test/")

@@ -131,6 +131,20 @@ Requiere `OPENAI_API_KEY` (y `LLM_PROVIDER=openai` si también hay Anthropic).
 Hoy ficticio fijo mid-trip (`2026-08-20`, Lisboa). Seed incluye Pititas
 (`is_local`, `owner_username=katia`).
 
+### Canal viaje (guías + notas)
+
+Script aparte, no mezclado con la suite financiera:
+
+```bash
+cd backend
+.venv/bin/python scripts/bot_trip_scenario_runner.py
+.venv/bin/python scripts/bot_trip_scenario_runner.py --only 2,3,6
+```
+
+Carga markdown real desde `../andiamo/content/guides` + notas alineadas al
+Itinerary. Hoy fijo `2026-09-25` (Viena). **10 escenarios**. Transcript →
+`scripts/bot_trip_scenarios.md`.
+
 ## Demo local (datos dummy, mid-trip)
 
 `backend/scripts/seed_demo_data.py` construye una DB SQLite local lista para
