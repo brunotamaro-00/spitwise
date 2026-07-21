@@ -45,6 +45,14 @@ Secretos **solo** acá: nunca en el repo (`.env` está gitignoreado).
 
 Redeploy de Andiamo después de agregarlas (habilita `GET /api/stops` y el chip "Gastado").
 
+**Q&A de viaje del bot (guías/notas):** usa los endpoints `GET /api/guides/export` y
+`GET /api/notes` de Andiamo (misma `TRIP_SHARED_API_KEY`, sin variables nuevas).
+Orden de deploy cuando cambian ambos repos: **Andiamo primero** (expone la API),
+Spitwise después (la migración corre en el arranque y el lifespan hace el primer
+sync de contenido). Si Andiamo está caído, el bot sigue con el último snapshot
+(`guide_docs`/`trip_notes`); el sync lazy (TTL 6h) y el ping `notes.changed`
+lo actualizan solos.
+
 ## Alta inicial (una vez)
 
 1. Railway → New Project `spitwise` → Add **PostgreSQL** → Add service desde el repo (o `railway up`).

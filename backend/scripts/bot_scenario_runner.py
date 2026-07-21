@@ -13,7 +13,7 @@ Uso (desde backend/):
     # Default: suite crítica (10) — óptima para una sesión Claude/Fable
     .venv/bin/python scripts/bot_scenario_runner.py
 
-    # Crítica + 5 extras de valor (15)
+    # Crítica + 7 extras de valor (17)
     .venv/bin/python scripts/bot_scenario_runner.py --all
 
     # Subconjunto del catálogo unificado
@@ -52,6 +52,9 @@ os.environ.setdefault("LLM_PROVIDER", "openai")
 os.environ.setdefault("ENVIRONMENT", "dev")
 os.environ.setdefault("SECRET_KEY", "scenario-runner-local-only")
 os.environ["AUTH_USERS"] = "bruno:demo:549111,katia:demo:549222"
+# Deep-links del agente de guías; el seed deja el cache fresco así que nunca
+# se fetchea de verdad contra esta URL.
+os.environ.setdefault("ANDIAMO_URL", "https://andiamo.local")
 
 from app.andiamo import ensure_stops_fresh  # noqa: E402
 from app.api.auth import hash_password  # noqa: E402
@@ -59,7 +62,9 @@ from app.bot.dispatcher import dispatch  # noqa: E402
 from app.bot.render import BotReply  # noqa: E402
 from app.categories.seed import seed_categories  # noqa: E402
 from app.config import get_settings  # noqa: E402
-from app.db.models import Base, Category, FxRate, Movement, Stop, User  # noqa: E402
+from app.db.models import (  # noqa: E402
+    Base, Category, FxRate, GuideDoc, Movement, Stop, StopGuide, TripNote, User,
+)
 from app.due import ensure_due_settled  # noqa: E402
 
 get_settings.cache_clear()
@@ -352,10 +357,44 @@ CONVERSATIONS_EXTRA: list[Conversation] = [
     ),
 ]
 
-# Catálogo unificado: índices 1..10 = crítica, 11..15 = extra.
+CONVERSATIONS_EXTRA += [
+    Conversation(
+        name="Guías: qué hacer + cómo llegar",
+        goal="trip_question grounded: lee las guías cacheadas y linkea a Andiamo.",
+        turns=[
+            Turn(BRUNO_WA, "¿qué podemos hacer mañana acá?", note="trip_question deíctico"),
+            Turn(BRUNO_WA, "¿y cómo llegamos a Sintra?", note="follow-up transporte"),
+        ],
+        expect_hints=[
+            "Turno 1: intent trip_question (no question ni unknown); parada de hoy = Lisboa; "
+            "responde con contenido del doc 'actividades' seeded (Belém / Alfama), corto, "
+            "con link a /guias/lisboa/actividades. FAIL si inventa contenido no seeded",
+            "Turno 2: sigue en el canal de viaje; cita el tren desde Rossio (€2,30) del doc "
+            "transporte. FAIL si responde de cultura general sin tools",
+        ],
+        fix_in="llm/client.py (intent trip_question) · bot/trip_qa.py · qa/trip_tools.py",
+    ),
+    Conversation(
+        name="Mixta: guía → nota → plata (cambio de canal)",
+        goal="Aislamiento de canales: viaje y finanzas alternan sin pisarse.",
+        turns=[
+            Turn(KATIA_WA, "¿qué anotamos del hostel de lisboa?", note="list_notes"),
+            Turn(KATIA_WA, "¿cuánto llevamos gastado acá en lisboa?", note="vuelve a finanzas"),
+        ],
+        expect_hints=[
+            "Turno 1: trip_question → list_notes; responde el check-in 15hs / código 4421 de la "
+            "nota seeded. FAIL si dice que no hay notas o va al agente financiero",
+            "Turno 2: intent question (plata) → agente financiero: total Lisboa desde tools "
+            "(seed: Cena Lisboa USD 66). FAIL si el agente de guías intenta responder montos",
+        ],
+        fix_in="llm/client.py (borde plata/contenido) · bot/dispatcher.py (ruteo por canal)",
+    ),
+]
+
+# Catálogo unificado: índices 1..10 = crítica, 11..17 = extra.
 CONVERSATIONS: list[Conversation] = SUITE_CRITICAL + CONVERSATIONS_EXTRA
 assert len(SUITE_CRITICAL) == N_CRITICAL
-assert len(CONVERSATIONS_EXTRA) == 5
+assert len(CONVERSATIONS_EXTRA) == 7
 assert len(CONVERSATIONS) == N_CRITICAL + len(CONVERSATIONS_EXTRA)
 
 
@@ -382,6 +421,27 @@ async def seed(session: AsyncSession) -> None:
              departure_date=date(2026, 9, 15), currency_code="GBP", timezone="Europe/London"),
         Stop(slug="portree", order=7, name="Portree", arrival_date=date(2026, 9, 15),
              departure_date=date(2026, 9, 18), currency_code="GBP", timezone="Europe/London"),
+    ])
+
+    # Cache de guías/notas para los escenarios de trip_question. synced_at
+    # queda "ahora" → ensure_content_fresh nunca fetchea durante la corrida.
+    session.add_all([
+        GuideDoc(guide_slug="lisboa", doc_slug="actividades", guide_title="Lisboa",
+                 title="Actividades", country="Portugal", kind="city",
+                 file="portugal/lisboa/actividades.md",
+                 content_md=("# Actividades en Lisboa\n\n"
+                             "- **Torre de Belém** €8, ir antes de las 10\n"
+                             "- **Alfama**: perderse por las callecitas + mirador Santa Luzia\n"
+                             "- Pastéis de Belém: la cola avanza rápido\n")),
+        GuideDoc(guide_slug="lisboa", doc_slug="transporte", guide_title="Lisboa",
+                 title="Transporte", country="Portugal", kind="city",
+                 file="portugal/lisboa/transporte.md",
+                 content_md=("# Transporte\n\n"
+                             "Tren a **Sintra** desde Rossio cada 20 min, €2,30 con "
+                             "tarjeta Viva Viagem. Tranvía 28 temprano para evitar la cola.\n")),
+        StopGuide(stop_slug="lisboa", guide_slug="lisboa", position=0),
+        TripNote(id="note-hostel-lisboa", stop_slug="lisboa", title="Hostel Lisboa",
+                 body="Check-in 15hs, código puerta 4421", pinned=True),
     ])
 
     fx_dates = {
