@@ -31,44 +31,49 @@ from app.db.models import Base, Category, Movement, Stop, User
 from app.users import seed_users_from_env
 
 TODAY = date.today()
-# HOY = día 40 (la llegada a la 1.ª parada es el día 1). Total: 100 noches.
+# HOY = día 40 (la llegada a la 1.ª parada es el día 1). Alineado al itinerario
+# confirmado de Andiamo (sin candidatas ni Pititas): ~95 noches.
 START = TODAY - timedelta(days=39)
-TOTAL_NIGHTS = 100
 
-# Banderas: 🇬🇧 país; Escocia usa la secuencia de subdivisión (gb-sct), no el
-# 🏴 negro pelado — el frontend la resuelve a la SVG del saltire.
+# Banderas: Inglaterra/Escocia usan secuencias de subdivisión (gbeng / gbsct),
+# no el 🏴 negro pelado — el frontend las resuelve a las SVG correctas.
+ENGLAND = "🏴\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"
 SCOTLAND = "🏴\U000e0067\U000e0062\U000e0073\U000e0063\U000e0074\U000e007f"
 
-# (nombre, país, flag, moneda, noches)
+# (slug Andiamo, nombre, país, flag, moneda, noches) — solo paradas confirmadas.
 ITINERARY = [
-    ("Londres", "Reino Unido", "🇬🇧", "GBP", 6),
-    ("Edimburgo", "Reino Unido", SCOTLAND, "GBP", 5),
-    ("Fort William", "Reino Unido", SCOTLAND, "GBP", 3),
-    ("Portree", "Reino Unido", SCOTLAND, "GBP", 3),
-    ("Inverness", "Reino Unido", SCOTLAND, "GBP", 3),
-    ("Glasgow", "Reino Unido", SCOTLAND, "GBP", 4),
-    ("Dublín", "Irlanda", "🇮🇪", "EUR", 5),
-    ("Ámsterdam", "Países Bajos", "🇳🇱", "EUR", 5),
-    ("Brujas", "Bélgica", "🇧🇪", "EUR", 3),
-    ("Friburgo", "Alemania", "🇩🇪", "EUR", 4),  # ← contiene HOY (día 40): en curso
-    ("Múnich", "Alemania", "🇩🇪", "EUR", 5),
-    ("Praga", "Chequia", "🇨🇿", "CZK", 5),
-    ("Viena", "Austria", "🇦🇹", "EUR", 5),
-    ("Budapest", "Hungría", "🇭🇺", "HUF", 5),
-    ("Liubliana", "Eslovenia", "🇸🇮", "EUR", 3),
-    ("Zagreb", "Croacia", "🇭🇷", "EUR", 3),
-    ("Split", "Croacia", "🇭🇷", "EUR", 4),
-    ("Roma", "Italia", "🇮🇹", "EUR", 6),
-    ("Florencia", "Italia", "🇮🇹", "EUR", 4),
-    ("Cinque Terre", "Italia", "🇮🇹", "EUR", 3),
-    ("Niza", "Francia", "🇫🇷", "EUR", 4),
-    ("Barcelona", "España", "🇪🇸", "EUR", 5),
-    ("Madrid", "España", "🇪🇸", "EUR", 4),
-    ("Lisboa", "Portugal", "🇵🇹", "EUR", 3),
+    ("londres", "Londres", "Reino Unido", ENGLAND, "GBP", 8),
+    ("york", "York", "Reino Unido", ENGLAND, "GBP", 2),
+    ("edimburgo", "Edimburgo", "Reino Unido", SCOTLAND, "GBP", 3),
+    ("fort-william", "Fort William", "Reino Unido", SCOTLAND, "GBP", 2),
+    ("portree", "Portree", "Reino Unido", SCOTLAND, "GBP", 2),
+    ("inverness", "Inverness", "Reino Unido", SCOTLAND, "GBP", 2),
+    ("edimburgo-2", "Edimburgo (tránsito)", "Reino Unido", SCOTLAND, "GBP", 1),
+    ("amsterdam", "Ámsterdam", "Países Bajos", "🇳🇱", "EUR", 4),
+    ("paris", "París", "Francia", "🇫🇷", "EUR", 6),
+    ("lisboa", "Lisboa", "Portugal", "🇵🇹", "EUR", 5),
+    ("porto", "Porto", "Portugal", "🇵🇹", "EUR", 3),
+    ("estrasburgo", "Estrasburgo", "Francia", "🇫🇷", "EUR", 2),  # ← HOY (día 40)
+    ("colmar", "Colmar", "Francia", "🇫🇷", "EUR", 2),
+    ("friburgo", "Friburgo", "Alemania", "🇩🇪", "EUR", 3),
+    ("interlaken", "Interlaken", "Suiza", "🇨🇭", "CHF", 4),
+    ("viena", "Viena", "Austria", "🇦🇹", "EUR", 5),
+    ("praga", "Praga", "Chequia", "🇨🇿", "CZK", 5),
+    ("cracovia", "Cracovia", "Polonia", "🇵🇱", "PLN", 4),
+    ("budapest", "Budapest", "Hungría", "🇭🇺", "HUF", 4),
+    ("liubliana", "Liubliana", "Eslovenia", "🇸🇮", "EUR", 4),
+    ("florencia", "Florencia", "Italia", "🇮🇹", "EUR", 5),
+    ("roma", "Roma", "Italia", "🇮🇹", "EUR", 7),
+    ("napoles", "Nápoles", "Italia", "🇮🇹", "EUR", 2),
+    ("barcelona", "Barcelona", "España", "🇪🇸", "EUR", 5),
+    ("madrid", "Madrid", "España", "🇪🇸", "EUR", 5),
 ]
 
+TOTAL_NIGHTS = sum(n for *_, n in ITINERARY)
+
 FX = {"USD": Decimal("1.0"), "GBP": Decimal("1.27"), "EUR": Decimal("1.08"),
-      "CZK": Decimal("0.043"), "HUF": Decimal("0.0028")}
+      "CHF": Decimal("1.12"), "CZK": Decimal("0.043"), "PLN": Decimal("0.25"),
+      "HUF": Decimal("0.0028")}
 
 # categoría -> (min, max) en USD por movimiento (se convierte a moneda local al
 # guardar, así CZK/HUF quedan en miles y no en centavos).
@@ -82,11 +87,6 @@ SPEND = {
     "Salidas": (14, 55),
     "Salud": (8, 25),
 }
-
-
-def _slug(name: str) -> str:
-    trans = str.maketrans("áéíóúñü ", "aeiounu-")
-    return name.lower().translate(trans)
 
 
 async def main() -> None:
@@ -116,11 +116,10 @@ async def main() -> None:
         await s.execute(delete(Stop))
 
         cursor = START
-        for order, (name, country, flag, cur, nights) in enumerate(ITINERARY):
+        for order, (slug, name, country, flag, cur, nights) in enumerate(ITINERARY):
             arrival = cursor
             departure = cursor + timedelta(days=nights)
             cursor = departure
-            slug = _slug(name)
             s.add(Stop(
                 slug=slug, order=order, name=name, country=country, country_flag=flag,
                 arrival_date=arrival, departure_date=departure, currency_code=cur,
@@ -168,10 +167,10 @@ async def main() -> None:
 
         await s.commit()
         movs = (await s.execute(select(Movement))).scalars().all()
-        current = next((n for (n, *_1, nights) in ITINERARY), None)
         print(
             f"seeded {len(ITINERARY)} stops ({TOTAL_NIGHTS} noches), {len(movs)} movimientos\n"
-            f"HOY={TODAY} · inicio={START} · fin={START + timedelta(days=TOTAL_NIGHTS)} (día 40/100)"
+            f"HOY={TODAY} · inicio={START} · fin={START + timedelta(days=TOTAL_NIGHTS)} "
+            f"(día 40/{TOTAL_NIGHTS})"
         )
 
 
