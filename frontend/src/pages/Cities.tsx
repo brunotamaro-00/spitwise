@@ -278,8 +278,8 @@ export default function Cities() {
         </div>
       )}
 
-      {/* Donut a ancho completo: en desktop el detalle de categorías va a
-          la derecha; en mobile donut → detalle de movimientos. */}
+      {/* Donut a ancho completo: desktop con detalle a la derecha; mobile
+          apila donut → detalle de categorías → movimientos. */}
       {byCat.length > 0 && (
         <div className="animate-rise-in stagger-3">
           <CategoryDonut data={byCat} sideBySide />

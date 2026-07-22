@@ -29,8 +29,8 @@ export default function CategoryDonut({
   data,
   title = "Gasto por categoría",
   subtitle,
-  /** En /ciudades: desktop pone el detalle a la derecha; mobile solo muestra
-   *  el donut y sigue al detalle de movimientos. */
+  /** En /ciudades: desktop pone el detalle a la derecha; mobile lo apila
+   *  debajo del donut (como antes). */
   sideBySide = false,
 }: {
   data: CategorySpend[];
@@ -107,10 +107,8 @@ export default function CategoryDonut({
         </div>
 
         <ul
-          className={`min-w-0 flex-col gap-3 ${
-            sideBySide
-              ? "hidden lg:flex lg:flex-1"
-              : "flex"
+          className={`flex min-w-0 flex-col gap-3 ${
+            sideBySide ? "lg:flex-1" : ""
           }`}
         >
           {rows.map((r) => {
