@@ -29,10 +29,14 @@ export default function CategoryDonut({
   data,
   title = "Gasto por categoría",
   subtitle,
+  /** En /ciudades: desktop pone el detalle a la derecha; mobile solo muestra
+   *  el donut y sigue al detalle de movimientos. */
+  sideBySide = false,
 }: {
   data: CategorySpend[];
   title?: string;
   subtitle?: string;
+  sideBySide?: boolean;
 }) {
   const total = data.reduce((acc, c) => acc + parseMoney(c.total_usd), 0);
   const rows: Row[] = data.map((c) => {
@@ -54,75 +58,93 @@ export default function CategoryDonut({
         {subtitle && <span className="text-[11px] text-ink-faint">{subtitle}</span>}
       </div>
       <div
-        className="relative h-56"
-        role="img"
-        aria-label={`${title}: total ${formatUsd(total.toFixed(2))} en ${rows.length} categorías`}
+        className={
+          sideBySide
+            ? "flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-8"
+            : "flex flex-col gap-4"
+        }
       >
-        {/* Total detrás del chart para que el tooltip quede por encima */}
-        <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Total</span>
-          <span className="font-display text-2xl leading-none text-ink font-tabular">
-            {formatUsd(total.toFixed(2))}
-          </span>
+        <div
+          className={
+            sideBySide
+              ? "relative mx-auto h-56 w-full max-w-xs shrink-0 lg:mx-0 lg:w-[14rem]"
+              : "relative h-56"
+          }
+          role="img"
+          aria-label={`${title}: total ${formatUsd(total.toFixed(2))} en ${rows.length} categorías`}
+        >
+          {/* Total detrás del chart para que el tooltip quede por encima */}
+          <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Total</span>
+            <span className="font-display text-2xl leading-none text-ink font-tabular">
+              {formatUsd(total.toFixed(2))}
+            </span>
+          </div>
+          <div className="relative z-10 h-full w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Tooltip content={<DonutTooltip />} wrapperStyle={{ zIndex: 20 }} />
+                <Pie
+                  data={rows}
+                  dataKey="usd"
+                  nameKey="name"
+                  innerRadius="62%"
+                  outerRadius="94%"
+                  paddingAngle={rows.length > 1 ? 2 : 0}
+                  stroke="var(--color-surface)"
+                  strokeWidth={3}
+                  startAngle={90}
+                  endAngle={-270}
+                  animationDuration={650}
+                >
+                  {rows.map((r) => (
+                    <Cell key={r.name} fill={r.color} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="relative z-10 h-full w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Tooltip content={<DonutTooltip />} wrapperStyle={{ zIndex: 20 }} />
-              <Pie
-                data={rows}
-                dataKey="usd"
-                nameKey="name"
-                innerRadius="62%"
-                outerRadius="94%"
-                paddingAngle={rows.length > 1 ? 2 : 0}
-                stroke="var(--color-surface)"
-                strokeWidth={3}
-                startAngle={90}
-                endAngle={-270}
-                animationDuration={650}
-              >
-                {rows.map((r) => (
-                  <Cell key={r.name} fill={r.color} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
 
-      <ul className="mt-4 flex flex-col gap-3">
-        {rows.map((r) => {
-          const Icon = categoryIcon(r.name);
-          return (
-            <li key={r.name} className="flex items-center gap-3 text-sm">
-              <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                style={{ background: categoryBg(r.name), color: r.color }}
-              >
-                <Icon size={15} strokeWidth={2} aria-hidden="true" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate font-semibold text-ink">{r.name}</span>
-                  <span className="font-tabular text-ink-2">{formatUsd(r.total)}</span>
+        <ul
+          className={`min-w-0 flex-col gap-3 ${
+            sideBySide
+              ? "hidden lg:flex lg:flex-1"
+              : "flex"
+          }`}
+        >
+          {rows.map((r) => {
+            const Icon = categoryIcon(r.name);
+            return (
+              <li key={r.name} className="flex items-center gap-3 text-sm">
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                  style={{ background: categoryBg(r.name), color: r.color }}
+                >
+                  <Icon size={15} strokeWidth={2} aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="truncate font-semibold text-ink">{r.name}</span>
+                    <span className="font-tabular text-ink-2">{formatUsd(r.total)}</span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
+                      <span
+                        className="block h-full rounded-full"
+                        style={{ width: `${Math.max(r.pct, 2)}%`, background: r.color }}
+                      />
+                    </span>
+                    <span className="w-9 shrink-0 text-right font-tabular text-xs text-ink-3">
+                      {r.pct.toFixed(0)}%
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-1 flex items-center gap-2">
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
-                    <span
-                      className="block h-full rounded-full"
-                      style={{ width: `${Math.max(r.pct, 2)}%`, background: r.color }}
-                    />
-                  </span>
-                  <span className="w-9 shrink-0 text-right font-tabular text-xs text-ink-3">
-                    {r.pct.toFixed(0)}%
-                  </span>
-                </div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </Card>
   );
 }

@@ -10,7 +10,6 @@ import { getPace } from "@/api/dashboard";
 import { deleteMovement } from "@/api/movements";
 import AddMovementDialog from "@/components/AddMovementDialog";
 import CategoryDonut from "@/components/CategoryDonut";
-import CityCompare from "@/components/CityCompare";
 import DeltaBadge from "@/components/DeltaBadge";
 import Flag from "@/components/Flag";
 import MovementRow from "@/components/MovementRow";
@@ -21,7 +20,6 @@ import Card from "@/components/ui/Card";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
-import { Label } from "@/components/ui/Field";
 import Kpi from "@/components/ui/Kpi";
 import Skeleton from "@/components/ui/Skeleton";
 import SkeletonReveal from "@/components/ui/SkeletonReveal";
@@ -50,52 +48,6 @@ function chipStatusLine(c: CityPace): string {
   if (c.status === "future") return `próxima · ${c.nights} noche${c.nights === 1 ? "" : "s"}`;
   if (c.status === "current") return `en curso · día ${c.elapsed_nights}/${c.nights}`;
   return shortRange(c.arrival_date, c.departure_date) ?? `${c.movement_count} mov.`;
-}
-
-/** Barra apilada dormir vs vivir: proporción del $/día de la ciudad que se va
- *  en alojamiento (prorrateado por noche) vs el resto. Sin Recharts: dos
- *  segmentos son más legibles como divs, con monto y label siempre visibles. */
-function SleepVsLiveCard({ city }: { city: CityPace }) {
-  const sleep = city.lodging_per_night_usd ? parseMoney(city.lodging_per_night_usd) : 0;
-  const live = city.other_per_day_usd ? parseMoney(city.other_per_day_usd) : 0;
-  const total = sleep + live;
-  if (total <= 0) return null;
-  const sleepPct = Math.round((sleep / total) * 100);
-  const rows = [
-    { key: "sleep", icon: BedDouble, label: "Dormir", sub: "/noche", value: city.lodging_per_night_usd ?? "0", pct: sleepPct },
-    { key: "live", icon: UtensilsCrossed, label: "Vivir", sub: "/día", value: city.other_per_day_usd ?? "0", pct: 100 - sleepPct },
-  ];
-  return (
-    <Card className="flex h-full flex-col gap-4 p-5">
-      <Label>Dormir vs vivir</Label>
-      <div className="flex h-3 overflow-hidden rounded-full">
-        <div className="h-full bg-brick" style={{ width: `${Math.max(sleepPct, 2)}%` }} />
-        <div className="h-full bg-accent-teal" style={{ width: `${Math.max(100 - sleepPct, 2)}%` }} />
-      </div>
-      <ul className="flex flex-col gap-3">
-        {rows.map((r) => (
-          <li key={r.key} className="flex items-center gap-3 text-sm">
-            <span
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-                r.key === "sleep" ? "bg-brick-bg text-brick" : "bg-accent-teal-bg text-accent-teal"
-              }`}
-            >
-              <r.icon size={15} strokeWidth={2} aria-hidden="true" />
-            </span>
-            <span className="flex-1 font-semibold text-ink">{r.label}</span>
-            <span className="font-tabular text-ink-2">
-              {formatUsd(r.value)}
-              <span className="text-xs text-ink-3">{r.sub}</span>
-            </span>
-            <span className="w-9 shrink-0 text-right font-tabular text-xs text-ink-3">{r.pct}%</span>
-          </li>
-        ))}
-      </ul>
-      <p className="text-xs text-ink-3">
-        {city.nights} noche{city.nights === 1 ? "" : "s"} · alojamiento prorrateado por noche
-      </p>
-    </Card>
-  );
 }
 
 export default function Cities() {
@@ -326,14 +278,13 @@ export default function Cities() {
         </div>
       )}
 
-      {/* Gráficos: items-stretch para que ninguna card deje hueco al lado
-          de la más alta en desktop. */}
-      <div className="animate-rise-in stagger-3 grid items-stretch gap-5 lg:grid-cols-2">
-        {byCat.length > 0 && <CategoryDonut data={byCat} />}
-        {singlePace && singlePace.nights > 0 && <SleepVsLiveCard city={singlePace} />}
-        {/* Vista agregada: el comparador entre ciudades ya vividas. */}
-        {selected.length === 0 && pace && <CityCompare cities={cities} trip={pace.trip} />}
-      </div>
+      {/* Donut a ancho completo: en desktop el detalle de categorías va a
+          la derecha; en mobile donut → detalle de movimientos. */}
+      {byCat.length > 0 && (
+        <div className="animate-rise-in stagger-3">
+          <CategoryDonut data={byCat} sideBySide />
+        </div>
+      )}
 
       {/* Detalle de movimientos */}
       <div>
