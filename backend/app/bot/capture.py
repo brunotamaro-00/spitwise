@@ -12,6 +12,7 @@ from app.bot.render import (
     BatchRow, BotReply, batch_card, buttons_reply, cat_label, expense_card, fmt_money,
     settlement_card, text_reply,
 )
+from app.cashback import net_amount
 from app.categories.catalog import CATEGORIES
 from app.db.models import Category, Movement, User
 from app.fx import convert_to_usd, fx_reference_date
@@ -160,6 +161,13 @@ def expand_installments(parsed, today: date) -> list | None:
     if parsed.is_settlement:
         return None
 
+    # El cashback aplica al gasto entero. Un cashback en % se replica a cada etapa
+    # (un % de cada parte cierra solo). Un cashback de MONTO FIJO + cuotas es una
+    # combinación marginal que no tiene un reparto obvio: se descarta en las partes
+    # (limitación documentada).
+    cb_kind = parsed.cashback_kind if parsed.cashback_kind == "pct" else None
+    cb_value = parsed.cashback_value if cb_kind else None
+
     # Modo directo: TODAS las etapas traen monto explícito ('34 usd hoy y el
     # resto 134 gbp al ingresar'). No hay aritmética que hacer, no hace falta
     # un total único, y cada etapa puede venir en su propia moneda — el batch
@@ -173,6 +181,7 @@ def expand_installments(parsed, today: date) -> list | None:
         return [
             replace(parsed, amount=i.amount, currency=i.currency or parsed.currency,
                     payment_date=i.pay_date, description=f"{base_desc} ({idx}/{n})",
+                    cashback_kind=cb_kind, cashback_value=cb_value,
                     installments=[], batch=[])
             for idx, i in enumerate(ordered, start=1)
         ]
@@ -219,7 +228,9 @@ def expand_installments(parsed, today: date) -> list | None:
     base_desc = parsed.description or "gasto"
     return [
         replace(parsed, amount=amt, payment_date=pay_date,
-                description=f"{base_desc} ({idx}/{n})", installments=[], batch=[])
+                description=f"{base_desc} ({idx}/{n})",
+                cashback_kind=cb_kind, cashback_value=cb_value,
+                installments=[], batch=[])
         for idx, (pay_date, amt) in enumerate(zip(pay_dates, amounts), start=1)
     ]
 
@@ -238,6 +249,7 @@ async def _persist(session, *, payer, parsed, amount_usd, rate, src, stop_slug, 
         fx_rate=rate, fx_source=_map_source(src, parsed.currency), paid_by=payer.id, split=parsed.split,
         description=parsed.description, category_id=cat_id, stop_slug=stop_slug, city_name=city_name,
         payment_date=parsed.payment_date, status=status,
+        cashback_kind=parsed.cashback_kind, cashback_value=parsed.cashback_value,
         created_by=created_by.id, raw_message=raw,
     )
     session.add(mv)
@@ -296,10 +308,11 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
     if parsed.currency is None:
         parsed.currency = place_currency
 
-    # Un saldo nunca lleva ciudad ni fecha de pago diferida: siempre es general y de hoy.
+    # Un saldo nunca lleva ciudad, fecha diferida ni cashback: general y de hoy.
     if parsed.is_settlement:
         stop_slug, city_name = None, None
         parsed.payment_date = None
+        parsed.cashback_kind, parsed.cashback_value = None, None
 
     payer = user
     if parsed.paid_by and parsed.paid_by != user.username:
@@ -312,9 +325,11 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
 
     # Regla: TC de la fecha de pago, capeada a hoy — pasada => histórico
     # Frankfurter; futura => proxy de hoy (se ajusta al liquidar, app/due.py).
+    # El neto (bruto - cashback) es el que se convierte; amount guarda el bruto.
     status = _payment_status(parsed.payment_date, today)
+    net = net_amount(parsed.amount, parsed.cashback_kind, parsed.cashback_value)
     amount_usd, rate, src = await convert_to_usd(
-        session, parsed.amount, parsed.currency, fx_reference_date(parsed.payment_date, today)
+        session, net, parsed.currency, fx_reference_date(parsed.payment_date, today)
     )
 
     # Categoría ambigua → pending con botones (solo gastos, no settlement).
@@ -325,6 +340,8 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
             "description": parsed.description, "stop_slug": stop_slug, "city_name": city_name,
             "payment_date": parsed.payment_date.isoformat() if parsed.payment_date else None,
             "status": status,
+            "cashback_kind": parsed.cashback_kind,
+            "cashback_value": str(parsed.cashback_value) if parsed.cashback_value is not None else None,
             "paid_by": payer.id, "raw_message": text,
         }
         token = await create_pending(session, owner=user.username, payload=payload, kind="cat_pick")
@@ -376,6 +393,7 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
         if item.is_settlement:
             stop_slug, city_name = None, None
             item.payment_date = None
+            item.cashback_kind, item.cashback_value = None, None
         payer = user
         if item.paid_by and item.paid_by != user.username:
             payer = (await user_by_username(session, item.paid_by)) or user
@@ -384,9 +402,11 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
             session, stop_slug, payer, item.split
         )
         # Regla: TC de la fecha de pago, capeada a hoy (proxy si es futura).
+        # El neto (bruto - cashback) es lo que se convierte a USD.
         status = _payment_status(item.payment_date, today)
+        net = net_amount(item.amount, item.cashback_kind, item.cashback_value)
         amount_usd, rate, src = await convert_to_usd(
-            session, item.amount, currency, fx_reference_date(item.payment_date, today)
+            session, net, currency, fx_reference_date(item.payment_date, today)
         )
         cat_name = None if item.is_settlement else item.category_name
         cat_id = None if item.is_settlement else await _category_id(session, cat_name)
@@ -397,6 +417,7 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
             split=split, description=item.description, category_id=cat_id,
             stop_slug=stop_slug, city_name=city_name,
             payment_date=item.payment_date, status=status,
+            cashback_kind=item.cashback_kind, cashback_value=item.cashback_value,
             created_by=user.id, raw_message=text, batch_key=batch_key,
         )
         uncertain = (not item.is_settlement and item.confidence < _CONF_THRESHOLD
@@ -426,6 +447,8 @@ async def apply_category_pick(session, user: User, token: str, category_id: int)
         stop_slug=data.get("stop_slug"), city_name=data.get("city_name"),
         payment_date=date.fromisoformat(pay_date) if pay_date else None,
         status=data.get("status") or "confirmed",
+        cashback_kind=data.get("cashback_kind"),
+        cashback_value=Decimal(data["cashback_value"]) if data.get("cashback_value") else None,
         created_by=user.id, raw_message=data.get("raw_message"),
     )
     session.add(mv)

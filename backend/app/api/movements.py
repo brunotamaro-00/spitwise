@@ -8,6 +8,7 @@ from app.api.auth import get_current_user
 from app.api.schemas import MovementConfirm, MovementIn, MovementOut, MovementUpdate
 from app.balance import UNSETTLED
 from app.bot.active_stop import place_for_date, resolve_trip_timezone
+from app.cashback import net_amount, validate_cashback
 from app.db.engine import get_session
 from app.db.models import Movement, Stop, User
 from app.due import ensure_due_settled
@@ -73,6 +74,13 @@ async def create_movement(
     # Saldos: siempre de hoy. status lo deriva el server, nunca el cliente.
     payment_date = None if body.type == "settlement" else body.payment_date
     mv_status = "pending" if payment_date is not None and payment_date > today else "confirmed"
+    # Cashback solo en gastos. amount es el bruto; el neto (bruto - cashback)
+    # es el que se convierte a USD (app/cashback.py).
+    cb_kind = body.cashback_kind if body.type == "expense" else None
+    cb_value = body.cashback_value if body.type == "expense" else None
+    if (err := validate_cashback(cb_kind, cb_value, body.amount)) is not None:
+        raise HTTPException(status_code=422, detail=err)
+    net = net_amount(body.amount, cb_kind, cb_value)
     if body.fx_rate is not None:
         rate = body.fx_rate
         # ARS system rate is ~1/venta (<1). Users often type pesos-per-USD (>1).
@@ -81,13 +89,13 @@ async def create_movement(
                 status_code=422,
                 detail="fx_rate para ARS debe ser el multiplicador a USD (ej. 0.000625), no pesos por dólar",
             )
-        amount_usd = (body.amount * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
+        amount_usd = (net * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         fx_source = "manual"
     else:
         # Regla: TC de la fecha de pago, capeada a hoy (histórico si es pasada,
         # proxy de hoy si es futura — se ajusta al liquidar, app/due.py).
         amount_usd, rate, src = await convert_to_usd(
-            session, body.amount, body.currency, fx_reference_date(payment_date, today)
+            session, net, body.currency, fx_reference_date(payment_date, today)
         )
         fx_source = _map_source(src, body.currency)
     mv = Movement(
@@ -105,6 +113,8 @@ async def create_movement(
         city_name=city_name,
         payment_date=payment_date,
         status=mv_status,
+        cashback_kind=cb_kind,
+        cashback_value=cb_value,
         created_by=user.id,
     )
     session.add(mv)
@@ -151,6 +161,12 @@ async def update_movement(
     if "currency" in sent:
         mv.currency = body.currency.upper()
 
+    # Cashback: kind/value viajan juntos (mandar ambos null lo saca).
+    cashback_changed = bool(sent & {"cashback_kind", "cashback_value"})
+    if cashback_changed:
+        mv.cashback_kind = body.cashback_kind
+        mv.cashback_value = body.cashback_value
+
     # Ciudad: slug explícito validado (deriva city_name), null explícito => parada de hoy.
     if "stop_slug" in sent and mv.type != "settlement":
         today = await _load_today(session, user.username)
@@ -160,12 +176,17 @@ async def update_movement(
     if "general" in sent and body.general:
         mv.stop_slug, mv.city_name = None, None
 
-    # Settlement nunca lleva ciudad ni fecha de pago diferida.
+    # Settlement nunca lleva ciudad, fecha diferida ni cashback.
     if mv.type == "settlement":
         mv.stop_slug, mv.city_name = None, None
         mv.category_id = None
         mv.payment_date = None
         mv.status = "confirmed"
+        mv.cashback_kind = None
+        mv.cashback_value = None
+
+    if (err := validate_cashback(mv.cashback_kind, mv.cashback_value, mv.amount)) is not None:
+        raise HTTPException(status_code=422, detail=err)
 
     # Fecha de pago: recalcula status (siempre derivado server-side) y el TC.
     pay_changed = "payment_date" in sent and mv.type != "settlement"
@@ -177,7 +198,9 @@ async def update_movement(
             else "confirmed"
         )
 
-    fx_inputs_changed = (sent & {"amount", "currency"}) or pay_changed
+    # amount_usd = neto (bruto - cashback) × TC. El cashback también gatilla recálculo.
+    net = net_amount(mv.amount, mv.cashback_kind, mv.cashback_value)
+    fx_inputs_changed = (sent & {"amount", "currency"}) or pay_changed or cashback_changed
     if "fx_rate" in sent:
         if body.fx_rate is None:
             raise HTTPException(status_code=422, detail="fx_rate no puede ser null")
@@ -188,16 +211,16 @@ async def update_movement(
             )
         mv.fx_rate = body.fx_rate
         mv.fx_source = "manual"
-        mv.amount_usd = (mv.amount * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
+        mv.amount_usd = (net * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
     elif fx_inputs_changed:
         if mv.fx_source == "manual":
             # Respetar la tasa manual vigente; solo recalcular el monto.
-            mv.amount_usd = (mv.amount * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
+            mv.amount_usd = (net * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         else:
             today = await _load_today(session)
             # Regla: TC de la fecha de pago, capeada a hoy.
             amount_usd, rate, src = await convert_to_usd(
-                session, mv.amount, mv.currency, fx_reference_date(mv.payment_date, today)
+                session, net, mv.currency, fx_reference_date(mv.payment_date, today)
             )
             mv.amount_usd = amount_usd
             mv.fx_rate = rate

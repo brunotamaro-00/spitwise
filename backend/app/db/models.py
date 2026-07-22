@@ -80,6 +80,14 @@ class Movement(Base):
     # Columna real (no derivada de la fecha): un pending vencido con Frankfurter
     # caído sigue pending hasta poder liquidarse.
     status: Mapped[str] = mapped_column(String(12), server_default=text("'confirmed'"), index=True)
+    # Cashback de tarjeta declarado al cargar el gasto. `amount` sigue siendo el
+    # BRUTO tipeado (lo que dice el ticket); el neto sale de app/cashback.py y se
+    # hornea en amount_usd (de ahí lo toman balance/spend/analytics). NULL = sin
+    # cashback (net == gross, comportamiento histórico intacto).
+    #   pct    -> cashback_value es el % (2 = 2%)
+    #   amount -> cashback_value es un monto fijo en la moneda del gasto
+    cashback_kind: Mapped[str | None] = mapped_column(String(8))
+    cashback_value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

@@ -9,9 +9,10 @@ from app.bot import copy
 from app.bot.capture import _category_id, _map_source, other_user, resolve_place, user_by_username
 from app.bot.pending import close_pending, create_pending, load_pending
 from app.bot.render import (
-    BotReply, ar_number, buttons_reply, cat_label, edit_card, fmt_date, movement_summary,
-    split_label, text_reply,
+    BotReply, ar_number, buttons_reply, cashback_text, cat_label, edit_card, fmt_date,
+    movement_summary, split_label, text_reply,
 )
+from app.cashback import net_amount
 from app.db.models import Category, Movement, User
 from app.fx import convert_to_usd, fx_reference_date
 from app.textnorm import load_proper_nouns, normalize_description
@@ -189,6 +190,16 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
         mv.status = "pending" if new_date > today else "confirmed"
         date_changed = True
 
+    # Cashback (kind, value) — None,None lo saca. Cambia el neto ⇒ recalcula USD.
+    cashback_changed = False
+    if "cashback" in changes and mv.type != "settlement":
+        new_kind, new_value = changes["cashback"]
+        if (new_kind, new_value) != (mv.cashback_kind, mv.cashback_value):
+            diffs.append(("💸", cashback_text(mv.cashback_kind, mv.cashback_value, mv.currency),
+                          cashback_text(new_kind, new_value, mv.currency)))
+            mv.cashback_kind, mv.cashback_value = new_kind, new_value
+            cashback_changed = True
+
     # Monto/moneda → recalcular USD.
     money_changed = False
     if "amount" in changes and changes["amount"] != mv.amount:
@@ -200,17 +211,18 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
         diffs.append(("💱", mv.currency, changes["currency"]))
         mv.currency = changes["currency"]
         money_changed = True
-    if money_changed or date_changed:
+    if money_changed or date_changed or cashback_changed:
         old_usd = mv.amount_usd
+        net = net_amount(Decimal(mv.amount), mv.cashback_kind, mv.cashback_value)
         if mv.fx_source == "manual":
             # Invariante 6: una tasa manual nunca se pisa; solo recalcular el monto.
-            mv.amount_usd = (Decimal(mv.amount) * Decimal(mv.fx_rate)).quantize(
+            mv.amount_usd = (net * Decimal(mv.fx_rate)).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
         else:
             # Regla: TC de la fecha de pago, capeada a hoy.
             amount_usd, rate, src = await convert_to_usd(
-                session, mv.amount, mv.currency, fx_reference_date(mv.payment_date, today)
+                session, net, mv.currency, fx_reference_date(mv.payment_date, today)
             )
             mv.amount_usd, mv.fx_rate, mv.fx_source = amount_usd, rate, _map_source(src, mv.currency)
         # El efecto en USD del cambio, visible en la card (salvo gasto ya en USD,

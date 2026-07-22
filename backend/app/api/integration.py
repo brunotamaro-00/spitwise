@@ -18,6 +18,7 @@ from app.api.schemas import (
     SpendDetailOut,
     TripSpendOut,
 )
+from app.cashback import net_amount
 from app.config import get_settings
 from app.db.engine import get_session
 from app.db.models import Category, Movement, Stop, User
@@ -155,8 +156,12 @@ async def cities_spend_detail(
             description=m.description,
             # `amount` se escala en la misma proporción que el share: mostrar el
             # importe original en moneda local al lado de medio importe en USD
-            # no cerraría por ningún lado.
-            amount=_money(m.amount * share / m.amount_usd if m.amount_usd else 0),
+            # no cerraría por ningún lado. Parte del NETO local (bruto - cashback),
+            # que es contra lo que se calculó amount_usd.
+            amount=_money(
+                net_amount(m.amount, m.cashback_kind, m.cashback_value) * share / m.amount_usd
+                if m.amount_usd else 0
+            ),
             currency=m.currency,
             amount_usd=_money(share),
             date=day_in_tz(m.created_at, None),

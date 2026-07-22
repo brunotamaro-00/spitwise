@@ -4,6 +4,9 @@ export type Movement = {
   description: string | null; category_id: number | null;
   stop_slug: string | null; city_name: string | null;
   payment_date: string | null; status: string;
+  // Cashback de tarjeta: 'pct' (value = %) | 'amount' (value = monto fijo local).
+  // amount sigue siendo el BRUTO; el neto se deriva (lib/cashback).
+  cashback_kind: string | null; cashback_value: string | null;
   created_at: string;
 };
 export type Balance = { debtor_id: number | null; creditor_id: number | null; amount_usd: string };

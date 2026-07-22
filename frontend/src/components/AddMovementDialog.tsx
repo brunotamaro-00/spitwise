@@ -126,6 +126,12 @@ export default function AddMovementDialog({ editing, onClose }: {
   );
   const [paidBy, setPaidBy] = useState<string>(editing?.paid_by?.toString() ?? "");
   const [paymentDate, setPaymentDate] = useState(editing?.payment_date ?? "");
+  // Cashback: valor + unidad (% por default; tocar el botón lo pasa a monto fijo
+  // en la moneda del gasto). Vacío = sin cashback.
+  const [cashbackValue, setCashbackValue] = useState(toInputValue(editing?.cashback_value));
+  const [cashbackKind, setCashbackKind] = useState<"pct" | "amount">(
+    editing?.cashback_kind === "amount" ? "amount" : "pct",
+  );
   const [err, setErr] = useState<string | null>(null);
   const isExpense = (editing?.type ?? "expense") === "expense";
 
@@ -167,6 +173,17 @@ export default function AddMovementDialog({ editing, onClose }: {
         // Categoría y división solo aplican a gastos.
         body.category_id = categoryId ? Number(categoryId) : null;
         body.split = split;
+
+        // Cashback: mandar kind+value si hay un valor > 0; al editar, vaciarlo
+        // manda null explícito para SACARLO.
+        const cbv = normalizeAmountInput(cashbackValue).trim();
+        if (cbv && Number(cbv) > 0) {
+          body.cashback_kind = cashbackKind;
+          body.cashback_value = cbv;
+        } else if (isEdit) {
+          body.cashback_kind = null;
+          body.cashback_value = null;
+        }
 
         // La ciudad la deriva siempre el backend del stop_slug (nunca texto libre).
         if (stopSlug === GENERAL) {
@@ -238,6 +255,30 @@ export default function AddMovementDialog({ editing, onClose }: {
             </div>
           </div>
         </div>
+
+        {/* Cashback opcional: un solo campo con la unidad togglable (% ↔ moneda)
+            para no ocupar más espacio. Vacío = sin cashback. */}
+        {isExpense && (
+          <Field label="Cashback" hint="Opcional · tocá la unidad para monto fijo">
+            <div className="flex items-center gap-2">
+              <Input
+                inputMode="decimal"
+                placeholder="0"
+                aria-label="Cashback"
+                value={cashbackValue}
+                onChange={(e) => setCashbackValue(sanitizeAmountInput(e.target.value))}
+              />
+              <button
+                type="button"
+                onClick={() => setCashbackKind((k) => (k === "pct" ? "amount" : "pct"))}
+                aria-label={`Unidad del cashback: ${cashbackKind === "pct" ? "porcentaje" : currency}`}
+                className="flex min-h-[44px] w-16 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-surface-2 text-base font-semibold text-ink transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+              >
+                {cashbackKind === "pct" ? "%" : currency}
+              </button>
+            </div>
+          </Field>
+        )}
 
         <Field label="Descripción">
           <Input placeholder="cena, taxi, museo…"

@@ -4,6 +4,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from app.balance import UNSETTLED
 from app.bot import copy
+from app.cashback import net_amount
 from app.categories.catalog import CATEGORIES
 
 _CAT_EMOJI = {name: emoji for name, emoji, _ in CATEGORIES}
@@ -45,6 +46,25 @@ def fmt_money(amount: Decimal, currency: str, amount_usd: Decimal | None = None)
     if currency != "USD" and amount_usd is not None:
         return f"{base} → USD {ar_number(amount_usd)}"
     return base
+
+
+def cashback_text(kind: str | None, value: Decimal | None, currency: str) -> str:
+    """Etiqueta corta del cashback: '2%' | '5 CHF' | '—' (sin cashback)."""
+    if kind not in ("pct", "amount") or value is None:
+        return "—"
+    return f"{ar_number(value)}%" if kind == "pct" else f"{ar_number(value)} {currency}"
+
+
+def _cashback_line(mv) -> str | None:
+    """Línea de cashback para la card, con el bruto (amount = bruto tipeado)."""
+    kind = getattr(mv, "cashback_kind", None)
+    value = getattr(mv, "cashback_value", None)
+    if kind not in ("pct", "amount") or value is None:
+        return None
+    return (
+        f"💸 Cashback {cashback_text(kind, value, mv.currency)} "
+        f"· bruto {mv.currency} {ar_number(mv.amount)}"
+    )
 
 
 def cat_label(name: str | None) -> str:
@@ -103,11 +123,19 @@ def _payment_line(mv) -> str | None:
 
 def expense_card(mv, cat_name: str | None, payer_name: str, other_name: str) -> str:
     city = mv.city_name or "Sin ciudad"
+    # El monto mostrado es el NETO (bruto - cashback); amount guarda el bruto.
+    net = net_amount(Decimal(mv.amount), getattr(mv, "cashback_kind", None),
+                     getattr(mv, "cashback_value", None))
     lines = [
         copy.H_EXPENSE,
         "",
         f"{cat_label(cat_name)} — {mv.description or 'sin descripción'}",
-        f"💰 {fmt_money(mv.amount, mv.currency, mv.amount_usd)}",
+        f"💰 {fmt_money(net, mv.currency, mv.amount_usd)}",
+    ]
+    cashback = _cashback_line(mv)
+    if cashback:
+        lines.append(cashback)
+    lines += [
         f"📍 {city}",
         f"👤 Pagó {_cap(payer_name)} · {split_label(mv.split, _cap(payer_name), _cap(other_name))}",
     ]
@@ -183,7 +211,11 @@ def batch_card(rows: list[BatchRow], usernames: list[str]) -> str:
             emoji = _CAT_EMOJI.get(r.cat_name or "Otros", "📦")
             desc = mv.description or (r.cat_name or "gasto").lower()
             flag = " ❓" if r.uncertain else ""
-            line = f"- {emoji} {desc}{flag} · {fmt_money(mv.amount, mv.currency, mv.amount_usd)}"
+            net = net_amount(Decimal(mv.amount), getattr(mv, "cashback_kind", None),
+                             getattr(mv, "cashback_value", None))
+            line = f"- {emoji} {desc}{flag} · {fmt_money(net, mv.currency, mv.amount_usd)}"
+            if getattr(mv, "cashback_kind", None):
+                line += f" · 💸 {cashback_text(mv.cashback_kind, mv.cashback_value, mv.currency)}"
             if mv.split != "shared":
                 other = next((u for u in usernames if u != r.payer_name), "el otro")
                 line += f" · {split_label(mv.split, _cap(r.payer_name), _cap(other))}"

@@ -21,6 +21,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.cashback import net_amount
 from app.db.models import Movement
 from app.fx import get_rate_to_usd
 
@@ -58,7 +59,8 @@ async def settle_due_movements(session: AsyncSession, today: date) -> int:
                 continue
             mv.fx_rate = rate
             mv.fx_source = _map_source(src, mv.currency)
-            mv.amount_usd = (Decimal(mv.amount) * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
+            net = net_amount(Decimal(mv.amount), mv.cashback_kind, mv.cashback_value)
+            mv.amount_usd = (net * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         mv.status = "awaiting"
         settled += 1
     if settled:

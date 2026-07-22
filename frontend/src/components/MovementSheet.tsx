@@ -5,6 +5,7 @@ import { listUsers } from "@/api/users";
 import Flag from "@/components/Flag";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
+import { cashbackLabel, netAmount } from "@/lib/cashback";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { categoryBg, categoryColor } from "@/lib/chartTheme";
 import { capitalize, formatAmount, formatDayHeader, formatUsd } from "@/lib/format";
@@ -49,6 +50,7 @@ export default function MovementSheet({ mv, category, flag, myId, onEdit, onDele
   const Icon = categoryIcon(isSettlement ? undefined : category?.name);
   const share = myId != null ? myShare(mv, myId) : null;
   const fxNote = FX_LABEL[mv.fx_source];
+  const cbLabel = isSettlement ? null : cashbackLabel(mv);
 
   return (
     <Modal title={mv.description || (isSettlement ? "Pago (saldo)" : "Movimiento")} onClose={onClose}>
@@ -67,8 +69,9 @@ export default function MovementSheet({ mv, category, flag, myId, onEdit, onDele
           <p className="font-display text-4xl leading-none tracking-[-0.02em] text-ink font-tabular">{formatUsd(mv.amount_usd)}</p>
           {mv.currency !== "USD" && (
             <p className="mt-1.5 font-tabular text-sm text-ink-3">
-              {/* El TC necesita sus decimales reales (1,0850), no el formato de 1 decimal. */}
-              {mv.currency} {formatAmount(mv.amount)} · TC{" "}
+              {/* Neto local (bruto - cashback), que es lo que se convirtió a USD.
+                  El TC necesita sus decimales reales (1,0850), no el de 1 decimal. */}
+              {mv.currency} {formatAmount(String(netAmount(mv)))} · TC{" "}
               {Number(mv.fx_rate).toLocaleString("es-AR", { maximumFractionDigits: 4 })}
               {fxNote && <span className="ml-1 font-semibold text-danger">({fxNote})</span>}
             </p>
@@ -105,6 +108,11 @@ export default function MovementSheet({ mv, category, flag, myId, onEdit, onDele
         <Row label={isSettlement ? "Pagó (transferencia)" : "Pagó"}>
           {payer ? capitalize(payer.username) : "—"}
         </Row>
+        {cbLabel && (
+          <Row label="Cashback">
+            {cbLabel} · bruto {mv.currency} {formatAmount(mv.amount)}
+          </Row>
+        )}
         {!isSettlement && <Row label="División">{SPLIT_LABEL[mv.split] ?? mv.split}</Row>}
         {!isSettlement && share != null && <Row label="Tu parte">{formatUsd(String(share))}</Row>}
       </dl>

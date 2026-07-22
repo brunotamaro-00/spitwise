@@ -7,7 +7,8 @@ const base: Movement = {
   id: 1, type: "expense", amount: "100", currency: "USD", amount_usd: "100",
   fx_rate: "1", fx_source: "manual", paid_by: 1, split: "shared",
   description: "hostel (2/2)", category_id: 1, stop_slug: "viena", city_name: "Viena",
-  payment_date: null, status: "confirmed", created_at: "2026-07-01T12:00:00Z",
+  payment_date: null, status: "confirmed",
+  cashback_kind: null, cashback_value: null, created_at: "2026-07-01T12:00:00Z",
 };
 
 const TODAY = new Date(2026, 6, 21); // 2026-07-21 (local)

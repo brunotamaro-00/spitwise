@@ -74,7 +74,14 @@ _SYSTEM = (
     "- confidence: 0..1, qué tan clara es la categoría. Si la descripción es "
     "vaga y no dice QUÉ se compró ('aquello', 'eso', 'lo de ayer'), la "
     "categoría NO puede ser clara: confidence < 0.6 y 2-3 candidates.\n"
-    "- candidates: si confidence < 0.6, 2-3 categorías candidatas de la lista; si no, [].\n\n"
+    "- candidates: si confidence < 0.6, 2-3 categorías candidatas de la lista; si no, [].\n"
+    "- cashback: SOLO si el texto menciona cashback/devolución/reintegro de la "
+    "tarjeta. cashback_kind='pct' si es un porcentaje ('2% de cashback', "
+    "'cashback del 2') con cashback_value='2'; cashback_kind='amount' si es un "
+    "monto fijo en la moneda del gasto ('cashback de 5 euros') con "
+    "cashback_value='5'. amount sigue siendo el TOTAL bruto (20), NO le restes "
+    "el cashback: el sistema calcula el neto. Sin cashback en el texto, ambos "
+    "null.\n\n"
     "Multi-gasto: si el mensaje carga MÁS DE UN gasto con montos separados "
     "('cena 40, taxi 12, helado 5'), intent='expense' y llená `expenses` con TODOS "
     "los ítems, con los mismos campos y reglas de arriba. kind='expense', o "
@@ -136,6 +143,10 @@ _SYSTEM = (
     "- new_amount, new_currency (ISO), new_date (ISO), new_city, new_category (de la lista), "
     "new_description, new_only_user ('shared' si pasa a compartido 50/50; el "
     "username si pasa a ser de una sola persona), new_paid_by (username).\n"
+    "- new_cashback_kind ('pct'|'amount' para setear/cambiar el cashback, o "
+    "'none' para SACARLO) + new_cashback_value (el número). 'ponele 2% de "
+    "cashback' → new_cashback_kind='pct', new_cashback_value='2'; "
+    "'sacale el cashback' → new_cashback_kind='none'.\n"
     "- new_amount_is_total: true SOLO si el monto nuevo es el TOTAL de un gasto "
     "que entró en varias partes o cuotas ('no, el total era 480', 'en total "
     "fueron 500'); para corregir el monto de un gasto puntual, false.\n\n"
@@ -166,6 +177,8 @@ class ExpenseItemSchema(BaseModel):
     city: str | None
     confidence: float
     candidates: list[str]
+    cashback_kind: str | None  # 'pct' | 'amount' | null
+    cashback_value: str | None  # el número (% o monto fijo en la moneda del gasto)
     # Este ítem se paga en etapas ('34 usd hoy y el resto 134 gbp al ingresar').
     installments: list[InstallmentSchema]
 
@@ -182,6 +195,8 @@ class ParsedMessageSchema(BaseModel):
     city: str | None
     confidence: float
     candidates: list[str]
+    cashback_kind: str | None  # 'pct' | 'amount' | null
+    cashback_value: str | None  # el número (% o monto fijo en la moneda del gasto)
     ref_last: bool
     ref_text: str | None
     ref_date: str | None
@@ -196,6 +211,8 @@ class ParsedMessageSchema(BaseModel):
     new_description: str | None
     new_only_user: str | None  # 'shared' | username | null (sin cambio)
     new_paid_by: str | None
+    new_cashback_kind: str | None  # 'pct' | 'amount' | 'none' (sacar) | null (sin cambio)
+    new_cashback_value: str | None
     # Vacío salvo mensaje con 2+ gastos; ahí lleva TODOS (flat = primer ítem).
     expenses: list[ExpenseItemSchema]
     # Vacío salvo UN gasto pagado en etapas ('30% hoy y el resto el 3-sep').

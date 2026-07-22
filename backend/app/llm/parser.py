@@ -18,6 +18,7 @@ _VALID_INTENTS = {"expense", "settlement", "edit", "delete", "question", "trip_q
 
 # Campos editables que el LLM devuelve como new_<campo>.
 EDIT_FIELDS = ("amount", "currency", "date", "city", "category", "description", "split", "paid_by")
+_VALID_CASHBACK_KINDS = {"pct", "amount"}
 
 
 def split_for(only_user: str | None, payer_username: str) -> str:
@@ -57,6 +58,10 @@ class ParsedMessage:
     # (futura => pending con TC proxy; pasada => TC histórico). None => hoy.
     payment_date: date | None = None
     city: str | None = None  # None => itinerario estricto por fecha (fuera de rango => General)
+    # Cashback de tarjeta. kind='pct' (value=%) | 'amount' (value=monto fijo en la
+    # moneda del gasto). Ambos None => sin cashback. amount sigue siendo el bruto.
+    cashback_kind: str | None = None
+    cashback_value: Decimal | None = None
     confidence: float = 1.0
     category_candidates: list[str] = field(default_factory=list)
     # edit / delete
@@ -74,6 +79,16 @@ class ParsedMessage:
     @property
     def is_settlement(self) -> bool:
         return self.intent == "settlement"
+
+
+def _norm_cashback(raw: dict, prefix: str = "") -> tuple[str | None, Decimal | None]:
+    """(kind, value) saneados desde `<prefix>cashback_kind`/`<prefix>cashback_value`.
+    Degrada a (None, None) si algo no cierra (invariante: no romper la carga)."""
+    from app.cashback import normalize_cashback
+    kind = str(raw.get(f"{prefix}cashback_kind") or "").strip().lower() or None
+    if kind not in _VALID_CASHBACK_KINDS:
+        kind = None
+    return normalize_cashback(kind, _to_decimal(raw.get(f"{prefix}cashback_value")))
 
 
 def _norm_currency(v) -> str | None:
@@ -131,6 +146,13 @@ def normalize_changes(raw: dict, category_names, usernames) -> dict:
         changes["split"] = raw["new_split"]
     if (v := str(raw.get("new_paid_by") or "").strip().lower()) in usernames:
         changes["paid_by"] = v
+    # Cashback: 'new_cashback_kind'='none' lo saca; kind+value válidos lo setean.
+    if str(raw.get("new_cashback_kind") or "").strip().lower() == "none":
+        changes["cashback"] = (None, None)
+    else:
+        cb_kind, cb_value = _norm_cashback(raw, prefix="new_")
+        if cb_kind is not None:
+            changes["cashback"] = (cb_kind, cb_value)
     # Flag de alcance del monto: el nuevo monto es el TOTAL de un batch/cuotas.
     if "amount" in changes and raw.get("new_amount_is_total"):
         changes["amount_is_total"] = True
@@ -170,6 +192,7 @@ def _normalize_expense(raw: dict, category_names, usernames, sender: str | None 
         if split not in _VALID_SPLIT:
             split = "shared"
     insts = _norm_installments(raw.get("installments")) if intent == "expense" else []
+    cb_kind, cb_value = _norm_cashback(raw) if intent == "expense" else (None, None)
     return ParsedMessage(
         intent=intent,
         amount=_to_decimal(raw.get("amount")),
@@ -180,6 +203,8 @@ def _normalize_expense(raw: dict, category_names, usernames, sender: str | None 
         paid_by=paid_by if paid_by in usernames else None,
         payment_date=_to_date(raw.get("date")),
         city=(str(raw.get("city")).strip() if raw.get("city") else None),
+        cashback_kind=cb_kind,
+        cashback_value=cb_value,
         confidence=float(raw.get("confidence", 1.0)),
         category_candidates=[c for c in (raw.get("candidates") or []) if c in category_names],
         installments=insts if len(insts) >= 2 else [],

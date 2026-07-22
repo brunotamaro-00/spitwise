@@ -1,6 +1,7 @@
 import { Handshake, Pencil, Trash2 } from "lucide-react";
 
 import Flag from "@/components/Flag";
+import { cashbackLabel, netAmount } from "@/lib/cashback";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { categoryBg, categoryColor } from "@/lib/chartTheme";
 import { formatAmount, formatUsd } from "@/lib/format";
@@ -27,6 +28,7 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
   preferShare?: boolean;
 }) {
   const isSettlement = mv.type === "settlement";
+  const cbLabel = isSettlement ? null : cashbackLabel(mv);
   const share = myId != null ? myShare(mv, myId) : 0;
   const Icon = isSettlement ? Handshake : categoryIcon(category?.name);
   const color = isSettlement ? "var(--color-ink-3)" : categoryColor(category?.name ?? null);
@@ -51,6 +53,14 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
               {mv.status === "awaiting" ? "Por confirmar" : "Pendiente"}
             </span>
           )}
+          {cbLabel && (
+            <span
+              className="ml-1.5 inline-block rounded-full bg-accent-teal-bg px-1.5 py-px align-[2px] text-[10px] font-bold uppercase tracking-wide text-accent-teal"
+              title={`Cashback ${cbLabel}`}
+            >
+              CB {cbLabel}
+            </span>
+          )}
         </p>
         <p className="mt-0.5 truncate text-xs text-ink-3">
           {mv.city_name ? (
@@ -69,7 +79,7 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
         </p>
         {mv.currency !== "USD" && (
           <p className="font-tabular text-xs text-ink-3">
-            {mv.currency} {formatAmount(mv.amount)}
+            {mv.currency} {formatAmount(String(netAmount(mv)))}
             {mv.fx_source === "fallback" && (
               <span className="ml-1 font-bold text-danger" title="Tasa aproximada (fallback)">≈</span>
             )}

@@ -8,6 +8,7 @@ const mv = {
   fx_rate: "1.27", fx_source: "frankfurter", paid_by: 1, split: "shared",
   description: "cena", category_id: 2, stop_slug: "londres", city_name: "Londres",
   payment_date: null, status: "confirmed",
+  cashback_kind: null, cashback_value: null,
   created_at: "2026-08-06T12:00:00Z",
 };
 

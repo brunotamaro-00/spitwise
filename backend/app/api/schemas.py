@@ -18,6 +18,7 @@ class UserOut(BaseModel):
 
 MovementType = Literal["expense", "settlement"]
 SplitType = Literal["shared", "payer_only", "other_only"]
+CashbackKind = Literal["pct", "amount"]
 
 
 class MovementIn(BaseModel):
@@ -35,6 +36,10 @@ class MovementIn(BaseModel):
     # (TC proxy hasta liquidar); pasada => TC histórico. status siempre lo
     # deriva el server: no es escribible.
     payment_date: date | None = None
+    # Cashback de tarjeta: kind+value se setean juntos o ninguno. amount sigue
+    # siendo el bruto; el neto se hornea en amount_usd (app/cashback.py).
+    cashback_kind: CashbackKind | None = None
+    cashback_value: Decimal | None = Field(default=None, gt=0)
 
     @field_validator("currency")
     @classmethod
@@ -59,6 +64,10 @@ class MovementUpdate(BaseModel):
     fx_rate: Decimal | None = None  # setearlo => fx_source='manual'
     # Mandarlo (aun null) recalcula status y TC; null explícito => día de carga.
     payment_date: date | None = None
+    # Cashback: mandar kind+value juntos setea/actualiza; mandar ambos null
+    # explícitos lo saca. Cualquiera de los dos recalcula amount_usd.
+    cashback_kind: CashbackKind | None = None
+    cashback_value: Decimal | None = Field(default=None, gt=0)
 
     @field_validator("currency")
     @classmethod
@@ -91,11 +100,17 @@ class MovementOut(BaseModel):
     city_name: str | None
     payment_date: date | None
     status: str
+    cashback_kind: str | None
+    cashback_value: Decimal | None
     created_at: datetime
 
     @field_serializer("amount", "amount_usd", "fx_rate")
     def _ser_decimal(self, v: Decimal) -> str:
         return str(v)
+
+    @field_serializer("cashback_value")
+    def _ser_cashback(self, v: Decimal | None) -> str | None:
+        return str(v) if v is not None else None
 
     @field_serializer("created_at")
     def _ser_created(self, v: datetime) -> str:

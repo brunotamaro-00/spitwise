@@ -24,6 +24,7 @@ from decimal import Decimal
 
 from sqlalchemy import delete, select
 
+from app.cashback import net_amount
 from app.categories.seed import seed_categories
 from app.config import get_settings
 from app.db.engine import async_session_factory, make_engine
@@ -157,6 +158,24 @@ async def main() -> None:
         _add_mov(s, None, "USD", 640, START - timedelta(days=1), None, None, bruno, "shared", "Vuelos EZE-LON")
         _add_mov(s, None, "USD", 180, START + timedelta(days=20), None, None, katia, "shared", "Eurail pass")
 
+        # Cashback de tarjeta — casos fijos para desarrollar / QA visual.
+        # amount guarda el BRUTO; amount_usd = neto × FX (ver app/cashback.py).
+        _add_mov(s, cats["Comida"], "EUR", 54, TODAY - timedelta(days=2),
+                 "estrasburgo", "Estrasburgo", bruno, "shared",
+                 "Cena · cashback 2%", cashback_kind="pct", cashback_value=Decimal("2"))
+        _add_mov(s, cats["Compras"], "EUR", 120, TODAY - timedelta(days=5),
+                 "paris", "París", katia, "payer_only",
+                 "Souvenirs · cashback 5 €", cashback_kind="amount", cashback_value=Decimal("5"))
+        _add_mov(s, cats["Actividades"], "GBP", 80, START + timedelta(days=3),
+                 "londres", "Londres", bruno, "shared",
+                 "Museo · cashback 3%", cashback_kind="pct", cashback_value=Decimal("3"))
+        _add_mov(s, cats["Transporte"], "GBP", 45, START + timedelta(days=1),
+                 "londres", "Londres", katia, "shared",
+                 "Oyster · cashback 2 £", cashback_kind="amount", cashback_value=Decimal("2"))
+        _add_mov(s, cats["Salidas"], "EUR", 68, TODAY - timedelta(days=1),
+                 "estrasburgo", "Estrasburgo", katia, "shared",
+                 "Vinos · cashback 1.5%", cashback_kind="pct", cashback_value=Decimal("1.5"))
+
         # Un settlement (pago de saldo) reciente.
         s.add(Movement(
             type="settlement", amount=Decimal("150"), currency="USD", amount_usd=Decimal("150"),
@@ -219,20 +238,24 @@ def _created(day: date) -> datetime:
 
 
 def _add_mov(s, cat, cur, usd_amount, day, slug, city, paid_by, split, desc,
-             *, payment_date=None, status="confirmed") -> None:
+             *, payment_date=None, status="confirmed",
+             cashback_kind=None, cashback_value=None) -> None:
     """`usd_amount` está en USD; se convierte a la moneda local del stop.
     `day` es el día de CARGA (created_at); una reserva futura va con
-    payment_date + status='pending'."""
+    payment_date + status='pending'. Con cashback, `amount` queda en bruto
+    local y `amount_usd` hornea el neto."""
     rate = FX[cur]
     usd = Decimal(str(usd_amount))
     local = (usd / rate).quantize(Decimal("0.01"))
+    net = net_amount(local, cashback_kind, cashback_value)
     s.add(Movement(
         type="expense", amount=local, currency=cur,
-        amount_usd=(local * rate).quantize(Decimal("0.01")),
+        amount_usd=(net * rate).quantize(Decimal("0.01")),
         fx_rate=rate, fx_source="manual", paid_by=paid_by.id, split=split,
         description=desc, category_id=cat.id if cat else None,
         stop_slug=slug, city_name=city, created_by=paid_by.id,
         payment_date=payment_date, status=status,
+        cashback_kind=cashback_kind, cashback_value=cashback_value,
         created_at=_created(day),
     ))
 
