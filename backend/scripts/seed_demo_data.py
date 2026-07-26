@@ -1,9 +1,14 @@
 """Seed de datos dummy para el demo local (SQLite).
 
 Construye una DB lista para navegar la app "como si estuvieras en el medio del
-viaje": un itinerario de 100 noches donde HOY cae en el día 40 (faltan 60). Las
-fechas se calculan desde `date.today()`, así que la demo siempre luce mid-trip
-sin importar cuándo se corra.
+viaje": un itinerario de ~95 noches donde HOY cae en el día 40 (faltan ~55).
+Las fechas se calculan desde `date.today()`, así que la demo siempre luce
+mid-trip sin importar cuándo se corra.
+
+Montos alineados a Itinerary/PRESUPUESTO.md (confirmados Spitwise + ritmo
+diario $/pp). Alojamiento usa los totales reales del hogar; comida/transporte/
+actividades siguen el estimado por región; prepago (vuelos, Eurail, seguros,
+entradas) se carga como generales o en la ciudad correspondiente.
 
 Es self-bootstrapping: crea las tablas y siembra categorías + usuarios si la DB
 está vacía, después puebla stops y movimientos.
@@ -32,61 +37,125 @@ from app.db.models import Base, Category, Movement, Stop, User
 from app.users import seed_users_from_env
 
 TODAY = date.today()
-# HOY = día 40 (la llegada a la 1.ª parada es el día 1). Alineado al itinerario
-# confirmado de Andiamo (sin candidatas ni Pititas): ~95 noches.
+# HOY = día 40 (la llegada a la 1.ª parada es el día 1). Alineado a Andiamo /
+# PRESUPUESTO: 108 noches (5 ago → 21 nov): paradas fechadas + Sur Italia 10n
+# + margen flex 3n. Pititas es paralelo (no suma).
 START = TODAY - timedelta(days=39)
+# Día del viaje en el que cae HOY (1-indexed). Mantener mid-trip ~Alsacia.
+TODAY_TRIP_DAY = 40
 
 # Banderas: Inglaterra/Escocia usan secuencias de subdivisión (gbeng / gbsct),
 # no el 🏴 negro pelado — el frontend las resuelve a las SVG correctas.
 ENGLAND = "🏴\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"
 SCOTLAND = "🏴\U000e0067\U000e0062\U000e0073\U000e0063\U000e0074\U000e007f"
 
-# (slug Andiamo, nombre, país, flag, moneda, noches) — solo paradas confirmadas.
+# (slug, nombre, país, flag, moneda, noches)
+# lodging_usd = total hogar (shared) o personal si split != shared.
+# Del PRESUPUESTO confirmado hasta Interlaken; post-Suiza = punto medio × 2 pp.
 ITINERARY = [
-    ("londres", "Londres", "Reino Unido", ENGLAND, "GBP", 8),
-    ("york", "York", "Reino Unido", ENGLAND, "GBP", 2),
-    ("edimburgo", "Edimburgo", "Reino Unido", SCOTLAND, "GBP", 3),
-    ("fort-william", "Fort William", "Reino Unido", SCOTLAND, "GBP", 2),
-    ("portree", "Portree", "Reino Unido", SCOTLAND, "GBP", 2),
-    ("inverness", "Inverness", "Reino Unido", SCOTLAND, "GBP", 2),
-    ("edimburgo-2", "Edimburgo (tránsito)", "Reino Unido", SCOTLAND, "GBP", 1),
-    ("amsterdam", "Ámsterdam", "Países Bajos", "🇳🇱", "EUR", 4),
-    ("paris", "París", "Francia", "🇫🇷", "EUR", 6),
-    ("lisboa", "Lisboa", "Portugal", "🇵🇹", "EUR", 5),
-    ("porto", "Porto", "Portugal", "🇵🇹", "EUR", 3),
-    ("estrasburgo", "Estrasburgo", "Francia", "🇫🇷", "EUR", 2),  # ← HOY (día 40)
-    ("colmar", "Colmar", "Francia", "🇫🇷", "EUR", 2),
-    ("friburgo", "Friburgo", "Alemania", "🇩🇪", "EUR", 3),
-    ("interlaken", "Interlaken", "Suiza", "🇨🇭", "CHF", 4),
-    ("viena", "Viena", "Austria", "🇦🇹", "EUR", 5),
-    ("praga", "Praga", "Chequia", "🇨🇿", "CZK", 5),
-    ("cracovia", "Cracovia", "Polonia", "🇵🇱", "PLN", 4),
-    ("budapest", "Budapest", "Hungría", "🇭🇺", "HUF", 4),
-    ("liubliana", "Liubliana", "Eslovenia", "🇸🇮", "EUR", 4),
-    ("florencia", "Florencia", "Italia", "🇮🇹", "EUR", 5),
-    ("roma", "Roma", "Italia", "🇮🇹", "EUR", 7),
-    ("napoles", "Nápoles", "Italia", "🇮🇹", "EUR", 2),
-    ("barcelona", "Barcelona", "España", "🇪🇸", "EUR", 5),
-    ("madrid", "Madrid", "España", "🇪🇸", "EUR", 5),
+    # slug, name, country, flag, cur, nights, lodging_usd, split
+    ("londres", "Londres", "Reino Unido", ENGLAND, "GBP", 8, 601.72, "shared"),
+    ("york", "York", "Reino Unido", ENGLAND, "GBP", 2, 238.00, "shared"),
+    ("edimburgo", "Edimburgo", "Reino Unido", SCOTLAND, "GBP", 3, 270.02, "shared"),
+    ("fort-william", "Fort William", "Reino Unido", SCOTLAND, "GBP", 2, 215.40, "shared"),
+    ("portree", "Portree", "Reino Unido", SCOTLAND, "GBP", 2, 188.06, "shared"),
+    ("inverness", "Inverness", "Reino Unido", SCOTLAND, "GBP", 2, 196.28, "shared"),
+    ("edimburgo-2", "Edimburgo (tránsito)", "Reino Unido", SCOTLAND, "GBP", 1, 122.00, "shared"),
+    ("amsterdam", "Ámsterdam", "Países Bajos", "🇳🇱", "EUR", 4, 460.83, "shared"),
+    ("paris", "París", "Francia", "🇫🇷", "EUR", 6, 532.68, "shared"),
+    # Portugal: solo Bruno (Katia en Pititas en paralelo).
+    ("lisboa", "Lisboa", "Portugal", "🇵🇹", "EUR", 5, 152.87, "payer_only"),
+    ("porto", "Porto", "Portugal", "🇵🇹", "EUR", 3, 111.60, "payer_only"),
+    ("estrasburgo", "Estrasburgo", "Francia", "🇫🇷", "EUR", 2, 237.00, "shared"),  # ← HOY
+    ("colmar", "Colmar", "Francia", "🇫🇷", "EUR", 2, 136.00, "shared"),
+    ("friburgo", "Friburgo", "Alemania", "🇩🇪", "EUR", 3, 252.69, "shared"),
+    ("interlaken", "Interlaken", "Suiza", "🇨🇭", "CHF", 4, 365.32, "shared"),
+    # Post-Suiza: midpoint del rango pp × 2 (hogar).
+    ("viena", "Viena", "Austria", "🇦🇹", "EUR", 5, 530.00, "shared"),
+    ("praga", "Praga", "Chequia", "🇨🇿", "CZK", 5, 300.00, "shared"),
+    ("cracovia", "Cracovia", "Polonia", "🇵🇱", "PLN", 4, 168.00, "shared"),
+    ("budapest", "Budapest", "Hungría", "🇭🇺", "HUF", 4, 188.00, "shared"),
+    ("liubliana", "Liubliana", "Eslovenia", "🇸🇮", "EUR", 4, 288.00, "shared"),
+    ("florencia", "Florencia", "Italia", "🇮🇹", "EUR", 5, 440.00, "shared"),
+    ("roma", "Roma", "Italia", "🇮🇹", "EUR", 7, 616.00, "shared"),
+    ("napoles", "Nápoles", "Italia", "🇮🇹", "EUR", 2, 176.00, "shared"),
+    # Sur de Italia (Puglia/Sicilia tentativo) — cierra el hueco Nápoles→Bcn.
+    ("sur-italia", "Sur de Italia", "Italia", "🇮🇹", "EUR", 10, 880.00, "shared"),
+    ("barcelona", "Barcelona", "España", "🇪🇸", "EUR", 5, 390.00, "shared"),
+    ("madrid", "Madrid", "España", "🇪🇸", "EUR", 5, 390.00, "shared"),
+    # Colchón del PRESUPUESTO (ubicación TBD) — is_flex_margin en el Stop.
+    ("margen-flex", "Margen flex", None, None, "EUR", 3, 234.00, "shared"),
 ]
 
-TOTAL_NIGHTS = sum(n for *_, n in ITINERARY)
+TOTAL_NIGHTS = sum(row[5] for row in ITINERARY)
+assert TOTAL_NIGHTS == 108, f"esperado 108 noches Andiamo, got {TOTAL_NIGHTS}"
 
 FX = {"USD": Decimal("1.0"), "GBP": Decimal("1.27"), "EUR": Decimal("1.08"),
       "CHF": Decimal("1.12"), "CZK": Decimal("0.043"), "PLN": Decimal("0.25"),
       "HUF": Decimal("0.0028")}
 
-# categoría -> (min, max) en USD por movimiento (se convierte a moneda local al
-# guardar, así CZK/HUF quedan en miles y no en centavos).
-SPEND = {
-    "Alojamiento": (90, 170),
-    "Comida": (18, 65),
-    "Supermercado": (12, 40),
-    "Transporte": (6, 45),
-    "Actividades": (15, 70),
-    "Compras": (20, 90),
-    "Salidas": (14, 55),
-    "Salud": (8, 25),
+# Ritmo diario por región (USD del HOGAR = ~2× pp del PRESUPUESTO).
+# comida = restaurantes; super = mercado/hostel cocina; salidas = birras/pubs.
+# Keys: (comida, supermercado, transporte_local, actividades, salidas)
+# Valores = (min, max) por movimiento típico del día cuando toca ese rubro.
+REGION_DAILY = {
+    "uk": {
+        "food_pp": (38, 52),
+        "local_transport": (4, 14),
+        "activity": (20, 55),
+        "salida": (16, 40),
+        "compras_chance": 0.08,
+    },
+    "west": {  # NL + París + Alsacia
+        "food_pp": (32, 48),
+        "local_transport": (3, 12),
+        "activity": (18, 50),
+        "salida": (14, 36),
+        "compras_chance": 0.10,
+    },
+    "portugal": {  # Bruno solo → no ×2
+        "food_pp": (25, 38),
+        "local_transport": (3, 10),
+        "activity": (12, 35),
+        "salida": (10, 28),
+        "compras_chance": 0.06,
+        "solo": True,
+    },
+    "ch": {
+        "food_pp": (42, 60),
+        "local_transport": (5, 18),
+        "activity": (40, 90),
+        "salida": (18, 45),
+        "compras_chance": 0.05,
+    },
+    "east": {
+        "food_pp": (17, 26),
+        "local_transport": (2, 8),
+        "activity": (12, 35),
+        "salida": (8, 22),
+        "compras_chance": 0.06,
+    },
+    "south": {  # IT + ES
+        "food_pp": (28, 40),
+        "local_transport": (3, 12),
+        "activity": (18, 48),
+        "salida": (12, 32),
+        "compras_chance": 0.08,
+    },
+}
+
+REGION_BY_SLUG = {
+    "londres": "uk", "york": "uk", "edimburgo": "uk", "fort-william": "uk",
+    "portree": "uk", "inverness": "uk", "edimburgo-2": "uk",
+    "amsterdam": "west", "paris": "west",
+    "lisboa": "portugal", "porto": "portugal",
+    "estrasburgo": "west", "colmar": "west", "friburgo": "west",
+    "interlaken": "ch",
+    "viena": "east", "praga": "east", "cracovia": "east",
+    "budapest": "east", "liubliana": "east",
+    "florencia": "south", "roma": "south", "napoles": "south",
+    "sur-italia": "south",
+    "barcelona": "south", "madrid": "south",
 }
 
 
@@ -96,7 +165,6 @@ async def main() -> None:
     engine = make_engine(settings.database_url)
     Session = async_session_factory(engine)
 
-    # Bootstrap: tablas + categorías + usuarios (idempotente).
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     async with Session() as s:
@@ -112,140 +180,282 @@ async def main() -> None:
         katia = next((u for u in users if u.username == "katia"), users[1])
         cats = {c.name: c for c in (await s.execute(select(Category))).scalars().all()}
 
-        # Reinicio idempotente de datos de viaje.
         await s.execute(delete(Movement))
         await s.execute(delete(Stop))
 
+        # --- Stops del itinerario + alojamiento ---
         cursor = START
-        for order, (slug, name, country, flag, cur, nights) in enumerate(ITINERARY):
+        stop_dates: dict[str, tuple[date, date]] = {}
+        for order, (slug, name, country, flag, cur, nights, lodging, split) in enumerate(ITINERARY):
             arrival = cursor
             departure = cursor + timedelta(days=nights)
             cursor = departure
+            stop_dates[slug] = (arrival, departure)
+            owner = "bruno" if slug in ("lisboa", "porto") else None
+            is_flex = slug == "margen-flex"
             s.add(Stop(
                 slug=slug, order=order, name=name, country=country, country_flag=flag,
                 arrival_date=arrival, departure_date=departure, currency_code=cur,
-                timezone="Europe/London", is_transit=False,
+                timezone="Europe/London", is_transit=slug.endswith("-2"),
+                is_flex_margin=is_flex, owner_username=owner,
             ))
 
             past_or_current = arrival <= TODAY
-            lodging_usd = random.randint(*SPEND["Alojamiento"]) * nights
+            payer = bruno
+            # Portugal: solo Bruno. Resto shared. Flex: solo la reserva (pending).
             if past_or_current:
-                _add_mov(s, cats["Alojamiento"], cur, lodging_usd,
-                         arrival, slug, name, bruno, "shared", f"Airbnb {name}")
+                _add_mov(s, cats["Alojamiento"], cur, lodging,
+                         arrival - timedelta(days=30), slug, name, payer, split,
+                         f"Alojamiento {name}")
             else:
-                # Reserva futura: cargada HOY con fecha de pago al check-in =>
-                # pending (TC proxy). Ejercita el feature real de payment_date.
-                _add_mov(s, cats["Alojamiento"], cur, lodging_usd,
-                         TODAY, slug, name, bruno, "shared", f"Airbnb {name}",
+                _add_mov(s, cats["Alojamiento"], cur, lodging,
+                         TODAY, slug, name, payer, split,
+                         f"Alojamiento {name}",
                          payment_date=arrival, status="pending")
-                continue  # futuro: solo la reserva de alojamiento
 
-            # Gastos diarios variados hasta HOY (nada más allá).
+        # Pititas (local, solo Katia) — paralelo a Lisboa/Porto; no suma a 108.
+        lis_arr, _ = stop_dates["lisboa"]
+        _, por_dep = stop_dates["porto"]
+        pititas_order = next(i for i, row in enumerate(ITINERARY) if row[0] == "lisboa")
+        s.add(Stop(
+            slug="pititas", order=pititas_order, name="Pititas", country=None,
+            country_flag="👭", arrival_date=lis_arr, departure_date=por_dep,
+            currency_code="EUR", timezone="Europe/Paris", is_local=True,
+            owner_username="katia",
+        ))
+        if lis_arr <= TODAY:
+            _add_mov(s, cats["Alojamiento"], "EUR", 611.00,
+                     lis_arr - timedelta(days=30), "pititas", "Pititas", katia,
+                     "payer_only", "Hospedaje Pititas")
+
+        # --- Gastos diarios (solo hasta HOY; sin margen flex) ---
+        for slug, name, _country, _flag, cur, nights, _lodging, _split in ITINERARY:
+            if slug == "margen-flex":
+                continue
+            arrival, _dep = stop_dates[slug]
+            region = REGION_BY_SLUG[slug]
             for i in range(nights):
                 day = arrival + timedelta(days=i)
                 if day > TODAY:
                     break
-                for catname in random.sample(
-                    ["Comida", "Transporte", "Actividades", "Compras", "Salidas", "Supermercado", "Salud"],
-                    k=random.randint(2, 4),
-                ):
-                    payer = random.choice([bruno, katia])
-                    split = random.choices(["shared", "payer_only", "other_only"], weights=[8, 1, 1])[0]
-                    _add_mov(s, cats[catname], cur, random.randint(*SPEND[catname]),
-                             day, slug, name, payer, split, _desc(catname, name))
+                _seed_day(s, cats, cur, day, slug, name, bruno, katia, region)
 
-        # Generales del viaje (vuelos / pases), sin ciudad.
-        _add_mov(s, None, "USD", 640, START - timedelta(days=1), None, None, bruno, "shared", "Vuelos EZE-LON")
-        _add_mov(s, None, "USD", 180, START + timedelta(days=20), None, None, katia, "shared", "Eurail pass")
+        # Pititas: días de Katia en paralelo (comida etc.).
+        if lis_arr <= TODAY:
+            for i in range((min(por_dep, TODAY + timedelta(days=1)) - lis_arr).days):
+                day = lis_arr + timedelta(days=i)
+                if day > TODAY:
+                    break
+                _seed_day(s, cats, "EUR", day, "pititas", "Pititas", bruno, katia,
+                          "portugal", force_payer=katia)
 
-        # Cashback de tarjeta — casos fijos para desarrollar / QA visual.
-        # amount guarda el BRUTO; amount_usd = neto × FX (ver app/cashback.py).
-        _add_mov(s, cats["Comida"], "EUR", 54, TODAY - timedelta(days=2),
-                 "estrasburgo", "Estrasburgo", bruno, "shared",
-                 "Cena · cashback 2%", cashback_kind="pct", cashback_value=Decimal("2"))
-        _add_mov(s, cats["Compras"], "EUR", 120, TODAY - timedelta(days=5),
-                 "paris", "París", katia, "payer_only",
-                 "Souvenirs · cashback 5 €", cashback_kind="amount", cashback_value=Decimal("5"))
-        _add_mov(s, cats["Actividades"], "GBP", 80, START + timedelta(days=3),
-                 "londres", "Londres", bruno, "shared",
-                 "Museo · cashback 3%", cashback_kind="pct", cashback_value=Decimal("3"))
-        _add_mov(s, cats["Transporte"], "GBP", 45, START + timedelta(days=1),
-                 "londres", "Londres", katia, "shared",
-                 "Oyster · cashback 2 £", cashback_kind="amount", cashback_value=Decimal("2"))
-        _add_mov(s, cats["Salidas"], "EUR", 68, TODAY - timedelta(days=1),
-                 "estrasburgo", "Estrasburgo", katia, "shared",
-                 "Vinos · cashback 1.5%", cashback_kind="pct", cashback_value=Decimal("1.5"))
+        # --- Prepago confirmado (PRESUPUESTO § Gastos Confirmados) ---
+        pre = START - timedelta(days=45)
+        # Vuelos ida (personales).
+        _add_mov(s, cats["Transporte"], "USD", 488.00, pre, None, None, bruno,
+                 "payer_only", "Vuelo BUE→LHR Smiles")
+        _add_mov(s, cats["Transporte"], "USD", 480.00, pre, None, None, katia,
+                 "payer_only", "Vuelo BUE→LHR Smiles")
+        # Vuelo vuelta (pending al final del viaje).
+        _add_mov(s, cats["Transporte"], "USD", 945.00, TODAY, None, None, bruno,
+                 "shared", "Vuelo MAD→BUE Plus Ultra",
+                 payment_date=START + timedelta(days=TOTAL_NIGHTS - 1), status="pending")
+        # Seguros.
+        _add_mov(s, cats["Salud"], "USD", 320.00, pre + timedelta(days=2), None, None,
+                 bruno, "payer_only", "Seguro Pax Assistance")
+        _add_mov(s, cats["Salud"], "USD", 320.00, pre + timedelta(days=2), None, None,
+                 katia, "payer_only", "Seguro Pax Assistance")
+        # Eurail + Eurostar + tramos.
+        _add_mov(s, cats["Transporte"], "USD", 740.00, pre + timedelta(days=5), None, None,
+                 bruno, "shared", "Eurail Pass ×2")
+        _add_mov(s, cats["Transporte"], "USD", 78.88, stop_dates["amsterdam"][0],
+                 "amsterdam", "Ámsterdam", bruno, "shared", "Reserva Eurostar AMS→París")
+        _add_mov(s, cats["Transporte"], "USD", 39.00, stop_dates["amsterdam"][0],
+                 "amsterdam", "Ámsterdam", katia, "payer_only", "Tren AMS→París")
+        _add_mov(s, cats["Transporte"], "USD", 184.35, stop_dates["edimburgo-2"][0],
+                 "edimburgo-2", "Edimburgo (tránsito)", bruno, "shared",
+                 "Vuelo EDI→AMS")
+        _add_mov(s, cats["Transporte"], "USD", 342.00, stop_dates["fort-william"][0],
+                 "fort-william", "Fort William", bruno, "shared", "Auto Highlands")
+        # Portugal (Bruno).
+        _add_mov(s, cats["Transporte"], "USD", 93.77, stop_dates["lisboa"][0] - timedelta(days=1),
+                 "lisboa", "Lisboa", bruno, "payer_only", "Vuelo París→Lisboa")
+        _add_mov(s, cats["Transporte"], "USD", 90.00, stop_dates["porto"][0] + timedelta(days=2),
+                 "porto", "Porto", bruno, "payer_only", "Vuelo Porto→Estrasburgo")
+        # Actividades ya compradas.
+        _add_mov(s, cats["Actividades"], "USD", 138.19, stop_dates["londres"][0] + timedelta(days=2),
+                 "londres", "Londres", bruno, "shared", "Tour Harry Potter")
+        _add_mov(s, cats["Actividades"], "USD", 43.02, stop_dates["londres"][0] + timedelta(days=4),
+                 "londres", "Londres", katia, "shared", "Museo Británico")
+        _add_mov(s, cats["Actividades"], "USD", 68.00, stop_dates["edimburgo"][0] + timedelta(days=1),
+                 "edimburgo", "Edimburgo", bruno, "shared", "Mary King's Close")
+        _add_mov(s, cats["Actividades"], "USD", 53.74, stop_dates["amsterdam"][0] + timedelta(days=1),
+                 "amsterdam", "Ámsterdam", katia, "shared", "Museo Ana Frank")
+        # Gear.
+        _add_mov(s, cats["Compras"], "USD", 118.00, pre + timedelta(days=10), None, None,
+                 bruno, "payer_only", "Compras Amazon (equipaje)")
 
-        # Un settlement (pago de saldo) reciente.
+        # Cashback QA — descripciones normales; el badge sale de cashback_*.
+        _add_mov(s, cats["Comida"], "EUR", 48.00, TODAY - timedelta(days=2),
+                 "estrasburgo", "Estrasburgo", bruno, "shared", "Cena",
+                 cashback_kind="pct", cashback_value=Decimal("2"))
+        _add_mov(s, cats["Compras"], "EUR", 65.00, TODAY - timedelta(days=5),
+                 "paris", "París", katia, "payer_only", "Souvenirs",
+                 cashback_kind="amount", cashback_value=Decimal("5"))
+        _add_mov(s, cats["Actividades"], "GBP", 55.00, START + timedelta(days=3),
+                 "londres", "Londres", bruno, "shared", "Tour a pie",
+                 cashback_kind="pct", cashback_value=Decimal("3"))
+        _add_mov(s, cats["Transporte"], "GBP", 28.00, START + timedelta(days=1),
+                 "londres", "Londres", katia, "shared", "Oyster top-up",
+                 cashback_kind="amount", cashback_value=Decimal("2"))
+        _add_mov(s, cats["Salidas"], "EUR", 36.00, TODAY - timedelta(days=1),
+                 "estrasburgo", "Estrasburgo", katia, "shared", "Vinos",
+                 cashback_kind="pct", cashback_value=Decimal("1.5"))
+
+        # Settlement reciente.
         s.add(Movement(
-            type="settlement", amount=Decimal("150"), currency="USD", amount_usd=Decimal("150"),
+            type="settlement", amount=Decimal("200"), currency="USD", amount_usd=Decimal("200"),
             fx_rate=Decimal("1.0"), fx_source="manual", paid_by=katia.id, split="shared",
-            description="Le pasé 150 usd", created_by=katia.id,
+            description="Le pasé 200 usd", created_by=katia.id,
             created_at=_created(TODAY - timedelta(days=3)),
         ))
 
-        # Gastos futuros que YA llegaron a su fecha y esperan confirmación manual
-        # (status='awaiting': TC lockeado, pero afuera del balance hasta confirmar).
-        # Ejercita la alerta de /movimientos. Se cargaron hace tiempo (con la 1a
-        # cuota) y su fecha de pago ya cayó.
+        # Awaiting / pending de confirmación (montos realistas de cuotas).
         current = next(
             (st for st in (await s.execute(select(Stop))).scalars().all()
-             if st.arrival_date <= TODAY < st.departure_date),
+             if st.arrival_date and st.departure_date
+             and st.arrival_date <= TODAY < st.departure_date
+             and not st.is_local),
             None,
         )
         cur_slug = current.slug if current else None
         cur_city = current.name if current else None
         cur_code = current.currency_code if current else "EUR"
-        # Vencido ayer, cargado hace 10 días por Bruno.
-        _add_mov(s, cats["Alojamiento"], cur_code, 420, TODAY - timedelta(days=10),
+        _add_mov(s, cats["Alojamiento"], cur_code, 118.50, TODAY - timedelta(days=10),
                  cur_slug, cur_city, bruno, "shared", "Airbnb — saldo (2/2)",
                  payment_date=TODAY - timedelta(days=1), status="awaiting")
-        # Vencido hace una semana, cargado hace ~20 días por Katia.
-        _add_mov(s, cats["Actividades"], cur_code, 96, TODAY - timedelta(days=20),
-                 cur_slug, cur_city, katia, "shared", "Entradas tour — saldo (3/3)",
+        _add_mov(s, cats["Actividades"], cur_code, 54.00, TODAY - timedelta(days=20),
+                 cur_slug, cur_city, katia, "shared", "Entradas tour — saldo (2/2)",
                  payment_date=TODAY - timedelta(days=7), status="awaiting")
-        # Aún futuro pero a 1 día: aparece en la alerta (caso "desde 1 día antes").
-        _add_mov(s, cats["Transporte"], cur_code, 60, TODAY,
+        _add_mov(s, cats["Transporte"], cur_code, 42.00, TODAY,
                  cur_slug, cur_city, bruno, "shared", "Tren — saldo (2/2)",
                  payment_date=TODAY + timedelta(days=1), status="pending")
 
         await s.commit()
         movs = (await s.execute(select(Movement))).scalars().all()
+        by_cat: dict[str, Decimal] = {}
+        total = Decimal("0")
+        for m in movs:
+            if m.type != "expense":
+                continue
+            total += Decimal(m.amount_usd)
+            cname = next((c.name for c in cats.values() if c.id == m.category_id), "Sin cat")
+            by_cat[cname] = by_cat.get(cname, Decimal("0")) + Decimal(m.amount_usd)
         print(
-            f"seeded {len(ITINERARY)} stops ({TOTAL_NIGHTS} noches), {len(movs)} movimientos\n"
+            f"seeded {len(ITINERARY)} stops (+pititas) · {TOTAL_NIGHTS} noches · "
+            f"{len(movs)} movimientos\n"
             f"HOY={TODAY} · inicio={START} · fin={START + timedelta(days=TOTAL_NIGHTS)} "
-            f"(día 40/{TOTAL_NIGHTS})"
+            f"(día {TODAY_TRIP_DAY}/{TOTAL_NIGHTS})\n"
+            f"TOTAL USD {total.quantize(Decimal('0.1'))}"
         )
+        for name, amt in sorted(by_cat.items(), key=lambda x: -x[1]):
+            pct = (amt / total * 100) if total else 0
+            print(f"  {name:14} USD {amt.quantize(Decimal('0.1')):>8}  ({pct:.0f}%)")
+
+
+def _seed_day(s, cats, cur, day, slug, name, bruno, katia, region_key,
+              *, force_payer=None) -> None:
+    """Un día de viaje: alimentación ~presupuesto + transporte local ocasional
+    + actividad/salida con menor frecuencia. Montos en USD del hogar (o 1p si solo)."""
+    cfg = REGION_DAILY[region_key]
+    solo = cfg.get("solo", False) or force_payer is not None
+    payer = force_payer or random.choice([bruno, katia])
+    # En Portugal del itinerario, Bruno paga y es payer_only.
+    if region_key == "portugal" and force_payer is None:
+        payer = bruno
+        split = "payer_only"
+        mult = 1
+    elif force_payer is not None:
+        split = "payer_only"
+        mult = 1
+    else:
+        split = random.choices(["shared", "payer_only", "other_only"], weights=[9, 1, 0])[0]
+        mult = 1 if split != "shared" else 2
+
+    # Alimentación del día (pp × personas) repartida comida / super.
+    lo, hi = cfg["food_pp"]
+    food_day = random.uniform(lo, hi) * mult
+    # ~55% restaurante, ~45% super (cocina hostel, sobre todo CH/east).
+    super_share = 0.55 if region_key in ("ch", "east") else 0.40
+    if random.random() < 0.85:
+        # Almuerzo o cena
+        meal = food_day * (1 - super_share) * random.uniform(0.45, 0.70)
+        _add_mov(s, cats["Comida"], cur, round(meal, 2), day, slug, name, payer, split,
+                 _desc("Comida", name))
+    if random.random() < 0.55:
+        grocery = food_day * super_share * random.uniform(0.6, 1.0)
+        _add_mov(s, cats["Supermercado"], cur, round(grocery, 2), day, slug, name,
+                 payer, split, _desc("Supermercado", name))
+    # Segunda comida (cena) algunos días.
+    if random.random() < 0.45:
+        dinner = food_day * (1 - super_share) * random.uniform(0.30, 0.50)
+        _add_mov(s, cats["Comida"], cur, round(dinner, 2), day, slug, name, payer, split,
+                 _desc("Comida", name))
+
+    # Transporte local (~70% de los días).
+    if random.random() < 0.70:
+        tlo, thi = cfg["local_transport"]
+        _add_mov(s, cats["Transporte"], cur, round(random.uniform(tlo, thi) * mult, 2),
+                 day, slug, name, payer, split, _desc("Transporte", name))
+
+    # Actividad (~1 cada 2–3 días).
+    if random.random() < 0.35:
+        alo, ahi = cfg["activity"]
+        _add_mov(s, cats["Actividades"], cur, round(random.uniform(alo, ahi) * mult, 2),
+                 day, slug, name, payer, split, _desc("Actividades", name))
+
+    # Salida (~1 cada 3 días).
+    if random.random() < 0.30:
+        slo, shi = cfg["salida"]
+        _add_mov(s, cats["Salidas"], cur, round(random.uniform(slo, shi) * mult, 2),
+                 day, slug, name, payer, split, _desc("Salidas", name))
+
+    # Compras ocasionales.
+    if random.random() < cfg["compras_chance"]:
+        _add_mov(s, cats["Compras"], cur, round(random.uniform(12, 45) * mult, 2),
+                 day, slug, name, payer, split, _desc("Compras", name))
+
+    # Farmacia rara.
+    if random.random() < 0.04:
+        _add_mov(s, cats["Salud"], cur, round(random.uniform(6, 18) * mult, 2),
+                 day, slug, name, payer, split, _desc("Salud", name))
 
 
 def _desc(cat: str, city: str) -> str:
     samples = {
-        "Comida": ["Cena", "Almuerzo", "Café y medialunas", "Fish & chips", "Ramen"],
-        "Transporte": ["Metro", "Taxi", "Tren", "Bus", "Bici"],
-        "Actividades": ["Museo", "Tour a pie", "Castillo", "Mirador", "Excursión"],
-        "Compras": ["Remera", "Souvenir", "Libro", "Zapatillas"],
-        "Salidas": ["Pub", "Vinos", "Birras", "Cóctel"],
-        "Supermercado": ["Provisiones", "Agua y snacks", "Verdulería"],
-        "Salud": ["Farmacia", "Ibuprofeno"],
+        "Comida": ["Cena", "Almuerzo", "Café y medialunas", "Fish & chips", "Ramen",
+                   "Menú del día", "Pasta", "Brunch"],
+        "Transporte": ["Metro", "Bus", "Tren local", "Bici", "Uber corto"],
+        "Actividades": ["Museo", "Tour a pie", "Mirador", "Castillo", "Free walking tour"],
+        "Compras": ["Souvenir", "Libro", "Remera", "Postales"],
+        "Salidas": ["Pub", "Birras", "Vinos", "Cóctel"],
+        "Supermercado": ["Provisiones", "Agua y snacks", "Desayuno hostel", "Mercado"],
+        "Salud": ["Farmacia", "Ibuprofeno", "Protector solar"],
     }
     return f"{random.choice(samples.get(cat, ['Gasto']))} · {city}"
 
 
 def _created(day: date) -> datetime:
-    """created_at plausible (naive-UTC, como server_default) para que los grupos
-    por día de carga del listado luzcan mid-trip."""
     return datetime.combine(day, time(hour=random.randint(9, 22), minute=random.randint(0, 59)))
 
 
 def _add_mov(s, cat, cur, usd_amount, day, slug, city, paid_by, split, desc,
              *, payment_date=None, status="confirmed",
              cashback_kind=None, cashback_value=None) -> None:
-    """`usd_amount` está en USD; se convierte a la moneda local del stop.
-    `day` es el día de CARGA (created_at); una reserva futura va con
-    payment_date + status='pending'. Con cashback, `amount` queda en bruto
-    local y `amount_usd` hornea el neto."""
+    """`usd_amount` en USD; se convierte a moneda local. Con cashback, `amount`
+    queda en bruto y `amount_usd` hornea el neto."""
     rate = FX[cur]
-    usd = Decimal(str(usd_amount))
+    usd = Decimal(str(usd_amount)).quantize(Decimal("0.01"))
     local = (usd / rate).quantize(Decimal("0.01"))
     net = net_amount(local, cashback_kind, cashback_value)
     s.add(Movement(

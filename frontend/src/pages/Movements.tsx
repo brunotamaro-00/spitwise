@@ -3,6 +3,7 @@ import { Receipt, Search, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { errorDetail } from "@/api/client";
 import { listCategories } from "@/api/categories";
 import { getStops } from "@/api/cities";
 import { deleteMovement, listMovements } from "@/api/movements";
@@ -27,6 +28,7 @@ import { useToast } from "@/components/ui/Toast";
 import { formatAmount, formatDayHeader, formatShortDate, formatUsd } from "@/lib/format";
 import { createdDayKey, dayTotalShare, dayTotalUsd, groupByDay } from "@/lib/groupByDay";
 import { involvesMe, myShare, needsConfirmation } from "@/lib/share";
+import { useTripToday } from "@/lib/useTripToday";
 import { useMe } from "@/lib/useMe";
 import type { Category, Movement } from "@/types";
 
@@ -120,6 +122,8 @@ export default function Movements() {
     [data],
   );
 
+  const tripToday = useTripToday();
+
   const del = useMutation({
     mutationFn: (m: Movement) => deleteMovement(m.id),
     onSuccess: () => {
@@ -131,11 +135,14 @@ export default function Movements() {
       setDeleteErr(null);
       toast("success", "Movimiento borrado");
     },
-    onError: () => setDeleteErr("No se pudo borrar. Probá de nuevo."),
+    onError: (e) => setDeleteErr(errorDetail(e, "No se pudo borrar. Probá de nuevo.")),
   });
 
   // Gastos vencidos que esperan confirmación (aviso arriba, sin importar filtros).
-  const toConfirm = useMemo(() => data.filter((m) => needsConfirmation(m)), [data]);
+  const toConfirm = useMemo(
+    () => data.filter((m) => needsConfirmation(m, tripToday)),
+    [data, tripToday],
+  );
 
   const filtered = useMemo(() => {
     const q = f.q.trim().toLowerCase();
@@ -156,12 +163,21 @@ export default function Movements() {
   const totals = useMemo(() => {
     let visible = 0;
     let mine = 0;
+    // Lo pendiente/por confirmar SÍ cuenta en estos totales pero NO en el
+    // balance (compute_balance lo excluye). Sin desglosarlo, la diferencia entre
+    // las dos cifras no tiene explicación visible en ningún lado de la app.
+    let unsettled = 0;
+    let unsettledCount = 0;
     for (const m of filtered) {
       if (m.type !== "expense") continue;
       visible += Number(m.amount_usd);
       if (me) mine += myShare(m, me.id);
+      if (m.status === "pending" || m.status === "awaiting") {
+        unsettled += Number(m.amount_usd);
+        unsettledCount += 1;
+      }
     }
-    return { visible, mine };
+    return { visible, mine, unsettled, unsettledCount };
   }, [filtered, me]);
 
   const activeCount =
@@ -273,6 +289,14 @@ export default function Movements() {
             tu parte{" "}
             <span className="font-tabular text-sm font-semibold text-brick">{formatUsd(String(totals.mine))}</span>
           </span>
+          {totals.unsettledCount > 0 && (
+            <span className="w-full text-[11px] text-ink-3">
+              incluye {totals.unsettledCount}{" "}
+              {totals.unsettledCount === 1 ? "gasto todavía no confirmado" : "gastos todavía no confirmados"} ·{" "}
+              <span className="font-tabular font-semibold">{formatUsd(String(totals.unsettled))}</span>
+              {" — fuera del balance"}
+            </span>
+          )}
         </div>
       )}
 

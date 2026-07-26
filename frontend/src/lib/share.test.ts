@@ -11,7 +11,8 @@ const base: Movement = {
   cashback_kind: null, cashback_value: null, created_at: "2026-07-01T12:00:00Z",
 };
 
-const TODAY = new Date(2026, 6, 21); // 2026-07-21 (local)
+// Fecha del VIAJE (TripPace.as_of), no del dispositivo.
+const TODAY = "2026-07-21";
 
 describe("needsConfirmation", () => {
   it("un confirmado normal no necesita confirmación", () => {

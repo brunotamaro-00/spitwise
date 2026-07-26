@@ -112,12 +112,16 @@ def movement_summary(mv, cat_name: str | None, payer_name: str) -> str:
 
 def _payment_line(mv) -> str | None:
     """Línea de fecha de pago, solo cuando difiere del caso normal (hoy):
-    pending => se paga en el futuro con TC provisorio; confirmed con fecha =>
-    retroactivo pagado ese día. Sin countdowns."""
+    pending => se paga en el futuro con TC provisorio; awaiting => ya venció y
+    espera confirmación en la web (todavía fuera del saldo); confirmed con fecha
+    => retroactivo pagado ese día. Sin countdowns."""
     if not getattr(mv, "payment_date", None):
         return None
-    if getattr(mv, "status", "confirmed") == "pending":
+    status = getattr(mv, "status", "confirmed")
+    if status == "pending":
         return f"📅 Se paga el {fmt_date(mv.payment_date)} · TC provisorio"
+    if status == "awaiting":
+        return f"📅 Venció el {fmt_date(mv.payment_date)} · falta confirmarlo en la web"
     return f"📅 Pagado el {fmt_date(mv.payment_date)}"
 
 

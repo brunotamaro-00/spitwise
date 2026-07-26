@@ -18,6 +18,18 @@ export async function logout(): Promise<void> {
   localStorage.removeItem("auth_token");
 }
 
+/** ¿Hay un token y todavía sirve? Chequear `exp` acá evita renderizar la app
+ *  entera con un JWT vencido: sin esto disparaban todas las queries, cada una
+ *  volvía 401 y el interceptor terminaba redirigiendo, con un flash de UI vacía
+ *  y N requests fallidos en el medio. */
 export function isAuthenticated() {
-  return !!localStorage.getItem("auth_token");
+  const token = localStorage.getItem("auth_token");
+  if (!token) return false;
+  try {
+    const { exp } = JSON.parse(atob(token.split(".")[1]!)) as { exp?: number };
+    // Sin `exp` se asume válido: que lo resuelva el server.
+    return exp === undefined || exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
 }

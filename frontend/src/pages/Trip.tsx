@@ -31,11 +31,22 @@ function Chapter({ city, onOpen }: { city: CityPace; onOpen: () => void }) {
               : "border-brick/50 bg-brick/50"
         }`}
       />
+      {/* Card es un <div>: sin role/tabIndex/handler de teclado, los capítulos
+          del viaje no eran accionables ni navegables sin mouse. */}
       <Card
-        className={`cursor-pointer p-3.5 transition-colors hover:border-border-strong ${
+        className={`cursor-pointer p-3.5 transition-colors hover:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
           current ? "border-brick/40" : ""
         }`}
+        role="button"
+        tabIndex={0}
+        aria-label={`Ver gastos de ${city.city_name}`}
         onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onOpen();
+          }
+        }}
       >
         <div className="flex items-baseline justify-between gap-3">
           <div className="flex min-w-0 items-baseline gap-2">

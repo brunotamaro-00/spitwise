@@ -3,7 +3,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -69,6 +69,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def no_store_api(request: Request, call_next):
+    """`Cache-Control: no-store` en todo /api/*.
+
+    Sin esto las respuestas viajan sin headers de caché y el browser aplica
+    caché heurística sobre disco: se vio a `/categories` servir un catálogo
+    viejo contra una DB ya migrada. Como los chips de la web mandan
+    `category_id`, un catálogo cacheado con IDs corridos imputa la categoría
+    equivocada. Aplica a todo el prefijo, así un endpoint nuevo nace protegido.
+    El bundle de la SPA (hasheado por Vite) queda afuera a propósito.
+    """
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/health")

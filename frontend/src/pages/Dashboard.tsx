@@ -22,6 +22,7 @@ import ErrorState from "@/components/ui/ErrorState";
 import Skeleton from "@/components/ui/Skeleton";
 import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { capitalize, formatUsd } from "@/lib/format";
+import { myShare } from "@/lib/share";
 import { useMe } from "@/lib/useMe";
 import type { Category, Movement } from "@/types";
 
@@ -47,6 +48,23 @@ export default function Dashboard() {
     [stops.data],
   );
   const lastMovs = (recent.data ?? []).slice(0, 4);
+
+  // Parte del total del hero que todavía no entró al balance (pending/awaiting).
+  // El hero muestra `summary.total_usd`, que es la parte del usuario, así que se
+  // suma con `myShare` para que las dos cifras hablen de lo mismo.
+  const unsettled = useMemo(() => {
+    let usd = 0;
+    let count = 0;
+    for (const m of recent.data ?? []) {
+      if (m.type !== "expense") continue;
+      if (m.status !== "pending" && m.status !== "awaiting") continue;
+      const share = me.data ? myShare(m, me.data.id) : 0;
+      if (share <= 0) continue;
+      usd += share;
+      count += 1;
+    }
+    return { usd, count };
+  }, [recent.data, me.data]);
 
   const names: Record<number, string> = Object.fromEntries(
     (users.data ?? []).map((u) => [u.id, capitalize(u.username)]),
@@ -98,6 +116,14 @@ export default function Dashboard() {
                   </span>
                 )}
               </div>
+              {/* El total incluye reservas futuras; el balance de abajo no. Sin
+                  decirlo, la diferencia entre las dos cifras no se explica. */}
+              {unsettled.count > 0 && (
+                <p className="mt-3 text-xs text-white/70">
+                  Incluye {unsettled.count} {unsettled.count === 1 ? "gasto" : "gastos"} por confirmar ·{" "}
+                  <span className="font-tabular font-semibold">{formatUsd(String(unsettled.usd))}</span> — fuera del balance
+                </p>
+              )}
             </div>
           </Card>
           )}

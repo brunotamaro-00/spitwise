@@ -11,6 +11,7 @@ import { Wordmark } from "@/components/ui/Brand";
 import { capitalize } from "@/lib/format";
 import { DURATION, EASE_SMOOTH_OUT } from "@/lib/motion";
 import { needsConfirmation } from "@/lib/share";
+import { useTripToday } from "@/lib/useTripToday";
 import { useMe } from "@/lib/useMe";
 import { useOnline } from "@/lib/useOnline";
 import { usePullToRefresh } from "@/lib/usePullToRefresh";
@@ -31,7 +32,8 @@ export default function Layout() {
   // Contador de gastos por confirmar → badge sutil sobre el tab Movimientos.
   // Comparte cache con /movimientos (misma queryKey).
   const { data: movements = [] } = useQuery({ queryKey: ["movements"], queryFn: listMovements });
-  const confirmCount = movements.filter((m) => needsConfirmation(m)).length;
+  const tripToday = useTripToday();
+  const confirmCount = movements.filter((m) => needsConfirmation(m, tripToday)).length;
 
   const avatar = me && (
     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 text-sm font-bold text-ink-2">
@@ -87,7 +89,7 @@ export default function Layout() {
                       className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-amber px-1.5 text-[11px] font-bold text-white"
                       aria-label={`${confirmCount} por confirmar`}
                     >
-                      {confirmCount}
+                      <span aria-hidden="true">{confirmCount}</span>
                     </span>
                   )}
                 </>
@@ -216,7 +218,7 @@ export default function Layout() {
                         className="absolute right-1.5 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-amber px-1 text-[10px] font-bold text-white"
                         aria-label={`${confirmCount} por confirmar`}
                       >
-                        {confirmCount}
+                        <span aria-hidden="true">{confirmCount}</span>
                       </span>
                     )}
                   </span>

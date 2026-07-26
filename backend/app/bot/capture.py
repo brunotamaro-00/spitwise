@@ -15,8 +15,8 @@ from app.bot.render import (
 from app.cashback import net_amount
 from app.categories.catalog import CATEGORIES
 from app.db.models import Category, Movement, User
-from app.fx import convert_to_usd, fx_reference_date
-from app.textnorm import load_proper_nouns, normalize_description
+from app.fx import convert_to_usd, fx_reference_date, map_fx_source
+from app.textnorm import fold, load_proper_nouns, normalize_description
 
 _CONF_THRESHOLD = 0.6
 _BATCH_MAX = 10  # más que esto huele a alucinación del parser (y revienta el mensaje)
@@ -54,15 +54,8 @@ async def _category_id(session: AsyncSession, name: str | None) -> int | None:
     return (await session.execute(select(Category.id).where(Category.name == name))).scalar_one_or_none()
 
 
-def _map_source(src: str, currency: str) -> str:
-    # Igual que app/api/movements.py.
-    if src == "fallback":
-        return "fallback"
-    if src == "direct" or currency.upper() == "USD":
-        return "direct"
-    if currency.upper() == "ARS":
-        return "dolarapi"
-    return "frankfurter"
+# Alias histórico: la política vive en app/fx.py, único dueño del mapeo.
+_map_source = map_fx_source
 
 
 async def all_users(session: AsyncSession) -> list[User]:
@@ -102,10 +95,14 @@ async def resolve_place(session, ref_date: date, explicit_city: str | None,
     """
     if explicit_city:
         from app.db.models import Stop
-        stops = (await session.execute(select(Stop))).scalars().all()
-        wanted = explicit_city.strip().casefold()
+        # Mismo universo que `load_city_names` (lo que el parser puede nombrar):
+        # imputar a una parada archivada o candidata la resucitaba de atrás.
+        stops = (await session.execute(
+            select(Stop).where(Stop.is_candidate.is_(False), Stop.is_archived.is_(False))
+        )).scalars().all()
+        wanted = fold(explicit_city.strip())
         for s in stops:
-            if (s.name or "").casefold() == wanted:
+            if fold(s.name or "") == wanted:
                 return s.slug, s.name, (s.currency_code or "USD")
 
     stop = await place_for_date(session, ref_date, username)
@@ -178,9 +175,15 @@ def expand_installments(parsed, today: date) -> list | None:
             return None
         n = len(ordered)
         base_desc = parsed.description or "gasto"
+        # place_date: todas las partes se imputan a UNA parada — la del gasto.
+        # La referencia es la fecha de la ÚLTIMA etapa (cuando se usa lo que se
+        # está pagando: el check-in del hostel), no la de hoy, que mandaría a
+        # General un gasto de una parada futura. Ver ParsedMessage.place_date.
+        place_date = parsed.payment_date or ordered[-1].pay_date or today
         return [
             replace(parsed, amount=i.amount, currency=i.currency or parsed.currency,
-                    payment_date=i.pay_date, description=f"{base_desc} ({idx}/{n})",
+                    payment_date=i.pay_date, place_date=place_date,
+                    description=f"{base_desc} ({idx}/{n})",
                     cashback_kind=cb_kind, cashback_value=cb_value,
                     installments=[], batch=[])
             for idx, i in enumerate(ordered, start=1)
@@ -226,8 +229,9 @@ def expand_installments(parsed, today: date) -> list | None:
 
     n = len(ordered)
     base_desc = parsed.description or "gasto"
+    place_date = parsed.payment_date or pay_dates[-1] or today
     return [
-        replace(parsed, amount=amt, payment_date=pay_date,
+        replace(parsed, amount=amt, payment_date=pay_date, place_date=place_date,
                 description=f"{base_desc} ({idx}/{n})",
                 cashback_kind=cb_kind, cashback_value=cb_value,
                 installments=[], batch=[])
@@ -280,8 +284,11 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
         # Un ítem del multi-gasto puede a su vez pagarse en etapas ('34 usd
         # hostel X hoy, el resto 134 gbp al ingresar'): expandirlo en sus
         # partes antes de persistir el batch.
+        # El tope de _BATCH_MAX se aplica a los GASTOS, no a las partes: cortar
+        # después de expandir partía un gasto por la mitad (3 gastos × 4 cuotas =
+        # 12 ítems → se guardaban 10) y el total no cerraba, sin ningún aviso.
         items = []
-        for item in parsed.batch:
+        for item in parsed.batch[:_BATCH_MAX]:
             parts = expand_installments(item, today)
             items.extend(parts if parts is not None else [item])
         return await handle_capture_batch(session, user, wa_id, text, today, items=items)
@@ -376,7 +383,10 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
     se corrige por el flujo edit de siempre — WhatsApp da 3 botones por mensaje y
     encadenar pendings deja gastos en el limbo.
     """
-    items = items[:_BATCH_MAX]
+    # Red de seguridad: los callers ya acotan por gasto (_BATCH_MAX), y un gasto
+    # aporta a lo sumo _INSTALLMENTS_MAX partes. Cortar acá nunca debería partir
+    # un gasto al medio.
+    items = items[:_BATCH_MAX * _INSTALLMENTS_MAX]
     batch_key = secrets.token_hex(8)
     users = await all_users(session)
     usernames = [u.username for u in users]
@@ -387,7 +397,7 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
     for item in items:
         item.description = normalize_description(item.description, nouns)
         stop_slug, city_name, place_currency = await resolve_place(
-            session, item.payment_date or today, item.city, user.username
+            session, item.place_date or item.payment_date or today, item.city, user.username
         )
         currency = item.currency or place_currency
         if item.is_settlement:

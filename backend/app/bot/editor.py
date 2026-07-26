@@ -1,4 +1,3 @@
-import unicodedata
 from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -12,10 +11,11 @@ from app.bot.render import (
     BotReply, ar_number, buttons_reply, cashback_text, cat_label, edit_card, fmt_date,
     movement_summary, split_label, text_reply,
 )
-from app.cashback import net_amount
+from app.cashback import net_amount, normalize_cashback
 from app.db.models import Category, Movement, User
-from app.fx import convert_to_usd, fx_reference_date
-from app.textnorm import load_proper_nouns, normalize_description
+from app.due import next_status_for_date
+from app.fx import fx_reference_date, reprice_movement
+from app.textnorm import fold, load_proper_nouns, normalize_description
 
 _SEARCH_LIMIT = 50  # movimientos recientes donde buscar referencias
 
@@ -53,9 +53,8 @@ async def describe_recent(session: AsyncSession, mv: Movement) -> str:
     return " · ".join(parts)
 
 
-def _fold(s: str) -> str:
-    s = unicodedata.normalize("NFD", s.casefold())
-    return "".join(c for c in s if unicodedata.category(c) != "Mn")
+# Alias histórico: el folding vive en app/textnorm.py.
+_fold = fold
 
 
 def _score(mv: Movement, ref_tokens: set[str]) -> int:
@@ -187,13 +186,17 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
     if new_date is not None and mv.type != "settlement" and new_date != mv.payment_date:
         diffs.append(("📅", fmt_date(mv.payment_date or mv.created_at.date()), fmt_date(new_date)))
         mv.payment_date = new_date
-        mv.status = "pending" if new_date > today else "confirmed"
+        mv.status = next_status_for_date(mv.status, new_date, today)
         date_changed = True
 
     # Cashback (kind, value) — None,None lo saca. Cambia el neto ⇒ recalcula USD.
+    # El techo del fijo se valida contra el monto que va a quedar (el nuevo si el
+    # mismo mensaje lo cambia): el parser no ve el movimiento, así que acá es el
+    # único lugar donde "ponele 50 de cashback" a un gasto de 20 se puede frenar.
     cashback_changed = False
     if "cashback" in changes and mv.type != "settlement":
-        new_kind, new_value = changes["cashback"]
+        target_amount = Decimal(changes.get("amount", mv.amount))
+        new_kind, new_value = normalize_cashback(*changes["cashback"], target_amount)
         if (new_kind, new_value) != (mv.cashback_kind, mv.cashback_value):
             diffs.append(("💸", cashback_text(mv.cashback_kind, mv.cashback_value, mv.currency),
                           cashback_text(new_kind, new_value, mv.currency)))
@@ -214,17 +217,12 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
     if money_changed or date_changed or cashback_changed:
         old_usd = mv.amount_usd
         net = net_amount(Decimal(mv.amount), mv.cashback_kind, mv.cashback_value)
-        if mv.fx_source == "manual":
-            # Invariante 6: una tasa manual nunca se pisa; solo recalcular el monto.
-            mv.amount_usd = (net * Decimal(mv.fx_rate)).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
-        else:
-            # Regla: TC de la fecha de pago, capeada a hoy.
-            amount_usd, rate, src = await convert_to_usd(
-                session, net, mv.currency, fx_reference_date(mv.payment_date, today)
-            )
-            mv.amount_usd, mv.fx_rate, mv.fx_source = amount_usd, rate, _map_source(src, mv.currency)
+        # Regla: TC de la fecha de pago, capeada a hoy. `reprice_movement` respeta
+        # las tasas lockeadas (manual / awaiting) y no pisa una tasa buena con un
+        # fallback del proveedor.
+        mv.amount_usd, mv.fx_rate, mv.fx_source = await reprice_movement(
+            session, mv, net, fx_reference_date(mv.payment_date, today)
+        )
         # El efecto en USD del cambio, visible en la card (salvo gasto ya en USD,
         # donde la línea de monto lo dice igual).
         if mv.currency != "USD" and old_usd is not None and mv.amount_usd != old_usd:
@@ -321,14 +319,13 @@ async def _apply_batch_total(session, mv: Movement, new_total: Decimal,
 
     for m, amt in zip(siblings, amounts):
         m.amount = amt
-        if m.fx_source == "manual":
-            # Invariante 6: la tasa manual no se pisa; solo recalcular el monto.
-            m.amount_usd = (amt * Decimal(m.fx_rate)).quantize(cent, rounding=ROUND_HALF_UP)
-        else:
-            amount_usd, rate, src = await convert_to_usd(
-                session, amt, m.currency, fx_reference_date(m.payment_date, today)
-            )
-            m.amount_usd, m.fx_rate, m.fx_source = amount_usd, rate, _map_source(src, m.currency)
+        # Invariante 10: amount_usd sale SIEMPRE del neto. Las cuotas heredan el
+        # cashback pct del gasto original, así que un batch con cashback es un
+        # caso real, no teórico: repartir el bruto acá lo dejaba de descontar.
+        net = net_amount(amt, m.cashback_kind, m.cashback_value)
+        m.amount_usd, m.fx_rate, m.fx_source = await reprice_movement(
+            session, m, net, fx_reference_date(m.payment_date, today)
+        )
     await session.commit()
     return text_reply(batch_total_card(siblings, old_total, new_total))
 

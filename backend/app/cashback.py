@@ -34,15 +34,24 @@ def net_amount(amount: Decimal, kind: str | None, value: Decimal | None) -> Deci
     return net.quantize(_TWO, rounding=ROUND_HALF_UP)
 
 
-def normalize_cashback(kind: str | None, value: Decimal | None) -> tuple[str | None, Decimal | None]:
+def normalize_cashback(
+    kind: str | None, value: Decimal | None, amount: Decimal | None = None
+) -> tuple[str | None, Decimal | None]:
     """(kind, value) saneados: si algo no cierra, devuelve (None, None) — sin
     cashback. Tolerante: la red de seguridad de los bordes de escritura del bot,
-    donde un LLM puede mandar basura y no queremos romper la carga del gasto."""
+    donde un LLM puede mandar basura y no queremos romper la carga del gasto.
+
+    Con `amount`, aplica el mismo techo que `validate_cashback`: un cashback fijo
+    mayor al gasto se descarta. Sin ese chequeo el bot aceptaba "20 euros con 50
+    de cashback" y `net_amount` clampeaba a 0 — un gasto gratis en el saldo.
+    """
     if kind not in VALID_KINDS or value is None:
         return None, None
     if value <= 0:
         return None, None
     if kind == "pct" and value > _HUNDRED:
+        return None, None
+    if kind == "amount" and amount is not None and value > amount:
         return None, None
     return kind, value.quantize(_TWO, rounding=ROUND_HALF_UP)
 

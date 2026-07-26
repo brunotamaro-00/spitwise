@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { errorDetail } from "@/api/client";
 import { listCategories } from "@/api/categories";
 import { createMovement, updateMovement } from "@/api/movements";
 import { listStops, listUsers } from "@/api/users";
@@ -15,7 +16,7 @@ import { categoryIcon } from "@/lib/categoryIcons";
 import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue, todayLocal } from "@/lib/format";
 import { stopForDate } from "@/lib/stops";
 import { useMe } from "@/lib/useMe";
-import type { Movement } from "@/types";
+import type { Movement, MovementSplit } from "@/types";
 
 const GENERAL = "__general__"; // gasto sin ciudad
 const CURRENCIES = ["USD", "EUR", "GBP", "CHF", "CZK", "PLN", "HUF", "ARS"];
@@ -110,7 +111,9 @@ export default function AddMovementDialog({ editing, onClose }: {
   const toast = useToast();
   const firstRef = useRef<HTMLInputElement>(null);
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
-  const { data: stops = [] } = useQuery({ queryKey: ["stops"], queryFn: listStops, staleTime: Infinity });
+  // Mismo staleTime que el resto de los consumidores de ["stops"]: con Infinity
+  // acá, quién montara primero decidía si el itinerario se refrescaba o no.
+  const { data: stops = [] } = useQuery({ queryKey: ["stops"], queryFn: listStops, staleTime: 60_000 });
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
   const { data: me } = useMe();
 
@@ -157,30 +160,37 @@ export default function AddMovementDialog({ editing, onClose }: {
     mutationFn: async () => {
       const stop = stops.find((s) => s.slug === stopSlug);
       const isEdit = Boolean(editing);
-      const body: Partial<Movement> & { general?: boolean } = {
-        amount: normalizeAmountInput(amount),
-        currency,
-        description: description || null,
+      // Al editar se manda SOLO lo que cambió: el backend usa `model_fields_set`
+      // para decidir si re-precia el FX y si re-deriva el status, así que
+      // re-mandar el body entero confirmaba gastos `awaiting` y re-valuaba al TC
+      // de hoy (en ARS, el MEP vivo) con solo corregir una descripción.
+      const body: Partial<Movement> & { general?: boolean } = {};
+      const put = <K extends keyof Movement>(key: K, value: Movement[K]) => {
+        if (!isEdit || editing![key] !== value) body[key] = value;
       };
-      if (paidBy) body.paid_by = Number(paidBy);
+
+      put("amount", normalizeAmountInput(amount));
+      put("currency", currency);
+      put("description", description || null);
+      if (paidBy) put("paid_by", Number(paidBy));
 
       if (isExpense) {
         // Fecha de pago: mandarla solo si está seteada; al editar, vaciarla
         // vuelve explícitamente a "día de carga" (null).
-        if (paymentDate) body.payment_date = paymentDate;
+        if (paymentDate) put("payment_date", paymentDate);
         else if (isEdit && editing?.payment_date) body.payment_date = null;
 
         // Categoría y división solo aplican a gastos.
-        body.category_id = categoryId ? Number(categoryId) : null;
-        body.split = split;
+        put("category_id", categoryId ? Number(categoryId) : null);
+        put("split", split);
 
         // Cashback: mandar kind+value si hay un valor > 0; al editar, vaciarlo
-        // manda null explícito para SACARLO.
+        // manda null explícito para SACARLO — pero solo si antes tenía.
         const cbv = normalizeAmountInput(cashbackValue).trim();
         if (cbv && Number(cbv) > 0) {
-          body.cashback_kind = cashbackKind;
-          body.cashback_value = cbv;
-        } else if (isEdit) {
+          put("cashback_kind", cashbackKind);
+          put("cashback_value", cbv);
+        } else if (isEdit && editing?.cashback_kind) {
           body.cashback_kind = null;
           body.cashback_value = null;
         }
@@ -190,7 +200,7 @@ export default function AddMovementDialog({ editing, onClose }: {
           body.stop_slug = null;
           body.general = true;
         } else if (stop) {
-          body.stop_slug = stop.slug;
+          put("stop_slug", stop.slug);
         } else if (!isEdit) {
           // Create + Auto: null => backend imputa la parada de hoy.
           body.stop_slug = null;
@@ -212,7 +222,7 @@ export default function AddMovementDialog({ editing, onClose }: {
       toast("success", editing ? "Cambios guardados" : "Gasto guardado");
       onClose();
     },
-    onError: () => setErr("No se pudo guardar. Revisá el monto."),
+    onError: (e) => setErr(errorDetail(e, "No se pudo guardar. Revisá el monto.")),
   });
 
   function submit(e: React.SyntheticEvent<HTMLFormElement>) {
@@ -332,7 +342,7 @@ export default function AddMovementDialog({ editing, onClose }: {
         {isExpense && (
           <div className="flex flex-col gap-1">
             <Label>División</Label>
-            <Segmented options={SPLITS} value={split} onChange={setSplit} />
+            <Segmented options={SPLITS} value={split} onChange={(v) => setSplit(v as MovementSplit)} />
           </div>
         )}
 
@@ -341,6 +351,14 @@ export default function AddMovementDialog({ editing, onClose }: {
             <Select value={stopSlug} onChange={(e) => setStopSlug(e.target.value)}>
               <option value="">Automática (parada de hoy)</option>
               <option value={GENERAL}>General (sin ciudad)</option>
+              {/* /stops no devuelve las archivadas: sin esta opción el <select>
+                  de un gasto viejo quedaba en blanco (selectedIndex -1) y el
+                  usuario, al tocarlo, le reasignaba la ciudad sin querer. */}
+              {editing?.stop_slug && !stops.some((s) => s.slug === editing.stop_slug) && (
+                <option value={editing.stop_slug}>
+                  {editing.city_name ?? editing.stop_slug} (archivada)
+                </option>
+              )}
               {stops.map((s) => (
                 <option key={s.slug} value={s.slug}>{s.name}</option>
               ))}

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellRing, Check, RefreshCcw } from "lucide-react";
 import { useState } from "react";
 
+import { errorDetail } from "@/api/client";
 import { confirmMovement } from "@/api/movements";
 import { listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
@@ -14,13 +15,20 @@ import type { Movement } from "@/types";
  *  confirmar. Cada ítem: confirmar tal cual o cambiar quién pagó antes de dar OK. */
 export default function PendingConfirmBanner({ items }: { items: Movement[] }) {
   if (items.length === 0) return null;
+  // Los `pending` de la lista todavía NO vencieron (entran 1 día antes), así que
+  // el título no puede afirmar que llegaron a su fecha si hay alguno.
+  const due = items.filter((m) => m.status === "awaiting").length;
+  const title =
+    due === items.length
+      ? items.length === 1 ? "Un gasto llegó a su fecha" : `${items.length} gastos llegaron a su fecha`
+      : items.length === 1 ? "Un gasto está por vencer" : `${items.length} gastos por confirmar`;
   return (
     <div className="animate-fade-in mb-3 rounded-xl border border-accent-amber/30 bg-accent-amber-bg/60 p-3">
       <div className="mb-2 flex items-center gap-2 px-1">
         <BellRing size={16} strokeWidth={2.25} className="text-accent-amber" aria-hidden="true" />
         <p className="text-sm font-semibold text-ink">
-          {items.length === 1 ? "Un gasto llegó a su fecha" : `${items.length} gastos llegaron a su fecha`}
-          <span className="ml-1 font-normal text-ink-3">· confirmá quién pagó</span>
+          {title}
+          <span className="ml-1 font-normal text-ink-3"> · confirmá quién pagó</span>
         </p>
       </div>
       <div className="flex flex-col gap-2">
@@ -46,7 +54,7 @@ function PendingRow({ mv }: { mv: Movement }) {
       qc.invalidateQueries({ queryKey: ["city"] });
       toast("success", "Gasto confirmado");
     },
-    onError: () => toast("error", "No se pudo confirmar. Probá de nuevo."),
+    onError: (e) => toast("error", errorDetail(e, "No se pudo confirmar. Probá de nuevo.")),
   });
 
   const payerName = capitalize(users.find((u) => u.id === paidBy)?.username ?? "");
@@ -64,6 +72,9 @@ function PendingRow({ mv }: { mv: Movement }) {
       {mv.payment_date && (
         <p className="mt-0.5 text-xs text-ink-3">
           {mv.city_name ? `${mv.city_name} · ` : ""}fecha de pago {formatShortDate(mv.payment_date)}
+          {/* Confirmar antes de que venza deja el gasto con el TC provisorio: al
+              no llegar nunca a `awaiting`, la liquidación no recalcula el real. */}
+          {mv.status === "pending" && " · todavía no venció, se confirma con el TC provisorio"}
         </p>
       )}
       <div className="mt-2.5 flex items-center gap-2">

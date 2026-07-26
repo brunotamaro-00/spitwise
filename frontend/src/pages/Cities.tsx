@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { errorDetail } from "@/api/client";
 import { listCategories } from "@/api/categories";
 import { getCityByCategory, getCityMovements, getCitySummary, getStops } from "@/api/cities";
 import { getPace } from "@/api/dashboard";
@@ -45,7 +46,11 @@ function shortRange(a: string | null, b: string | null): string | null {
 /** Sub-línea de la chip según el estado de la parada. */
 function chipStatusLine(c: CityPace): string {
   if (c.is_archived) return "archivada";
-  if (c.status === "future") return `próxima · ${c.nights} noche${c.nights === 1 ? "" : "s"}`;
+  // "reservado" aclara que el monto de arriba es lo ya cargado, no un ritmo.
+  if (c.status === "future") {
+    const noches = `${c.nights} noche${c.nights === 1 ? "" : "s"}`;
+    return parseMoney(c.total_usd) > 0 ? `reservado · ${noches}` : `próxima · ${noches}`;
+  }
   if (c.status === "current") return `en curso · día ${c.elapsed_nights}/${c.nights}`;
   return shortRange(c.arrival_date, c.departure_date) ?? `${c.movement_count} mov.`;
 }
@@ -73,7 +78,7 @@ export default function Cities() {
       setDeleteErr(null);
       toast("success", "Movimiento borrado");
     },
-    onError: () => setDeleteErr("No se pudo borrar. Probá de nuevo."),
+    onError: (e) => setDeleteErr(errorDetail(e, "No se pudo borrar. Probá de nuevo.")),
   });
 
   const { data: pace, isLoading: loadingPace, isError: errPace, refetch: refetchPace } = useQuery({
@@ -195,6 +200,9 @@ export default function Cities() {
                     />
                   )}
                 </span>
+                {/* También las futuras muestran $/día: con la reserva cargada
+                    ya se puede comparar el ritmo previsto contra el resto del
+                    viaje. Que sea una proyección lo dice la línea "reservado". */}
                 <span className={`font-display text-lg leading-none font-tabular ${active ? "text-white" : "text-ink"}`}>
                   {c.per_day_usd && parseMoney(c.per_day_usd) > 0 ? `${formatUsd(c.per_day_usd)}/día` : "—"}
                 </span>

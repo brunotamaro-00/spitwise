@@ -23,13 +23,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cashback import net_amount
 from app.db.models import Movement
-from app.fx import get_rate_to_usd
+from app.fx import get_rate_to_usd, map_fx_source
 
 logger = logging.getLogger(__name__)
 
 _TWO = Decimal("0.01")
 _CHECK_TTL = timedelta(minutes=15)
 _last_check: datetime | None = None
+
+# Estados que todavía no entran al balance (espejo de balance.UNSETTLED).
+UNSETTLED = frozenset({"pending", "awaiting"})
+
+
+def next_status_for_date(current: str, payment_date: date | None, today: date) -> str:
+    """Status que corresponde tras cambiar la fecha de pago de un movimiento.
+
+    Fecha futura → `pending` siempre (vuelve a la cola de liquidación). Fecha
+    pasada o vacía → `confirmed`, EXCEPTO si venía en `awaiting`: ese ya venció
+    y está esperando confirmación manual, que es la única vía válida para que
+    entre al balance (invariante 4). Derivar el status solo de la fecha dejaba
+    que "en realidad se pagó el 3-sep" confirmara el gasto de prepo, salteando
+    el banner y sin validar quién pagó.
+    """
+    if payment_date is not None and payment_date > today:
+        return "pending"
+    return "awaiting" if current == "awaiting" else "confirmed"
 
 
 async def settle_due_movements(session: AsyncSession, today: date) -> int:
@@ -46,8 +64,6 @@ async def settle_due_movements(session: AsyncSession, today: date) -> int:
 
     Devuelve cuántos liquidó.
     """
-    from app.bot.capture import _map_source
-
     rows = (await session.execute(
         select(Movement).where(Movement.status == "pending", Movement.payment_date <= today)
     )).scalars().all()
@@ -58,7 +74,7 @@ async def settle_due_movements(session: AsyncSession, today: date) -> int:
             if src == "fallback":
                 continue
             mv.fx_rate = rate
-            mv.fx_source = _map_source(src, mv.currency)
+            mv.fx_source = map_fx_source(src, mv.currency)
             net = net_amount(Decimal(mv.amount), mv.cashback_kind, mv.cashback_value)
             mv.amount_usd = (net * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
         mv.status = "awaiting"
@@ -86,6 +102,13 @@ async def ensure_due_settled(session: AsyncSession, today: date | None = None) -
         n = await settle_due_movements(session, today)
         if n:
             logger.info("due_settled count=%d", n)
+        # Sin cron en el proyecto: la limpieza del dedupe se cuelga acá, que ya
+        # viene con throttle. Sin esto la tabla crecía para siempre.
+        from app.whatsapp.dedupe import purge_old
+
+        purged = await purge_old(session)
+        if purged:
+            logger.info("dedupe_purged count=%d", purged)
     except Exception:
         logger.exception("due_settle_failed")
         await session.rollback()

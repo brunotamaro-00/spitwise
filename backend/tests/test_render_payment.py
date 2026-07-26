@@ -47,3 +47,15 @@ def test_batch_card_marks_pending_rows():
     assert "📅 03/09" in card
     # El neto solo cuenta la cuota confirmada: 129 * 1.2 / 2 = 77.4.
     assert "USD 77,4" in card
+
+
+def test_awaiting_card_does_not_say_paid():
+    """Un awaiting venció pero todavía no entró al balance: la card lo daba por
+    'Pagado' (solo distinguía pending) justo cuando falta confirmarlo."""
+    mv = _mv(status="awaiting", payment_date=date(2026, 9, 3))
+    card = expense_card(mv, "Alojamiento", "bruno", "katia")
+    assert "Venció el 03/09" in card
+    assert "Pagado el" not in card
+    assert "confirmarlo en la web" in card
+    assert "le debe" not in card  # sigue fuera del balance
+    assert "días" not in card  # nunca countdown

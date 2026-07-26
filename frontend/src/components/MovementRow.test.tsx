@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import type { Movement } from "@/types";
 import MovementRow from "./MovementRow";
 
-const mv = {
+const mv: Movement = {
   id: 1, type: "expense", amount: "45.00", currency: "GBP", amount_usd: "57.15",
   fx_rate: "1.27", fx_source: "frankfurter", paid_by: 1, split: "shared",
   description: "cena", category_id: 2, stop_slug: "londres", city_name: "Londres",
@@ -26,7 +27,7 @@ describe("MovementRow", () => {
   });
 
   it("marca los pendientes con un pill", () => {
-    const pending = { ...mv, status: "pending", payment_date: "2026-09-03" };
+    const pending: Movement = { ...mv, status: "pending", payment_date: "2026-09-03" };
     render(<MovementRow mv={pending} onEdit={() => {}} onDelete={() => {}} />);
     expect(screen.getByText(/pendiente/i)).toBeTruthy();
   });

@@ -9,6 +9,7 @@ from decimal import Decimal
 from app.bot.active_stop import get_state_payload, resolve_trip_timezone, update_state_payload
 from app.bot.capture import all_users
 from app.bot.render import BotReply, text_reply
+from app.balance import UNSETTLED
 from app.config import get_settings
 from app.db.models import User
 from app.qa.tools import ActionContext, build_tools
@@ -156,11 +157,14 @@ async def _context_snapshot(session, users: list[User], today: date,
                 f"USD {ar_number(bal.amount_usd)} a {names.get(bal.creditor_id)} "
                 "(solo cuenta lo confirmado)"
             )
-    pending = [m for m in movements if m.type == "expense" and m.status == "pending"]
+    # `awaiting` cuenta acá igual que `pending`: sigue afuera del saldo. Filtrar
+    # solo `pending` hacía que un gasto desapareciera de esta línea justo al
+    # vencer, y el LLM se quedaba sin con qué explicar el delta contra el saldo.
+    pending = [m for m in movements if m.type == "expense" and m.status in UNSETTLED]
     if pending:
         total_p = sum((m.amount_usd for m in pending if m.amount_usd is not None), Decimal(0))
         lines.append(
-            f"- Pendientes (fecha de pago futura, EXCLUIDOS del saldo hasta pagarse): "
+            f"- Pendientes (fecha de pago no confirmada, EXCLUIDOS del saldo hasta confirmarse): "
             f"{len(pending)} por USD {ar_number(total_p)}"
         )
 
@@ -190,8 +194,12 @@ async def _context_snapshot(session, users: list[User], today: date,
                 f"{m.currency} {ar_number(m.amount)} (USD {ar_number(m.amount_usd)}) · "
                 f"{m.city_name or 'sin ciudad'} · pagó {payer} · {reparto}"
             )
-            if m.status == "pending" and m.payment_date:
+            if m.payment_date and m.status == "pending":
                 line += f" · PENDIENTE, se paga el {fmt_date(m.payment_date)}"
+            elif m.payment_date and m.status == "awaiting":
+                line += (
+                    f" · VENCIÓ el {fmt_date(m.payment_date)}, falta confirmarlo en la web"
+                )
             lines.append(line)
     else:
         lines.append("- Sin movimientos cargados todavía")

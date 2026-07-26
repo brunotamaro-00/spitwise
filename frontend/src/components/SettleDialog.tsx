@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { errorDetail } from "@/api/client";
 import { createMovement } from "@/api/movements";
 import { listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
@@ -38,7 +39,7 @@ export default function SettleDialog({ balance, onClose }: {
       toast("success", "Pago registrado");
       onClose();
     },
-    onError: () => setErr("No se pudo registrar el pago."),
+    onError: (e) => setErr(errorDetail(e, "No se pudo registrar el pago.")),
   });
 
   function submit(e: React.SyntheticEvent<HTMLFormElement>) {

@@ -7,11 +7,20 @@ con su capitalización canónica. Solo "sube" mayúsculas — nunca baja las que
 vengan puestas — así es idempotente y respeta lo que escribió el usuario.
 """
 import re
+import unicodedata
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 _WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+
+def fold(s: str) -> str:
+    """Minúsculas sin acentos, para comparar texto que tipeó un humano.
+    'Zurich' y 'Zúrich' son la misma parada; el teclado del celular no siempre
+    pone la tilde."""
+    s = unicodedata.normalize("NFD", s.casefold())
+    return "".join(c for c in s if unicodedata.category(c) != "Mn")
 
 
 def normalize_description(desc: str | None, proper_nouns=()) -> str | None:

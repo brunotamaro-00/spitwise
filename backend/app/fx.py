@@ -118,3 +118,55 @@ async def convert_to_usd(
     rate, source = await get_rate_to_usd(session, currency, on_date, client=client)
     amount_usd = (amount * rate).quantize(_TWO, rounding=ROUND_HALF_UP)
     return amount_usd, rate, source
+
+
+def map_fx_source(src: str, currency: str) -> str:
+    """`src` crudo de get_rate_to_usd → el valor que se persiste en fx_source."""
+    if src == "fallback":
+        return "fallback"
+    if src == "direct" or currency.upper() == "USD":
+        return "direct"
+    if currency.upper() == "ARS":
+        return "dolarapi"
+    return "frankfurter"
+
+
+def is_rate_locked(mv) -> bool:
+    """Un movimiento cuya tasa NO se re-consulta al recalcular el monto:
+
+    - `fx_source == 'manual'`: invariante 6, una tasa tipeada a mano nunca se pisa.
+    - `status == 'awaiting'`: `due.py` ya fijó el TC real al vencer, una sola vez.
+      Recalcularlo lo rompe justo en ARS, donde `get_rate_to_usd` fuerza
+      `cache_date=today` y devolvería el MEP de hoy en vez del del vencimiento.
+    """
+    return mv.fx_source == "manual" or mv.status == "awaiting"
+
+
+async def reprice_movement(
+    session: AsyncSession,
+    mv,
+    net: Decimal,
+    on_date: date,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> tuple[Decimal, Decimal, str]:
+    """(amount_usd, fx_rate, fx_source) para un movimiento existente cuyo neto cambió.
+
+    Política única de re-precio, compartida por la API, el editor del bot y el
+    recálculo de un batch. Sobre `convert_to_usd` agrega dos guardas:
+
+    1. Tasa lockeada (`is_rate_locked`) → se recalcula el monto con la tasa guardada.
+    2. Proveedor caído (`src == 'fallback'`) con una tasa buena ya guardada → se
+       conserva la buena. Sin esto, corregir un typo de monto con Frankfurter/
+       dolarapi abajo pisaba el histórico con la tasa de emergencia y no se
+       reintentaba nunca. Es la misma guarda que `due.py` aplica al liquidar.
+    """
+    if is_rate_locked(mv):
+        rate = Decimal(mv.fx_rate)
+        return (net * rate).quantize(_TWO, rounding=ROUND_HALF_UP), rate, mv.fx_source
+
+    amount_usd, rate, src = await convert_to_usd(session, net, mv.currency, on_date, client=client)
+    if src == "fallback" and mv.fx_rate is not None and mv.fx_source != "fallback":
+        rate = Decimal(mv.fx_rate)
+        return (net * rate).quantize(_TWO, rounding=ROUND_HALF_UP), rate, mv.fx_source
+    return amount_usd, rate, map_fx_source(src, mv.currency)

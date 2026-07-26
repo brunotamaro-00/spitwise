@@ -80,3 +80,31 @@ async def test_total_del_viaje(db_session):
     assert "Tu parte: USD 50,0" in reply.text
     assert "10 días" in reply.text
     assert "USD 10,0* por día" in reply.text
+
+
+async def test_total_counts_days_like_the_web(db_session):
+    """'total' descartaba las paradas con dueño —incluidas las PROPIAS del
+    remitente, como Portugal mientras Katia está en Pititas— porque llamaba a
+    _itinerary_days sin username. Menos noches = $/día más alto que /ciudades."""
+    from app.api.city_analytics import _itinerary_days
+    from app.bot.quick import handle_total
+
+    u1, _ = await _seed(db_session)
+    db_session.add_all([
+        Stop(slug="lisboa", name="Lisboa", order=1,
+             arrival_date=date(2026, 8, 1), departure_date=date(2026, 8, 5)),
+        # Tramo propio de Bruno (contraparte de Pititas): SÍ cuenta para él.
+        Stop(slug="porto", name="Porto", order=2, owner_username="bruno",
+             arrival_date=date(2026, 8, 5), departure_date=date(2026, 8, 9)),
+        _expense(u1.id, "400"),
+    ])
+    await db_session.commit()
+
+    reply = await handle_total(db_session, u1)
+    days_web = await _itinerary_days(db_session, None, u1.username)
+    days_all = await _itinerary_days(db_session, None)
+    assert days_web != days_all, "el fixture debe distinguir ambos conteos"
+    # 8 noches con username (Lisboa 4 + Porto 4) vs 4 sin él.
+    assert (days_web, days_all) == (8, 4)
+    # El promedio del bot usa los días de la web: 400/8 = 50, no 400/4 = 100.
+    assert "50" in reply.text

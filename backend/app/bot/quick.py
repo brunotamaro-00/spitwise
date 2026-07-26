@@ -51,6 +51,9 @@ async def handle_total(session: AsyncSession, user: User) -> BotReply:
     )).scalars().all()
     total = sum((m.amount_usd for m in movements), Decimal("0"))
     mine = sum((user_share(m, user.id) for m in movements), Decimal("0"))
-    days = await _itinerary_days(session, None)
+    # Con username: `visible_stops` descarta las paradas de otro dueño (Pititas),
+    # igual que /ciudades. Sin él contaba noches de más y el $/día del bot no
+    # coincidía con el de la web para los mismos datos.
+    days = await _itinerary_days(session, None, user.username)
     avg = total / days if days else Decimal("0")
     return text_reply(trip_card(total, mine, len(movements), days, avg, copy.link_home()))

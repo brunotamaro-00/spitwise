@@ -367,3 +367,31 @@ async def test_edit_amount_keeps_manual_fx(db_session):
     assert mv.fx_source == "manual"
     assert mv.fx_rate == Decimal("1.30")
     assert mv.amount_usd == Decimal("52.00")
+
+
+async def test_edit_batch_total_keeps_cashback_net(db_session):
+    """El recálculo del batch parte del NETO (invariante 10). Las cuotas heredan
+    el cashback pct del gasto, así que esta combinación es real: repartir el
+    bruto acá dejaba de descontarlo y el saldo quedaba inflado para siempre."""
+    u1, _ = await _setup(db_session)
+    a = _mv(u1, "hostel (1/2)", "100", date(2026, 8, 6))
+    b = _mv(u1, "hostel (2/2)", "300", date(2026, 8, 6))
+    for m in (a, b):
+        m.batch_key = "abc123"
+        m.cashback_kind, m.cashback_value = "pct", Decimal("10")
+        m.fx_source = "manual"  # tasa 1 fija: aísla el efecto del cashback
+        m.amount_usd = m.amount * Decimal("0.9")
+    db_session.add_all([a, b])
+    await db_session.commit()
+    fake = FakeLLM(_payload(ref_text="hostel", ref_last=True,
+                            new_amount="480", new_amount_is_total=True))
+    await dispatch(db_session, "549111", "text", "el total era 480",
+                   None, TODAY, llm_client=fake)
+    await db_session.refresh(a)
+    await db_session.refresh(b)
+    # Los brutos se reparten como siempre…
+    assert a.amount + b.amount == Decimal("480.00")
+    # …pero el USD sigue siendo el neto (10% menos), no el bruto.
+    assert a.amount_usd == Decimal("108.00")
+    assert b.amount_usd == Decimal("324.00")
+    assert a.amount_usd + b.amount_usd == Decimal("432.00")

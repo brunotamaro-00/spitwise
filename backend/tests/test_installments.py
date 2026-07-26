@@ -267,3 +267,71 @@ async def test_capture_installments_end_to_end(db_session):
     assert first.batch_key == second.batch_key and first.batch_key
     assert "(1/2)" in first.description and "(2/2)" in second.description
     assert "(1/2)" in reply.text and "(2/2)" in reply.text
+
+
+async def test_installments_share_one_place_and_split(db_session):
+    """Las cuotas de UN gasto van todas a la misma parada. Cada etapa resolvía
+    su lugar por su propia fecha, así que 'hoy y el 3-sep' mandaba las mitades a
+    ciudades distintas — y con owner_split de por medio, a splits distintos."""
+    u1, _ = await _setup(db_session)
+    db_session.add(FxRate(currency="CHF", rate_date=TODAY, rate_to_usd=Decimal("1.20")))
+    await db_session.commit()
+    fake = FakeLLM(_payload(
+        amount="430", currency="CHF", description="hostel interlaken",
+        category="Alojamiento",
+        installments=[
+            {"percent": "30", "amount": None, "date": None},
+            {"percent": None, "amount": None, "date": "2026-09-03"},
+        ],
+    ))
+    await handle_capture(
+        db_session, u1, "549111",
+        "430 CHF en Hostel Interlaken. 30% hoy y el resto al ingresar el 3 de septiembre",
+        TODAY, llm_client=fake,
+    )
+    mvs = (await db_session.execute(select(Movement).order_by(Movement.id))).scalars().all()
+    # La referencia de lugar es el check-in (última etapa), no hoy: las dos van
+    # a Interlaken aunque la primera se pague en julio.
+    assert [m.stop_slug for m in mvs] == ["interlaken", "interlaken"]
+    assert {m.split for m in mvs} == {"shared"}
+    # Pero cada una conserva SU fecha de pago y su status.
+    assert [m.status for m in mvs] == ["confirmed", "pending"]
+
+
+def test_expand_stamps_place_date_on_every_part():
+    parsed = _parsed(installments=[
+        Installment(percent=Decimal("30"), amount=None, pay_date=None, currency=None),
+        Installment(percent=None, amount=None, pay_date=date(2026, 9, 3), currency=None),
+    ])
+    parts = expand_installments(parsed, TODAY)
+    assert [p.place_date for p in parts] == [date(2026, 9, 3), date(2026, 9, 3)]
+
+
+async def test_batch_cap_applies_to_expenses_not_stages(db_session):
+    """El tope de _BATCH_MAX se aplicaba DESPUÉS de expandir cuotas: 3 gastos de
+    4 etapas daban 12 ítems, se guardaban 10 y el último gasto quedaba partido,
+    con el total sin cerrar y sin ningún aviso."""
+    from app.bot.capture import _BATCH_MAX, handle_capture
+
+    u1, _ = await _setup(db_session)
+    db_session.add(FxRate(currency="CHF", rate_date=TODAY, rate_to_usd=Decimal("1.20")))
+    await db_session.commit()
+
+    stages = [{"percent": "25", "amount": None, "date": None},
+              {"percent": None, "amount": None, "date": "2026-09-03"}]
+    expenses = [
+        {"kind": "expense", "amount": "100", "currency": "CHF",
+         "description": f"gasto {i}", "category": "Alojamiento", "installments": stages}
+        for i in range(_BATCH_MAX + 2)
+    ]
+    fake = FakeLLM(_payload(expenses=expenses))
+    await handle_capture(db_session, u1, "549111", "muchos gastos en cuotas",
+                         TODAY, llm_client=fake)
+
+    mvs = (await db_session.execute(select(Movement))).scalars().all()
+    # Se cortan GASTOS enteros: 10 gastos × 2 etapas, ninguno partido al medio.
+    assert len(mvs) == _BATCH_MAX * 2
+    by_desc: dict[str, int] = {}
+    for m in mvs:
+        by_desc[m.description.rsplit(" (", 1)[0]] = by_desc.get(m.description.rsplit(" (", 1)[0], 0) + 1
+    assert set(by_desc.values()) == {2}, by_desc

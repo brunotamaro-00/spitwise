@@ -189,24 +189,26 @@ _CONTENT_FRESH_TTL = timedelta(hours=6)
 # DEPLOY.md). Mismo patrón _dirty/coalescing que andiamo.py.
 _refresh_running = False
 _dirty = False
-_notes_only = False
+# Alcance de la pasada encolada: True = solo notas. Solo tiene sentido con
+# `_dirty` en True; se acumula con AND sobre los pedidos que llegan.
+_dirty_notes_only = False
 
 
-async def _background_refresh() -> None:
-    global _refresh_running, _dirty, _notes_only
+async def _background_refresh(notes_only: bool = False) -> None:
+    global _refresh_running, _dirty, _dirty_notes_only
     from app.db.engine import get_sessionmaker
     try:
         maker = get_sessionmaker()
         while True:
             _dirty = False
-            notes_only = _notes_only
-            _notes_only = False
             async with maker() as session:
                 if not notes_only:
                     await sync_guides(session)
                 await sync_notes(session)
             if not _dirty:
                 break
+            # Alcance de la vuelta siguiente, según lo que se encoló mientras tanto.
+            notes_only = _dirty_notes_only
     except Exception:
         logger.warning("andiamo_content_refresh_failed", exc_info=True)
     finally:
@@ -233,14 +235,16 @@ def force_content_sync_soon(*, notes_only: bool = False) -> None:
     """Sync inmediato en background (sync-hook de Andiamo). Ignora el TTL;
     nunca bloquea. Con notes_only=True (evento notes.changed) evita re-bajar
     los 3MB de guías."""
-    global _refresh_running, _dirty, _notes_only
+    global _refresh_running, _dirty, _dirty_notes_only
     if not get_settings().andiamo_url:
         return
     if _refresh_running:
-        # La pasada extra baja guías salvo que TODOS los pedidos fueran de notas.
-        _notes_only = _notes_only and notes_only
+        # La pasada extra baja guías salvo que TODOS los pedidos encolados sean
+        # de notas. El AND arranca del primero: antes se acumulaba sobre un flag
+        # que el propio loop ya había puesto en False, así que daba False
+        # siempre y cada ping se bajaba las guías enteras.
+        _dirty_notes_only = notes_only if not _dirty else (_dirty_notes_only and notes_only)
         _dirty = True
         return
-    _notes_only = notes_only
     _refresh_running = True
-    asyncio.create_task(_background_refresh())
+    asyncio.create_task(_background_refresh(notes_only))

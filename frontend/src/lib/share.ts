@@ -15,20 +15,26 @@ export function involvesMe(mv: Movement, userId: number): boolean {
   return mv.type === "settlement" || myShare(mv, userId) > 0;
 }
 
+/** Día siguiente a una fecha pura YYYY-MM-DD, en la misma escala (sin husos). */
+function nextDay(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + 1));
+  return dt.toISOString().slice(0, 10);
+}
+
 /** ¿Este gasto necesita confirmación manual (aviso en /movimientos)?
  *  - `awaiting`: llegó la fecha, TC lockeado por el server → siempre.
  *  - `pending`: aviso desde 1 día antes de su fecha de pago.
- *  Sale del aviso al confirmarse (status → confirmed). */
-export function needsConfirmation(mv: Movement, today = new Date()): boolean {
+ *  Sale del aviso al confirmarse (status → confirmed).
+ *
+ *  `today` es una fecha pura YYYY-MM-DD y debe venir del viaje (`TripPace.as_of`),
+ *  no del reloj del dispositivo: el server decide `awaiting` con la tz de la
+ *  parada activa, así que un teléfono en otro huso movía el aviso un día entero. */
+export function needsConfirmation(mv: Movement, today: string): boolean {
   if (mv.type !== "expense") return false;
   if (mv.status === "awaiting") return true;
   if (mv.status === "pending" && mv.payment_date) {
-    const cutoff = new Date(today);
-    cutoff.setDate(cutoff.getDate() + 1); // hasta 1 día antes de la fecha
-    // payment_date es YYYY-MM-DD (fecha pura). Armar la key con partes locales
-    // (no toISOString, que corre a UTC y desfasa un día en husos positivos).
-    const cutoffKey = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}-${String(cutoff.getDate()).padStart(2, "0")}`;
-    return mv.payment_date <= cutoffKey;
+    return mv.payment_date <= nextDay(today);
   }
   return false;
 }

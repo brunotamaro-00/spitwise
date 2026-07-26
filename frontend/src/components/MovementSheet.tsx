@@ -82,14 +82,16 @@ export default function MovementSheet({ mv, category, flag, myId, onEdit, onDele
       <dl className="mt-4">
         {!isSettlement && <Row label="Categoría">{category?.name ?? "Sin categoría"}</Row>}
         <Row label="Cargado">{capitalize(formatDayHeader(createdDayKey(mv)))}</Row>
+        {/* Un `awaiting` todavía no entró al balance: llamarlo "Pagado" lo daba
+            por cerrado justo cuando falta el paso de confirmarlo. */}
         {!isSettlement && mv.payment_date && (
-          <Row label={mv.status === "pending" ? "Se paga" : "Pagado"}>
+          <Row label={mv.status === "pending" ? "Se paga" : mv.status === "awaiting" ? "Venció" : "Pagado"}>
             {capitalize(formatDayHeader(mv.payment_date))}
             {mv.status === "pending" && (
-              <span className="ml-1.5 font-semibold text-accent-amber">· TC provisorio</span>
+              <span className="ml-1.5 font-semibold text-accent-amber"> · TC provisorio</span>
             )}
             {mv.status === "awaiting" && (
-              <span className="ml-1.5 font-semibold text-accent-amber">· por confirmar</span>
+              <span className="ml-1.5 font-semibold text-accent-amber"> · falta confirmarlo</span>
             )}
           </Row>
         )}

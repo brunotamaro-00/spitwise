@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -8,11 +9,12 @@ from app.api.auth import get_current_user
 from app.api.schemas import MovementConfirm, MovementIn, MovementOut, MovementUpdate
 from app.balance import UNSETTLED
 from app.bot.active_stop import place_for_date, resolve_trip_timezone
+from app.bot.capture import owner_split
 from app.cashback import net_amount, validate_cashback
 from app.db.engine import get_session
 from app.db.models import Movement, Stop, User
-from app.due import ensure_due_settled
-from app.fx import convert_to_usd, fx_reference_date
+from app.due import ensure_due_settled, next_status_for_date
+from app.fx import convert_to_usd, fx_reference_date, map_fx_source, reprice_movement
 from app.textnorm import load_proper_nouns, normalize_description
 from app.trip_time import today_in_tz
 
@@ -20,15 +22,8 @@ router = APIRouter(prefix="/movements", tags=["movements"])
 _TWO = Decimal("0.01")
 
 
-def _map_source(fx_source: str, currency: str) -> str:
-    # FX devuelve frankfurter|dolarapi|cache|direct|fallback.
-    if fx_source == "fallback":
-        return "fallback"
-    if fx_source == "direct" or currency.upper() == "USD":
-        return "direct" if currency.upper() == "USD" else fx_source
-    if currency.upper() == "ARS":
-        return "dolarapi"
-    return "frankfurter"
+# Alias histórico: la política vive en app/fx.py, único dueño del mapeo.
+_map_source = map_fx_source
 
 
 async def _load_today(session: AsyncSession, username: str | None = None):
@@ -98,6 +93,17 @@ async def create_movement(
             session, net, body.currency, fx_reference_date(payment_date, today)
         )
         fx_source = _map_source(src, body.currency)
+
+    # Paradas con dueño (Pititas/Portugal): el gasto es de esa persona por
+    # default, igual que por el bot. Estaba solo en el camino de WhatsApp, así
+    # que el mismo gasto se repartía distinto según por dónde se cargara.
+    payer_id = body.paid_by or user.id
+    split = body.split
+    if body.type == "expense":
+        payer = (await session.execute(select(User).where(User.id == payer_id))).scalar_one_or_none()
+        if payer is not None:
+            split = await owner_split(session, stop_slug, payer, split)
+
     mv = Movement(
         type=body.type,
         amount=body.amount,
@@ -105,8 +111,8 @@ async def create_movement(
         amount_usd=amount_usd,
         fx_rate=rate,
         fx_source=fx_source,
-        paid_by=body.paid_by or user.id,
-        split=body.split,
+        paid_by=payer_id,
+        split=split,
         description=normalize_description(body.description, await load_proper_nouns(session)),
         category_id=None if body.type == "settlement" else body.category_id,
         stop_slug=stop_slug,
@@ -156,16 +162,26 @@ async def update_movement(
         mv.description = normalize_description(
             body.description, await load_proper_nouns(session)
         )
-    if "amount" in sent:
+    # Se comparan valores, no presencia: un cliente que re-manda el body entero
+    # no debe gatillar un re-precio del FX (ver `fx_inputs_changed`).
+    money_changed = False
+    if "amount" in sent and body.amount != mv.amount:
         mv.amount = body.amount
-    if "currency" in sent:
+        money_changed = True
+    if "currency" in sent and body.currency.upper() != mv.currency:
         mv.currency = body.currency.upper()
+        money_changed = True
 
-    # Cashback: kind/value viajan juntos (mandar ambos null lo saca).
-    cashback_changed = bool(sent & {"cashback_kind", "cashback_value"})
-    if cashback_changed:
+    # Cashback: cada campo se pisa solo si vino en el body. Pisar los dos cuando
+    # llega uno solo hacía imposible corregir nada más que el % (el otro campo
+    # viajaba como el None default de Pydantic y `validate_cashback` tiraba 422).
+    cashback_changed = False
+    if "cashback_kind" in sent and body.cashback_kind != mv.cashback_kind:
         mv.cashback_kind = body.cashback_kind
+        cashback_changed = True
+    if "cashback_value" in sent and body.cashback_value != mv.cashback_value:
         mv.cashback_value = body.cashback_value
+        cashback_changed = True
 
     # Ciudad: slug explícito validado (deriva city_name), null explícito => parada de hoy.
     if "stop_slug" in sent and mv.type != "settlement":
@@ -189,18 +205,20 @@ async def update_movement(
         raise HTTPException(status_code=422, detail=err)
 
     # Fecha de pago: recalcula status (siempre derivado server-side) y el TC.
-    pay_changed = "payment_date" in sent and mv.type != "settlement"
+    pay_changed = (
+        "payment_date" in sent
+        and mv.type != "settlement"
+        and body.payment_date != mv.payment_date
+    )
     if pay_changed:
         today = await _load_today(session, user.username)
         mv.payment_date = body.payment_date
-        mv.status = (
-            "pending" if body.payment_date is not None and body.payment_date > today
-            else "confirmed"
-        )
+        # Un awaiting conserva su estado: solo POST /confirm lo mete al balance.
+        mv.status = next_status_for_date(mv.status, body.payment_date, today)
 
     # amount_usd = neto (bruto - cashback) × TC. El cashback también gatilla recálculo.
     net = net_amount(mv.amount, mv.cashback_kind, mv.cashback_value)
-    fx_inputs_changed = (sent & {"amount", "currency"}) or pay_changed or cashback_changed
+    fx_inputs_changed = money_changed or pay_changed or cashback_changed
     if "fx_rate" in sent:
         if body.fx_rate is None:
             raise HTTPException(status_code=422, detail="fx_rate no puede ser null")
@@ -213,18 +231,13 @@ async def update_movement(
         mv.fx_source = "manual"
         mv.amount_usd = (net * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
     elif fx_inputs_changed:
-        if mv.fx_source == "manual":
-            # Respetar la tasa manual vigente; solo recalcular el monto.
-            mv.amount_usd = (net * mv.fx_rate).quantize(_TWO, rounding=ROUND_HALF_UP)
-        else:
-            today = await _load_today(session)
-            # Regla: TC de la fecha de pago, capeada a hoy.
-            amount_usd, rate, src = await convert_to_usd(
-                session, net, mv.currency, fx_reference_date(mv.payment_date, today)
-            )
-            mv.amount_usd = amount_usd
-            mv.fx_rate = rate
-            mv.fx_source = _map_source(src, mv.currency)
+        today = await _load_today(session, user.username)
+        # Regla: TC de la fecha de pago, capeada a hoy. `reprice_movement` respeta
+        # las tasas lockeadas (manual / awaiting) y no pisa una tasa buena con el
+        # fallback de un proveedor caído.
+        mv.amount_usd, mv.fx_rate, mv.fx_source = await reprice_movement(
+            session, mv, net, fx_reference_date(mv.payment_date, today)
+        )
     # Si no cambió nada relevante al FX, no se toca (no pisar correcciones).
 
     await session.commit()
@@ -249,6 +262,18 @@ async def confirm_movement(
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
     if mv.status not in UNSETTLED:
         raise HTTPException(status_code=409, detail="El movimiento ya está confirmado")
+
+    # Solo se confirma lo que ya venció (o vence mañana, igual que el banner de
+    # la web). Confirmar un pending lejano lo dejaría clavado al TC proxy del día
+    # de carga: `settle_due_movements` filtra por status='pending' y nunca lo
+    # volvería a mirar, así que el TC real de la fecha de pago se perdería.
+    if mv.payment_date is not None:
+        today = await _load_today(session, user.username)
+        if mv.payment_date > today + timedelta(days=1):
+            raise HTTPException(
+                status_code=409,
+                detail="El gasto todavía no llegó a su fecha de pago",
+            )
 
     if body.paid_by is not None:
         from app.users import get_trip_users

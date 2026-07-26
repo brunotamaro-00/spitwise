@@ -1,12 +1,19 @@
+export type MovementType = "expense" | "settlement";
+/** `pending` (fecha futura) y `awaiting` (venció, falta confirmar) están FUERA
+ *  del balance; solo `confirmed` entra. */
+export type MovementStatus = "pending" | "awaiting" | "confirmed";
+export type MovementSplit = "shared" | "payer_only" | "other_only";
+export type CashbackKind = "pct" | "amount";
+
 export type Movement = {
-  id: number; type: string; amount: string; currency: string; amount_usd: string;
-  fx_rate: string; fx_source: string; paid_by: number; split: string;
+  id: number; type: MovementType; amount: string; currency: string; amount_usd: string;
+  fx_rate: string; fx_source: string; paid_by: number; split: MovementSplit;
   description: string | null; category_id: number | null;
   stop_slug: string | null; city_name: string | null;
-  payment_date: string | null; status: string;
+  payment_date: string | null; status: MovementStatus;
   // Cashback de tarjeta: 'pct' (value = %) | 'amount' (value = monto fijo local).
   // amount sigue siendo el BRUTO; el neto se deriva (lib/cashback).
-  cashback_kind: string | null; cashback_value: string | null;
+  cashback_kind: CashbackKind | null; cashback_value: string | null;
   created_at: string;
 };
 export type Balance = { debtor_id: number | null; creditor_id: number | null; amount_usd: string };

@@ -46,22 +46,27 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-ink">
-          {mv.description || (isSettlement ? "Pago (saldo)" : "Sin descripción")}
+        {/* Los badges van FUERA del truncate y con shrink-0: adentro del <p>
+            desaparecían justo en las descripciones largas (las cuotas siempre lo
+            son, por el sufijo "(i/n)"), que es donde más importa verlos. */}
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <p className="min-w-0 truncate font-semibold text-ink">
+            {mv.description || (isSettlement ? "Pago (saldo)" : "Sin descripción")}
+          </p>
           {(mv.status === "pending" || mv.status === "awaiting") && (
-            <span className="ml-1.5 inline-block rounded-full bg-accent-amber-bg px-1.5 py-px align-[2px] text-[10px] font-bold uppercase tracking-wide text-accent-amber">
+            <span className="shrink-0 rounded-full bg-accent-amber-bg px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-accent-amber">
               {mv.status === "awaiting" ? "Por confirmar" : "Pendiente"}
             </span>
           )}
           {cbLabel && (
             <span
-              className="ml-1.5 inline-block rounded-full bg-accent-teal-bg px-1.5 py-px align-[2px] text-[10px] font-bold uppercase tracking-wide text-accent-teal"
+              className="shrink-0 rounded-full bg-accent-teal-bg px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-accent-teal"
               title={`Cashback ${cbLabel}`}
             >
               CB {cbLabel}
             </span>
           )}
-        </p>
+        </div>
         <p className="mt-0.5 truncate text-xs text-ink-3">
           {mv.city_name ? (
             <>

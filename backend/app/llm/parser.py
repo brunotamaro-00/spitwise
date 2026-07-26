@@ -57,6 +57,12 @@ class ParsedMessage:
     # parada mirando el itinerario Y se persiste como Movement.payment_date
     # (futura => pending con TC proxy; pasada => TC histórico). None => hoy.
     payment_date: date | None = None
+    # Fecha con la que se elige la PARADA, cuando difiere de payment_date. La
+    # setea `expand_installments`: las cuotas de un mismo gasto comparten lugar
+    # (el del gasto), aunque cada una se pague en su fecha. Sin esto, "30% hoy y
+    # el resto el 3-sep" mandaba las dos mitades a ciudades distintas — y con
+    # `owner_split` de por medio, a splits distintos. None => usar payment_date.
+    place_date: date | None = None
     city: str | None = None  # None => itinerario estricto por fecha (fuera de rango => General)
     # Cashback de tarjeta. kind='pct' (value=%) | 'amount' (value=monto fijo en la
     # moneda del gasto). Ambos None => sin cashback. amount sigue siendo el bruto.
@@ -81,14 +87,20 @@ class ParsedMessage:
         return self.intent == "settlement"
 
 
-def _norm_cashback(raw: dict, prefix: str = "") -> tuple[str | None, Decimal | None]:
+def _norm_cashback(
+    raw: dict, prefix: str = "", amount: Decimal | None = None
+) -> tuple[str | None, Decimal | None]:
     """(kind, value) saneados desde `<prefix>cashback_kind`/`<prefix>cashback_value`.
-    Degrada a (None, None) si algo no cierra (invariante: no romper la carga)."""
+    Degrada a (None, None) si algo no cierra (invariante: no romper la carga).
+
+    `amount` (cuando se conoce acá) descarta un cashback fijo mayor al gasto. En
+    el camino de edit el monto de referencia vive en el movimiento, no en el
+    payload: ese techo lo aplica `editor.apply_changes`."""
     from app.cashback import normalize_cashback
     kind = str(raw.get(f"{prefix}cashback_kind") or "").strip().lower() or None
     if kind not in _VALID_CASHBACK_KINDS:
         kind = None
-    return normalize_cashback(kind, _to_decimal(raw.get(f"{prefix}cashback_value")))
+    return normalize_cashback(kind, _to_decimal(raw.get(f"{prefix}cashback_value")), amount)
 
 
 def _norm_currency(v) -> str | None:
@@ -192,10 +204,11 @@ def _normalize_expense(raw: dict, category_names, usernames, sender: str | None 
         if split not in _VALID_SPLIT:
             split = "shared"
     insts = _norm_installments(raw.get("installments")) if intent == "expense" else []
-    cb_kind, cb_value = _norm_cashback(raw) if intent == "expense" else (None, None)
+    amount = _to_decimal(raw.get("amount"))
+    cb_kind, cb_value = _norm_cashback(raw, amount=amount) if intent == "expense" else (None, None)
     return ParsedMessage(
         intent=intent,
-        amount=_to_decimal(raw.get("amount")),
+        amount=amount,
         currency=_norm_currency(raw.get("currency")),
         description=(raw.get("description") or None),
         category_name=category,

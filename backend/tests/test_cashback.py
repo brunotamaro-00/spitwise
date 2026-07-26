@@ -177,3 +177,22 @@ async def test_bot_capture_persists_cashback_and_nets_usd(db_session):
     # La card muestra el neto y una línea de cashback, no el bruto en el monto.
     assert "19,6" in reply.text
     assert "Cashback" in reply.text
+
+
+def test_normalize_cashback_rejects_fixed_over_amount():
+    """El techo del fijo solo lo aplicaba la API. Por WhatsApp, 'la cena fue 20
+    euros con 50 de cashback' daba net 0 => gasto gratis en el saldo."""
+    assert normalize_cashback("amount", Decimal("50"), Decimal("20")) == (None, None)
+    assert normalize_cashback("amount", Decimal("5"), Decimal("20")) == ("amount", Decimal("5.00"))
+    # Sin monto de referencia el chequeo no aplica (compat del caller viejo).
+    assert normalize_cashback("amount", Decimal("50")) == ("amount", Decimal("50.00"))
+
+
+def test_parser_drops_fixed_cashback_over_amount():
+    from app.llm.parser import _normalize_expense
+    parsed = _normalize_expense(
+        {"amount": "20", "cashback_kind": "amount", "cashback_value": "50"},
+        ["Otros"], ["bruno", "katia"], sender="bruno",
+    )
+    assert (parsed.cashback_kind, parsed.cashback_value) == (None, None)
+    assert parsed.amount == Decimal("20")
