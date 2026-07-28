@@ -29,12 +29,12 @@ from decimal import Decimal
 
 from sqlalchemy import delete, select
 
-from app.cashback import net_amount
 from app.categories.seed import seed_categories
 from app.config import get_settings
 from app.db.engine import async_session_factory, make_engine
 from app.db.models import Base, Category, Movement, Stop, User
 from app.users import seed_users_from_env
+from demo_common import REGION_BY_SLUG, _add_mov, _created, _seed_day  # noqa: F401
 
 TODAY = date.today()
 # HOY = día 40 (la llegada a la 1.ª parada es el día 1). Alineado a Andiamo /
@@ -89,75 +89,6 @@ ITINERARY = [
 
 TOTAL_NIGHTS = sum(row[5] for row in ITINERARY)
 assert TOTAL_NIGHTS == 108, f"esperado 108 noches Andiamo, got {TOTAL_NIGHTS}"
-
-FX = {"USD": Decimal("1.0"), "GBP": Decimal("1.27"), "EUR": Decimal("1.08"),
-      "CHF": Decimal("1.12"), "CZK": Decimal("0.043"), "PLN": Decimal("0.25"),
-      "HUF": Decimal("0.0028")}
-
-# Ritmo diario por región (USD del HOGAR = ~2× pp del PRESUPUESTO).
-# comida = restaurantes; super = mercado/hostel cocina; salidas = birras/pubs.
-# Keys: (comida, supermercado, transporte_local, actividades, salidas)
-# Valores = (min, max) por movimiento típico del día cuando toca ese rubro.
-REGION_DAILY = {
-    "uk": {
-        "food_pp": (38, 52),
-        "local_transport": (4, 14),
-        "activity": (20, 55),
-        "salida": (16, 40),
-        "compras_chance": 0.08,
-    },
-    "west": {  # NL + París + Alsacia
-        "food_pp": (32, 48),
-        "local_transport": (3, 12),
-        "activity": (18, 50),
-        "salida": (14, 36),
-        "compras_chance": 0.10,
-    },
-    "portugal": {  # Bruno solo → no ×2
-        "food_pp": (25, 38),
-        "local_transport": (3, 10),
-        "activity": (12, 35),
-        "salida": (10, 28),
-        "compras_chance": 0.06,
-        "solo": True,
-    },
-    "ch": {
-        "food_pp": (42, 60),
-        "local_transport": (5, 18),
-        "activity": (40, 90),
-        "salida": (18, 45),
-        "compras_chance": 0.05,
-    },
-    "east": {
-        "food_pp": (17, 26),
-        "local_transport": (2, 8),
-        "activity": (12, 35),
-        "salida": (8, 22),
-        "compras_chance": 0.06,
-    },
-    "south": {  # IT + ES
-        "food_pp": (28, 40),
-        "local_transport": (3, 12),
-        "activity": (18, 48),
-        "salida": (12, 32),
-        "compras_chance": 0.08,
-    },
-}
-
-REGION_BY_SLUG = {
-    "londres": "uk", "york": "uk", "edimburgo": "uk", "fort-william": "uk",
-    "portree": "uk", "inverness": "uk", "edimburgo-2": "uk",
-    "amsterdam": "west", "paris": "west",
-    "lisboa": "portugal", "porto": "portugal",
-    "estrasburgo": "west", "colmar": "west", "friburgo": "west",
-    "interlaken": "ch",
-    "viena": "east", "praga": "east", "cracovia": "east",
-    "budapest": "east", "liubliana": "east",
-    "florencia": "south", "roma": "south", "napoles": "south",
-    "sur-italia": "south",
-    "barcelona": "south", "madrid": "south",
-}
-
 
 async def main() -> None:
     random.seed(42)
@@ -361,113 +292,6 @@ async def main() -> None:
         for name, amt in sorted(by_cat.items(), key=lambda x: -x[1]):
             pct = (amt / total * 100) if total else 0
             print(f"  {name:14} USD {amt.quantize(Decimal('0.1')):>8}  ({pct:.0f}%)")
-
-
-def _seed_day(s, cats, cur, day, slug, name, bruno, katia, region_key,
-              *, force_payer=None) -> None:
-    """Un día de viaje: alimentación ~presupuesto + transporte local ocasional
-    + actividad/salida con menor frecuencia. Montos en USD del hogar (o 1p si solo)."""
-    cfg = REGION_DAILY[region_key]
-    solo = cfg.get("solo", False) or force_payer is not None
-    payer = force_payer or random.choice([bruno, katia])
-    # En Portugal del itinerario, Bruno paga y es payer_only.
-    if region_key == "portugal" and force_payer is None:
-        payer = bruno
-        split = "payer_only"
-        mult = 1
-    elif force_payer is not None:
-        split = "payer_only"
-        mult = 1
-    else:
-        split = random.choices(["shared", "payer_only", "other_only"], weights=[9, 1, 0])[0]
-        mult = 1 if split != "shared" else 2
-
-    # Alimentación del día (pp × personas) repartida comida / super.
-    lo, hi = cfg["food_pp"]
-    food_day = random.uniform(lo, hi) * mult
-    # ~55% restaurante, ~45% super (cocina hostel, sobre todo CH/east).
-    super_share = 0.55 if region_key in ("ch", "east") else 0.40
-    if random.random() < 0.85:
-        # Almuerzo o cena
-        meal = food_day * (1 - super_share) * random.uniform(0.45, 0.70)
-        _add_mov(s, cats["Comida"], cur, round(meal, 2), day, slug, name, payer, split,
-                 _desc("Comida", name))
-    if random.random() < 0.55:
-        grocery = food_day * super_share * random.uniform(0.6, 1.0)
-        _add_mov(s, cats["Supermercado"], cur, round(grocery, 2), day, slug, name,
-                 payer, split, _desc("Supermercado", name))
-    # Segunda comida (cena) algunos días.
-    if random.random() < 0.45:
-        dinner = food_day * (1 - super_share) * random.uniform(0.30, 0.50)
-        _add_mov(s, cats["Comida"], cur, round(dinner, 2), day, slug, name, payer, split,
-                 _desc("Comida", name))
-
-    # Transporte local (~70% de los días).
-    if random.random() < 0.70:
-        tlo, thi = cfg["local_transport"]
-        _add_mov(s, cats["Transporte"], cur, round(random.uniform(tlo, thi) * mult, 2),
-                 day, slug, name, payer, split, _desc("Transporte", name))
-
-    # Actividad (~1 cada 2–3 días).
-    if random.random() < 0.35:
-        alo, ahi = cfg["activity"]
-        _add_mov(s, cats["Actividades"], cur, round(random.uniform(alo, ahi) * mult, 2),
-                 day, slug, name, payer, split, _desc("Actividades", name))
-
-    # Salida (~1 cada 3 días).
-    if random.random() < 0.30:
-        slo, shi = cfg["salida"]
-        _add_mov(s, cats["Salidas"], cur, round(random.uniform(slo, shi) * mult, 2),
-                 day, slug, name, payer, split, _desc("Salidas", name))
-
-    # Compras ocasionales.
-    if random.random() < cfg["compras_chance"]:
-        _add_mov(s, cats["Compras"], cur, round(random.uniform(12, 45) * mult, 2),
-                 day, slug, name, payer, split, _desc("Compras", name))
-
-    # Farmacia rara.
-    if random.random() < 0.04:
-        _add_mov(s, cats["Salud"], cur, round(random.uniform(6, 18) * mult, 2),
-                 day, slug, name, payer, split, _desc("Salud", name))
-
-
-def _desc(cat: str, city: str) -> str:
-    samples = {
-        "Comida": ["Cena", "Almuerzo", "Café y medialunas", "Fish & chips", "Ramen",
-                   "Menú del día", "Pasta", "Brunch"],
-        "Transporte": ["Metro", "Bus", "Tren local", "Bici", "Uber corto"],
-        "Actividades": ["Museo", "Tour a pie", "Mirador", "Castillo", "Free walking tour"],
-        "Compras": ["Souvenir", "Libro", "Remera", "Postales"],
-        "Salidas": ["Pub", "Birras", "Vinos", "Cóctel"],
-        "Supermercado": ["Provisiones", "Agua y snacks", "Desayuno hostel", "Mercado"],
-        "Salud": ["Farmacia", "Ibuprofeno", "Protector solar"],
-    }
-    return f"{random.choice(samples.get(cat, ['Gasto']))} · {city}"
-
-
-def _created(day: date) -> datetime:
-    return datetime.combine(day, time(hour=random.randint(9, 22), minute=random.randint(0, 59)))
-
-
-def _add_mov(s, cat, cur, usd_amount, day, slug, city, paid_by, split, desc,
-             *, payment_date=None, status="confirmed",
-             cashback_kind=None, cashback_value=None) -> None:
-    """`usd_amount` en USD; se convierte a moneda local. Con cashback, `amount`
-    queda en bruto y `amount_usd` hornea el neto."""
-    rate = FX[cur]
-    usd = Decimal(str(usd_amount)).quantize(Decimal("0.01"))
-    local = (usd / rate).quantize(Decimal("0.01"))
-    net = net_amount(local, cashback_kind, cashback_value)
-    s.add(Movement(
-        type="expense", amount=local, currency=cur,
-        amount_usd=(net * rate).quantize(Decimal("0.01")),
-        fx_rate=rate, fx_source="manual", paid_by=paid_by.id, split=split,
-        description=desc, category_id=cat.id if cat else None,
-        stop_slug=slug, city_name=city, created_by=paid_by.id,
-        payment_date=payment_date, status=status,
-        cashback_kind=cashback_kind, cashback_value=cashback_value,
-        created_at=_created(day),
-    ))
 
 
 if __name__ == "__main__":

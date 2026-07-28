@@ -1,0 +1,229 @@
+"""Seed de movimientos ficticios para el deploy público (demo.spitwise.lat).
+
+A diferencia de `seed_demo_data.py` (demo local, itinerario hardcodeado), este
+script **no inventa paradas**: sincroniza el itinerario desde la demo de Andiamo
+con el mismo camino que usa producción (`sync_stops`) y siembra movimientos
+sobre lo que haya venido. Así el deploy público demuestra la integración real en
+vez de dos snapshots que se contradicen — duplicar el itinerario acá garantizaba
+que los slugs divergieran y que el primer arranque archivara paradas con gastos.
+
+De cada parada se leen slug, nombre, moneda y fechas; el ritmo de gasto sale de
+la tabla por región de `demo_common`. Se saltean candidatas, margen flex,
+archivadas y las que no tengan fechas.
+
+DESTRUCTIVO sobre `movements`. Lo corre el cron nocturno de Railway para limpiar
+lo que hayan cargado los visitantes. Nunca apuntarlo a la DB de producción.
+
+Uso:
+
+    cd backend
+    ANDIAMO_URL=https://demo.andiamo.lat TRIP_SHARED_API_KEY=... \
+    DATABASE_URL=... SECRET_KEY=... AUTH_USERS="bruno:demo:,katia:demo:" \
+    python scripts/seed_demo_money.py
+"""
+import asyncio
+import random
+import sys
+from datetime import date, timedelta
+from decimal import Decimal
+
+from sqlalchemy import delete, select
+
+from app.andiamo import sync_stops
+from app.categories.seed import seed_categories
+from app.config import get_settings
+from app.db.engine import async_session_factory, make_engine
+from app.db.models import Category, Movement, Stop, User
+from app.users import seed_users_from_env
+from demo_common import REGION_DAILY, _add_mov, _created, _seed_day, region_for
+
+TODAY = date.today()
+
+
+def _usable(stop: Stop) -> bool:
+    """Paradas que reciben gastos: las mismas que `GET /stops` le muestra al
+    frontend, y con fechas — una candidata sin fechas no tiene días que sembrar."""
+    return (
+        not stop.is_candidate
+        and not stop.is_flex_margin
+        and not stop.is_archived
+        and stop.arrival_date is not None
+        and stop.departure_date is not None
+        and stop.departure_date > stop.arrival_date
+    )
+
+
+async def main() -> None:
+    # Semilla fija: dos corridas del cron producen la misma demo.
+    random.seed(42)
+    settings = get_settings()
+    if not settings.andiamo_url:
+        raise SystemExit("Falta ANDIAMO_URL: este seed toma el itinerario de Andiamo.")
+
+    engine = make_engine(settings.database_url)
+    Session = async_session_factory(engine)
+
+    # Las tablas las crea Alembic en el arranque del servicio; acá solo se
+    # completa lo idempotente que el lifespan también siembra.
+    async with Session() as s:
+        await seed_categories(s)
+        await seed_users_from_env(s)
+        await s.commit()
+
+    async with Session() as s:
+        result = await sync_stops(s)
+        if result["status"] != "ok" or result["synced"] == 0:
+            raise SystemExit(
+                f"Sync con Andiamo falló ({result}). No se siembra nada: sin "
+                "itinerario los movimientos quedarían huérfanos."
+            )
+        print(f"Itinerario sincronizado desde {settings.andiamo_url}: {result}")
+
+        users = (await s.execute(select(User).order_by(User.id))).scalars().all()
+        if len(users) < 2:
+            raise SystemExit("Faltan usuarios: definí AUTH_USERS con 2 personas.")
+        bruno = next((u for u in users if u.username == "bruno"), users[0])
+        katia = next((u for u in users if u.username == "katia"), users[1])
+        cats = {c.name: c for c in (await s.execute(select(Category))).scalars().all()}
+
+        await s.execute(delete(Movement))
+
+        stops = [
+            st for st in (await s.execute(select(Stop).order_by(Stop.order))).scalars().all()
+            if _usable(st)
+        ]
+        if not stops:
+            raise SystemExit("El itinerario sincronizado no tiene paradas con fechas.")
+
+        first, last = stops[0], stops[-1]
+        days = 0
+
+        for stop in stops:
+            region = region_for(stop.slug)
+            cur = stop.currency_code or "EUR"
+            nights = (stop.departure_date - stop.arrival_date).days
+
+            # Alojamiento: se paga al reservar (~30 días antes). Una parada
+            # futura queda `pending` con fecha de pago en el check-in, que es lo
+            # que alimenta el banner "por confirmar" y la ciudad "reservada".
+            lo, hi = REGION_DAILY[region]["lodging_night"]
+            lodging = round(random.uniform(lo, hi) * nights, 2)
+            split = "payer_only" if region == "portugal" else "shared"
+            if stop.arrival_date <= TODAY:
+                _add_mov(s, cats["Alojamiento"], cur, lodging,
+                         stop.arrival_date - timedelta(days=30), stop.slug, stop.name,
+                         bruno, split, f"Alojamiento {stop.name}")
+            else:
+                _add_mov(s, cats["Alojamiento"], cur, lodging, TODAY, stop.slug, stop.name,
+                         bruno, split, f"Alojamiento {stop.name}",
+                         payment_date=stop.arrival_date, status="pending")
+
+            # Gasto del día a día, solo hasta hoy.
+            for i in range(nights):
+                day = stop.arrival_date + timedelta(days=i)
+                if day > TODAY:
+                    break
+                _seed_day(s, cats, cur, day, stop.slug, stop.name, bruno, katia, region)
+                days += 1
+
+        _seed_prepaid(s, cats, bruno, katia, stops)
+        _seed_edge_cases(s, cats, bruno, katia, stops)
+
+        await s.commit()
+        await _report(s, cats, stops, first, last, days)
+
+
+def _seed_prepaid(s, cats, bruno, katia, stops) -> None:
+    """Gastos generales sin ciudad (vuelos, seguros, pases) + el vuelo de vuelta
+    como `pending`, que es lo que hace visible el estado 'por confirmar'."""
+    pre = stops[0].arrival_date - timedelta(days=45)
+    _add_mov(s, cats["Transporte"], "USD", 488.00, pre, None, None, bruno,
+             "payer_only", "Vuelo BUE→LHR Smiles")
+    _add_mov(s, cats["Transporte"], "USD", 480.00, pre, None, None, katia,
+             "payer_only", "Vuelo BUE→LHR Smiles")
+    _add_mov(s, cats["Salud"], "USD", 320.00, pre + timedelta(days=2), None, None,
+             bruno, "payer_only", "Seguro Pax Assistance")
+    _add_mov(s, cats["Salud"], "USD", 320.00, pre + timedelta(days=2), None, None,
+             katia, "payer_only", "Seguro Pax Assistance")
+    _add_mov(s, cats["Transporte"], "USD", 740.00, pre + timedelta(days=5), None, None,
+             bruno, "shared", "Eurail Pass ×2")
+    _add_mov(s, cats["Compras"], "USD", 118.00, pre + timedelta(days=10), None, None,
+             bruno, "payer_only", "Compras Amazon (equipaje)")
+    _add_mov(s, cats["Transporte"], "USD", 945.00, TODAY, None, None, bruno,
+             "shared", "Vuelo MAD→BUE Plus Ultra",
+             payment_date=stops[-1].departure_date, status="pending")
+
+
+def _seed_edge_cases(s, cats, bruno, katia, stops) -> None:
+    """Casos que hacen visibles features del producto: cashback (% y monto
+    fijo), un settlement, y gastos `awaiting`/`pending` en la parada actual."""
+    past = [st for st in stops if st.arrival_date <= TODAY]
+    early = past[0] if past else stops[0]
+    current = next(
+        (st for st in stops if st.arrival_date <= TODAY < st.departure_date),
+        past[-1] if past else stops[0],
+    )
+    cur_code = current.currency_code or "EUR"
+
+    _add_mov(s, cats["Comida"], cur_code, 48.00, TODAY - timedelta(days=2),
+             current.slug, current.name, bruno, "shared", "Cena",
+             cashback_kind="pct", cashback_value=Decimal("2"))
+    _add_mov(s, cats["Salidas"], cur_code, 36.00, TODAY - timedelta(days=1),
+             current.slug, current.name, katia, "shared", "Vinos",
+             cashback_kind="pct", cashback_value=Decimal("1.5"))
+    _add_mov(s, cats["Actividades"], early.currency_code or "EUR", 55.00,
+             early.arrival_date + timedelta(days=1), early.slug, early.name,
+             bruno, "shared", "Tour a pie",
+             cashback_kind="pct", cashback_value=Decimal("3"))
+    _add_mov(s, cats["Compras"], early.currency_code or "EUR", 65.00,
+             early.arrival_date + timedelta(days=2), early.slug, early.name,
+             katia, "payer_only", "Souvenirs",
+             cashback_kind="amount", cashback_value=Decimal("5"))
+
+    # Settlement: hace que el neto entre los dos no sea el bruto acumulado.
+    s.add(Movement(
+        type="settlement", amount=Decimal("200"), currency="USD", amount_usd=Decimal("200"),
+        fx_rate=Decimal("1.0"), fx_source="manual", paid_by=katia.id, split="shared",
+        description="Le pasé 200 usd", created_by=katia.id,
+        created_at=_created(TODAY - timedelta(days=3)),
+    ))
+
+    # `awaiting` = venció la fecha de pago y espera confirmación manual en la
+    # web; `pending` = todavía futuro. Los dos alimentan el banner y el badge.
+    _add_mov(s, cats["Alojamiento"], cur_code, 118.50, TODAY - timedelta(days=10),
+             current.slug, current.name, bruno, "shared", "Airbnb — saldo (2/2)",
+             payment_date=TODAY - timedelta(days=1), status="awaiting")
+    _add_mov(s, cats["Actividades"], cur_code, 54.00, TODAY - timedelta(days=20),
+             current.slug, current.name, katia, "shared", "Entradas tour — saldo (2/2)",
+             payment_date=TODAY - timedelta(days=7), status="awaiting")
+    _add_mov(s, cats["Transporte"], cur_code, 42.00, TODAY,
+             current.slug, current.name, bruno, "shared", "Tren — saldo (2/2)",
+             payment_date=TODAY + timedelta(days=1), status="pending")
+
+
+async def _report(s, cats, stops, first, last, days) -> None:
+    movs = (await s.execute(select(Movement))).scalars().all()
+    by_cat: dict[str, Decimal] = {}
+    total = Decimal("0")
+    for m in movs:
+        if m.type != "expense":
+            continue
+        total += Decimal(m.amount_usd)
+        cname = next((c.name for c in cats.values() if c.id == m.category_id), "Sin cat")
+        by_cat[cname] = by_cat.get(cname, Decimal("0")) + Decimal(m.amount_usd)
+    print(
+        f"seeded {len(stops)} paradas · {days} días con gasto · {len(movs)} movimientos\n"
+        f"HOY={TODAY} · inicio={first.arrival_date} · fin={last.departure_date}\n"
+        f"TOTAL USD {total.quantize(Decimal('0.1'))}"
+    )
+    for name, amt in sorted(by_cat.items(), key=lambda x: -x[1]):
+        pct = (amt / total * 100) if total else 0
+        print(f"  {name:14} USD {amt.quantize(Decimal('0.1')):>8}  ({pct:.0f}%)")
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except SystemExit as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        raise

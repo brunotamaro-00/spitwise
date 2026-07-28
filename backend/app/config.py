@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     environment: str = "dev"
     trip_default_timezone: str = "Europe/Madrid"
 
+    # Deploy público de muestra (demo.spitwise.lat): mismo repo y rama que prod,
+    # solo cambian las env vars. Apaga el canal de WhatsApp — la demo es solo la
+    # web — y marca la data como ficticia en el frontend vía /public-config.
+    demo_mode: bool = False
+
     # Auth
     secret_key: str = "change-me-in-production-use-a-long-random-string"
     jwt_expire_days: int = 90
@@ -43,14 +48,14 @@ class Settings(BaseSettings):
 
     # Integración Andiamo
     trip_shared_api_key: str = "change-me-shared-key"
-    andiamo_url: str = ""  # ej. https://andiamo-production.up.railway.app
+    andiamo_url: str = ""  # ej. https://andiamo.lat
 
     # Stop local "Pititas" (4-11 sept): username dueño de esa parada. Vacío =>
     # no se siembra y el itinerario se comporta como si no existiera.
     pititas_owner: str = ""
 
     # Dominio público de esta app (para deep-links del bot hacia el frontend).
-    # ej. https://<spitwise>.up.railway.app ; vacío => el bot omite el link.
+    # ej. https://spitwise.lat ; vacío => el bot omite el link.
     spitwise_url: str = Field(default="", alias="SPITWISE_URL")
 
     # LLM (parser de gastos). Proveedor: "anthropic" | "openai" | "" (auto:

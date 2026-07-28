@@ -97,7 +97,10 @@ from app.api.router import router as api_router  # noqa: E402
 from app.api.webhook import router as webhook_router  # noqa: E402
 
 app.include_router(api_router)
-app.include_router(webhook_router)
+# La demo es solo la web: sin credenciales de Meta el webhook no podría validar
+# la firma ni responder, así que directamente no existe en ese deploy.
+if not get_settings().demo_mode:
+    app.include_router(webhook_router)
 
 
 def mount_frontend(app: FastAPI, dist: Path) -> None:

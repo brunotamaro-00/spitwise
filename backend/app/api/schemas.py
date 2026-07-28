@@ -267,3 +267,4 @@ class TripSpendOut(BaseModel):
 
 class ConfigOut(BaseModel):
     andiamo_url: str | None
+    demo: bool = False

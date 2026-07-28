@@ -175,7 +175,19 @@ async def test_config_endpoint(app_client, monkeypatch):
     token = login.json()["access_token"]
     r = await app_client.get("/api/v1/config", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
-    assert r.json() == {"andiamo_url": "http://andiamo.test"}
+    assert r.json() == {"andiamo_url": "http://andiamo.test", "demo": False}
+    get_settings.cache_clear()
+
+
+async def test_public_config_endpoint_needs_no_token(app_client, monkeypatch):
+    """El banner de demo renderiza en /login, donde todavía no hay JWT."""
+    from app.config import get_settings
+    monkeypatch.setenv("ANDIAMO_URL", "http://andiamo.test")
+    monkeypatch.setenv("DEMO_MODE", "true")
+    get_settings.cache_clear()
+    r = await app_client.get("/api/v1/public-config")
+    assert r.status_code == 200
+    assert r.json() == {"andiamo_url": "http://andiamo.test", "demo": True}
     get_settings.cache_clear()
 
 

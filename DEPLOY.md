@@ -30,7 +30,7 @@ Un solo servicio web (FastAPI: API + webhook de WhatsApp + frontend estático) +
 | `WHATSAPP_APP_SECRET` | app secret de Meta (firma HMAC del webhook) |
 | `WHATSAPP_GRAPH_VERSION` | `v21.0` |
 | `TRIP_SHARED_API_KEY` | **mismo valor** que en Andiamo |
-| `ANDIAMO_URL` | `https://andiamo-production.up.railway.app` |
+| `ANDIAMO_URL` | `https://andiamo.lat` |
 | `PITITAS_OWNER` | `katia` (ver *Stop local Pititas*; vacío ⇒ feature apagada) |
 | `CORS_ORIGINS` | (vacío — mismo origen; solo dev usa localhost) |
 
@@ -41,7 +41,7 @@ Secretos **solo** acá: nunca en el repo (`.env` está gitignoreado).
 | Variable | Valor |
 |---|---|
 | `TRIP_SHARED_API_KEY` | mismo valor que arriba |
-| `SPITWISE_URL` | `https://<spitwise>.up.railway.app` |
+| `SPITWISE_URL` | `https://spitwise.lat` |
 
 Redeploy de Andiamo después de agregarlas (habilita `GET /api/stops` y el chip "Gastado").
 
@@ -56,12 +56,12 @@ lo actualizan solos.
 ## Alta inicial (una vez)
 
 1. Railway → New Project `spitwise` → Add **PostgreSQL** → Add service desde el repo (o `railway up`).
-2. Cargar las envs de la tabla. Settings → Networking → Generate Domain.
-3. Smoke: `curl https://<spitwise>.up.railway.app/health` → `{"status":"ok"}`; login → `curl -X POST .../api/v1/auth/login -d "username=bruno&password=<pwd>"` devuelve `access_token`; el dashboard web carga con balance "a mano".
-4. **Meta** (App → WhatsApp → Configuration): Callback URL `https://<spitwise>.up.railway.app/webhooks/whatsapp`, Verify token = `WHATSAPP_VERIFY_TOKEN`, suscribir el campo `messages`. El GET de verificación debe devolver el `hub.challenge`.
+2. Cargar las envs de la tabla. Settings → Networking → Generate Domain + custom domain `spitwise.lat` (Andiamo usa `andiamo.lat`).
+3. Smoke: `curl https://spitwise.lat/health` → `{"status":"ok"}`; login → `curl -X POST .../api/v1/auth/login -d "username=bruno&password=<pwd>"` devuelve `access_token`; el dashboard web carga con balance "a mano".
+4. **Meta** (App → WhatsApp → Configuration): Callback URL `https://spitwise.lat/webhooks/whatsapp`, Verify token = `WHATSAPP_VERIFY_TOKEN`, suscribir el campo `messages`. El GET de verificación debe devolver el `hub.challenge`.
 5. Primer sync del itinerario:
    ```bash
-   curl -X POST https://<spitwise>.up.railway.app/api/v1/andiamo/sync -H "Authorization: Bearer <jwt>"
+   curl -X POST https://spitwise.lat/api/v1/andiamo/sync -H "Authorization: Bearer <jwt>"
    # => {"synced": <n paradas, con timezone>}
    ```
 
@@ -85,6 +85,71 @@ lo actualizan solos.
 - **Rotar `TRIP_SHARED_API_KEY`:** generar valor nuevo → actualizarlo en **ambos** servicios (Spitwise y Andiamo) → redeploy de los dos. Hasta que coincidan, el sync devuelve 0 (usa snapshot) y el chip de Andiamo desaparece — nada se rompe.
 - **Rotar token de WhatsApp:** Meta → System User token nuevo → actualizar `WHATSAPP_ACCESS_TOKEN` → redeploy. El webhook sigue validando con `WHATSAPP_APP_SECRET` (no cambia).
 - **Cold starts / sleep:** si el plan gratuito duerme el servicio, pasar a Hobby (~USD 5/mes) — el webhook de Meta no tolera bien arranques fríos.
+
+## Demo pública (demo.spitwise.lat + demo.andiamo.lat)
+
+Par de servicios de muestra linkeados desde el CV. **Mismos repos y misma rama `main`** que producción — no hay rama `demo`, para que no drifteen: todo lo que cambia son env vars y la base de datos. La demo es **solo la web**: el canal de WhatsApp queda exclusivamente en producción.
+
+Cuatro servicios Railway en total: `andiamo` + `spitwise` (prod) y `andiamo-demo` + `spitwise-demo`, cada demo con su propia Postgres.
+
+### Qué cambia con `DEMO_MODE`
+
+| App | Efecto |
+|---|---|
+| Spitwise | No se monta el router del webhook (`main.py`); `GET /api/v1/public-config` devuelve `demo: true` y el frontend pinta la barra "Demo · datos ficticios" (también en `/login`, que es donde aterriza quien viene del CV) |
+| Andiamo | Barra equivalente (`DemoBanner`); se desactiva la subida de archivos (sin credenciales R2 el upload 500ea) — los documentos se agregan por link, que es lo que usa el seed |
+
+### Variables
+
+**`andiamo-demo`**
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | la Postgres nueva de la demo |
+| `SESSION_SECRET` | valor nuevo, distinto de prod |
+| `DEMO_MODE` / `NEXT_PUBLIC_DEMO_MODE` | `1` |
+| `NEXT_PUBLIC_SITE_URL` | `https://demo.andiamo.lat` |
+| `SPITWISE_URL` | `https://demo.spitwise.lat` |
+| `TRIP_SHARED_API_KEY` | **valor nuevo, distinto del de prod** |
+| `R2_*` | ausentes |
+
+**`spitwise-demo`**
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | la Postgres nueva de la demo |
+| `SECRET_KEY` | valor nuevo |
+| `AUTH_USERS` | `bruno:demo:,katia:demo:` (sin `wa_id`: no hay WhatsApp) |
+| `DEMO_MODE` | `true` |
+| `ANDIAMO_URL` | `https://demo.andiamo.lat` |
+| `SPITWISE_URL` | `https://demo.spitwise.lat` |
+| `TRIP_SHARED_API_KEY` | el mismo valor nuevo de `andiamo-demo` |
+| `ENVIRONMENT` | `prod` (para que `_assert_prod_secrets` valide) |
+| `PITITAS_OWNER` | **vacío** (ver más abajo) |
+| `WHATSAPP_*`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | ausentes |
+
+**La `TRIP_SHARED_API_KEY` de la demo tiene que ser distinta de la de producción.** Con la misma key, un `ANDIAMO_URL` mal tipeado en la demo sincronizaría contra `andiamo.lat` real y publicaría el itinerario y las notas personales en una URL pública. Antes de exponer los dominios, comparar las variables de los cuatro servicios y confirmar que ninguna env de demo apunta a la DB, el bucket o la key de prod.
+
+**Pititas queda apagada en la demo.** Sus fechas están hardcodeadas al 4–11 de septiembre de 2026 (`app/stops_local.py`), mientras que el seed de la demo rebasea todo el itinerario alrededor de *hoy*. Con `PITITAS_OWNER` seteado, la parada aparecería suelta en septiembre sin gastos y `_sync_counterpart_owner` no matchearía Portugal: se ve como un bug, no como una feature. Para mostrarla habría que parametrizar esas fechas.
+
+### Seeds
+
+Ambos son destructivos e idempotentes.
+
+```bash
+# 1) Andiamo primero: es la fuente de verdad del itinerario.
+cd andiamo && npm run db:seed:demo
+
+# 2) Spitwise después: sincroniza las paradas desde la demo de Andiamo
+#    y siembra SOLO movimientos sobre ellas.
+cd spitwise/backend && python scripts/seed_demo_money.py
+```
+
+`seed_demo_money.py` no define paradas propias a propósito: duplicar el itinerario garantizaba que los slugs divergieran de Andiamo y que el primer arranque archivara paradas con gastos. Si el sync falla o vuelve vacío, aborta sin sembrar. El ritmo de gasto por región y los helpers de `Movement` viven en `scripts/demo_common.py`, compartidos con el seed de la demo local (`seed_demo_data.py`).
+
+### Reset diario
+
+Un servicio cron por app en Railway, `0 7 * * *` UTC (≈4am ART), corriendo el seed correspondiente contra su DB de demo. **Andiamo unos minutos antes que Spitwise**, porque el segundo depende del itinerario ya regenerado.
 
 ## Stop local Pititas
 
