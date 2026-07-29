@@ -5,7 +5,18 @@ from app.config import get_settings
 
 
 def today_in_tz(tz_name: str | None, *, now: datetime | None = None) -> date:
-    """'Hoy' en la timezone del viaje. Nunca usar date.today() (UTC del server)."""
+    """'Hoy' en la timezone del viaje. Nunca usar date.today() (UTC del server).
+
+    En la demo pública el reloj está congelado (`DEMO_TODAY`): el itinerario no
+    se corre solo, así que quien abra el link en noviembre ve el mismo viaje
+    mid-trip que hoy. Andiamo congela el suyo con NEXT_PUBLIC_DEMO_TODAY y las
+    dos variables llevan la misma fecha — si divergen, las apps muestran
+    paradas actuales distintas. Es el único punto donde la web lee el reloj del
+    viaje, así que alcanza con interceptarlo acá.
+    """
+    settings = get_settings()
+    if settings.demo_mode and settings.demo_today:
+        return date.fromisoformat(settings.demo_today)
     if now is None:
         now = datetime.now(timezone.utc)
     name = tz_name or get_settings().trip_default_timezone

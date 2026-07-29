@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # solo cambian las env vars. Apaga el canal de WhatsApp — la demo es solo la
     # web — y marca la data como ficticia en el frontend vía /public-config.
     demo_mode: bool = False
+    # "Hoy" congelado de la demo (YYYY-MM-DD), leído en trip_time.today_in_tz.
+    # Sin esto el itinerario sembrado se corre contra el día en que arranca el
+    # cron y deja de coincidir con Andiamo. Misma fecha que NEXT_PUBLIC_DEMO_TODAY.
+    demo_today: str = ""
 
     # Auth
     secret_key: str = "change-me-in-production-use-a-long-random-string"
