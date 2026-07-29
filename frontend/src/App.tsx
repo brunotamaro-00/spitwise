@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { isAuthenticated } from "@/api/auth";
 import DemoBanner from "@/components/DemoBanner";
+import DemoIntro from "@/components/DemoIntro";
 import Layout from "@/components/Layout";
 import { ToastProvider } from "@/components/ui/Toast";
 import Cities from "@/pages/Cities";
@@ -19,6 +20,7 @@ export default function App() {
   return (
     <ToastProvider>
       <DemoBanner />
+      <DemoIntro />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route element={<Guard><Layout /></Guard>}>
