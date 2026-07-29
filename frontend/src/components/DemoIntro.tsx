@@ -59,16 +59,14 @@ export default function DemoIntro() {
         </p>
         {config.andiamo_url ? (
           <p className="text-sm leading-relaxed text-ink-2">
-            Se integra en vivo con{" "}
-            <a
-              href={config.andiamo_url}
-              className="font-semibold text-brick underline underline-offset-2"
-            >
-              Andiamo
-            </a>
-            , mi app de itinerario: las ciudades de acá se sincronizan desde su API.
+            Se integra en vivo con <strong className="text-ink">Andiamo</strong>, mi app de
+            itinerario: las ciudades de acá se sincronizan desde su API. El link está arriba,
+            en la barra.
           </p>
         ) : null}
+        {/* Único foco del diálogo. Con un link acá adentro el foco inicial caía
+            ahí y un Enter se llevaba al visitante a la otra app en vez de
+            cerrar; el cross-link vive en el banner, que además queda siempre. */}
         <Button onClick={dismiss} className="w-full">
           Entrar a la demo
         </Button>
