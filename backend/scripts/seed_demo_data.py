@@ -1,7 +1,7 @@
 """Seed de datos dummy para el demo local (SQLite).
 
 Construye una DB lista para navegar la app "como si estuvieras en el medio del
-viaje": un itinerario de ~95 noches donde HOY cae en el día 40 (faltan ~55).
+viaje": un itinerario de 108 noches donde HOY cae en el día 40 (faltan 68).
 Las fechas se calculan desde `date.today()`, así que la demo siempre luce
 mid-trip sin importar cuándo se corra.
 

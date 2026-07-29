@@ -19,7 +19,11 @@ Uso:
     cd backend
     ANDIAMO_URL=https://demo.andiamo.lat TRIP_SHARED_API_KEY=... \
     DATABASE_URL=... SECRET_KEY=... AUTH_USERS="bruno:demo:,katia:demo:" \
+    DEMO_MODE=true DEMO_TODAY=2026-09-25 \
     python scripts/seed_demo_money.py
+
+DEMO_TODAY es obligatorio y tiene que ser el mismo valor que sirve la API
+(`trip_time.today_in_tz`) y que congela Andiamo (NEXT_PUBLIC_DEMO_TODAY).
 """
 import asyncio
 import random
@@ -37,7 +41,26 @@ from app.db.models import Category, Movement, Stop, User
 from app.users import seed_users_from_env
 from demo_common import REGION_DAILY, _add_mov, _created, _seed_day, region_for
 
-TODAY = date.today()
+# Lo fija main() con _frozen_today(); a nivel módulo no, para que importar este
+# script (tests, tooling) no reviente por una env var faltante.
+TODAY: date
+
+
+def _frozen_today() -> date:
+    """El "hoy" de la demo sale de DEMO_TODAY, no del reloj.
+
+    Tiene que ser el mismo que sirve la API (`trip_time.today_in_tz`) y el mismo
+    que congela Andiamo: sembrar contra una fecha y renderizar contra otra deja
+    la demo incoherente en silencio (paradas actuales distintas, gastos "del
+    futuro"). Por eso falla ruidoso en vez de caer a date.today().
+    """
+    raw = get_settings().demo_today
+    if not raw:
+        raise SystemExit(
+            "Falta DEMO_TODAY (YYYY-MM-DD). Es el hoy congelado de la demo y "
+            "tiene que coincidir con NEXT_PUBLIC_DEMO_TODAY de Andiamo."
+        )
+    return date.fromisoformat(raw)
 
 
 def _usable(stop: Stop) -> bool:
@@ -54,8 +77,11 @@ def _usable(stop: Stop) -> bool:
 
 
 async def main() -> None:
-    # Semilla fija: dos corridas del cron producen la misma demo.
+    # Semilla fija + hoy congelado: dos corridas del cron producen exactamente
+    # la misma demo, no una parecida.
     random.seed(42)
+    global TODAY
+    TODAY = _frozen_today()
     settings = get_settings()
     if not settings.andiamo_url:
         raise SystemExit("Falta ANDIAMO_URL: este seed toma el itinerario de Andiamo.")
@@ -126,11 +152,21 @@ async def main() -> None:
                 _seed_day(s, cats, cur, day, stop.slug, stop.name, bruno, katia, region)
                 days += 1
 
+            # Lavandería: no es diaria, es una vez cada estadía larga. Va acá y
+            # no en _seed_day justamente por eso.
+            mid = stop.arrival_date + timedelta(days=nights // 2)
+            if nights >= 4 and mid <= TODAY:
+                _add_mov(s, cats["Lavandería"], cur, round(random.uniform(18, 26), 2),
+                         mid, stop.slug, stop.name, random.choice([bruno, katia]),
+                         "shared", f"Lavandería · {stop.name}")
+
         _seed_prepaid(s, cats, bruno, katia, stops)
         _seed_edge_cases(s, cats, bruno, katia, stops)
 
-        await s.commit()
+        # Validar antes de commitear: si algo no cierra, el rollback deja la
+        # demo de ayer —que estaba bien— en vez de publicar una rota.
         await _report(s, cats, stops, first, last, days)
+        await s.commit()
 
 
 def _seed_prepaid(s, cats, bruno, katia, stops) -> None:
@@ -188,17 +224,18 @@ def _seed_edge_cases(s, cats, bruno, katia, stops) -> None:
         created_at=_created(TODAY - timedelta(days=3)),
     ))
 
-    # `awaiting` = venció la fecha de pago y espera confirmación manual en la
-    # web; `pending` = todavía futuro. Los dos alimentan el banner y el badge.
+    # UN solo gasto por confirmar, vencido ayer. `awaiting` = venció la fecha de
+    # pago y espera confirmación manual en la web (la liquidación lazy no lo
+    # toca: solo mira `pending`, y además el TC va lockeado por fx_source=manual).
+    #
+    # Uno y no tres a propósito: el banner es para mostrar la feature, no para
+    # que la demo abra con una pila de pendientes que parece deuda técnica. Las
+    # reservas de alojamiento futuras siguen siendo `pending`, pero su fecha de
+    # pago es el check-in, así que no entran a `needsConfirmation` (que agarra
+    # `awaiting` siempre y `pending` recién a ≤1 día del vencimiento).
     _add_mov(s, cats["Alojamiento"], cur_code, 118.50, TODAY - timedelta(days=10),
              current.slug, current.name, bruno, "shared", "Airbnb — saldo (2/2)",
              payment_date=TODAY - timedelta(days=1), status="awaiting")
-    _add_mov(s, cats["Actividades"], cur_code, 54.00, TODAY - timedelta(days=20),
-             current.slug, current.name, katia, "shared", "Entradas tour — saldo (2/2)",
-             payment_date=TODAY - timedelta(days=7), status="awaiting")
-    _add_mov(s, cats["Transporte"], cur_code, 42.00, TODAY,
-             current.slug, current.name, bruno, "shared", "Tren — saldo (2/2)",
-             payment_date=TODAY + timedelta(days=1), status="pending")
 
 
 async def _report(s, cats, stops, first, last, days) -> None:
@@ -219,6 +256,35 @@ async def _report(s, cats, stops, first, last, days) -> None:
     for name, amt in sorted(by_cat.items(), key=lambda x: -x[1]):
         pct = (amt / total * 100) if total else 0
         print(f"  {name:14} USD {amt.quantize(Decimal('0.1')):>8}  ({pct:.0f}%)")
+
+    missing = sorted(set(cats) - set(by_cat))
+    if missing:
+        raise SystemExit(
+            f"Categorías sin un solo movimiento: {', '.join(missing)}. La demo "
+            "muestra el catálogo completo en el donut y los filtros; una vacía "
+            "se lee como feature a medio hacer."
+        )
+
+    # Espeja `lib/share.needsConfirmation` del frontend: `awaiting` siempre,
+    # `pending` recién a ≤1 día del vencimiento. Si el hoy congelado se mueve
+    # cerca de un check-in, la reserva de la próxima ciudad entra sola al aviso
+    # y la demo abre con dos pendientes en vez de uno — que es justo lo que se
+    # quiso sacar. Falla ruidoso antes de que lo vea nadie.
+    to_confirm = [
+        m for m in movs
+        if m.type == "expense"
+        and (
+            m.status == "awaiting"
+            or (m.status == "pending" and m.payment_date and m.payment_date <= TODAY + timedelta(days=1))
+        )
+    ]
+    if len(to_confirm) != 1:
+        raise SystemExit(
+            f"Se esperaba 1 gasto por confirmar y hay {len(to_confirm)}: "
+            f"{[(m.description, m.status, str(m.payment_date)) for m in to_confirm]}"
+        )
+    print(f"\n✓ 1 gasto por confirmar: {to_confirm[0].description} "
+          f"(vence {to_confirm[0].payment_date})")
 
 
 if __name__ == "__main__":

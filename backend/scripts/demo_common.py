@@ -27,6 +27,7 @@ FX = {"USD": Decimal("1.0"), "GBP": Decimal("1.27"), "EUR": Decimal("1.08"),
 REGION_DAILY = {
     "uk": {
         "food_pp": (38, 52),
+        "cafe_pp": (9, 16),
         "local_transport": (4, 14),
         "activity": (20, 55),
         "salida": (16, 40),
@@ -35,6 +36,7 @@ REGION_DAILY = {
     },
     "west": {  # NL + París + Alsacia
         "food_pp": (32, 48),
+        "cafe_pp": (8, 15),
         "local_transport": (3, 12),
         "activity": (18, 50),
         "salida": (14, 36),
@@ -43,6 +45,7 @@ REGION_DAILY = {
     },
     "portugal": {  # Bruno solo → no ×2
         "food_pp": (25, 38),
+        "cafe_pp": (4, 8),
         "local_transport": (3, 10),
         "activity": (12, 35),
         "salida": (10, 28),
@@ -52,6 +55,7 @@ REGION_DAILY = {
     },
     "ch": {
         "food_pp": (42, 60),
+        "cafe_pp": (10, 18),
         "local_transport": (5, 18),
         "activity": (40, 90),
         "salida": (18, 45),
@@ -60,6 +64,7 @@ REGION_DAILY = {
     },
     "east": {
         "food_pp": (17, 26),
+        "cafe_pp": (4, 9),
         "local_transport": (2, 8),
         "activity": (12, 35),
         "salida": (8, 22),
@@ -68,6 +73,7 @@ REGION_DAILY = {
     },
     "south": {  # IT + ES
         "food_pp": (28, 40),
+        "cafe_pp": (6, 12),
         "local_transport": (3, 12),
         "activity": (18, 48),
         "salida": (12, 32),
@@ -148,6 +154,13 @@ def _seed_day(s, cats, cur, day, slug, name, bruno, katia, region_key,
         _add_mov(s, cats["Comida"], cur, round(dinner, 2), day, slug, name, payer, split,
                  _desc("Comida", name))
 
+    # Cafetería (~2 de cada 3 días): es el gasto más cotidiano de un viaje así y
+    # monto chico, así que aparece seguido sin mover el ritmo diario.
+    if random.random() < 0.65:
+        clo, chi = cfg["cafe_pp"]
+        _add_mov(s, cats["Cafetería"], cur, round(random.uniform(clo, chi) * mult, 2),
+                 day, slug, name, payer, split, _desc("Cafetería", name))
+
     # Transporte local (~70% de los días).
     if random.random() < 0.70:
         tlo, thi = cfg["local_transport"]
@@ -176,17 +189,27 @@ def _seed_day(s, cats, cur, day, slug, name, bruno, katia, region_key,
         _add_mov(s, cats["Salud"], cur, round(random.uniform(6, 18) * mult, 2),
                  day, slug, name, payer, split, _desc("Salud", name))
 
+    # Cajón de sastre: lo que no entra en ninguna de las otras diez.
+    if random.random() < 0.06:
+        _add_mov(s, cats["Otros"], cur, round(random.uniform(5, 22) * mult, 2),
+                 day, slug, name, payer, split, _desc("Otros", name))
+
 
 def _desc(cat: str, city: str) -> str:
     samples = {
-        "Comida": ["Cena", "Almuerzo", "Café y medialunas", "Fish & chips", "Ramen",
+        "Comida": ["Cena", "Almuerzo", "Fish & chips", "Ramen",
                    "Menú del día", "Pasta", "Brunch"],
+        "Cafetería": ["Café", "Café y medialunas", "Flat white", "Cortado y factura",
+                      "Café para llevar", "Merienda"],
         "Transporte": ["Metro", "Bus", "Tren local", "Bici", "Uber corto"],
         "Actividades": ["Museo", "Tour a pie", "Mirador", "Castillo", "Free walking tour"],
         "Compras": ["Souvenir", "Libro", "Remera", "Postales"],
         "Salidas": ["Pub", "Birras", "Vinos", "Cóctel"],
         "Supermercado": ["Provisiones", "Agua y snacks", "Desayuno hostel", "Mercado"],
         "Salud": ["Farmacia", "Ibuprofeno", "Protector solar"],
+        "Lavandería": ["Lavandería", "Lavarropas del hostel", "Lavado y secado"],
+        "Otros": ["Chip de datos", "Casillero de equipaje", "Propina", "Baño público",
+                  "Candado"],
     }
     return f"{random.choice(samples.get(cat, ['Gasto']))} · {city}"
 
