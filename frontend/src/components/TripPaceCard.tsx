@@ -11,7 +11,12 @@ import type { TripPace } from "@/types";
  *  En viaje: run-rate real (devengado / noches vividas) + proyección.
  *  El alojamiento entra prorrateado por noche, así el número no pica el día que
  *  se paga una reserva. Los generales quedan fuera del ritmo — no pasan por
- *  ninguna ciudad — y se muestran aparte; solo la proyección los suma. */
+ *  ninguna ciudad — y se muestran aparte; solo la proyección los suma.
+ *
+ *  Esa asimetría es la razón del copy: el mismo payload trata los generales de
+ *  tres maneras (fuera del run-rate, prorrateados en el devengado, enteros en la
+ *  proyección) y la tarjeta antes no decía ninguna. Quedaba la duda de si los
+ *  generales estaban adentro del total proyectado o se sumaban aparte. */
 export default function TripPaceCard({ pace }: { pace: TripPace }) {
   const t = pace.trip;
   const perDay = t.status === "not_started" ? t.avg_per_day_usd : t.run_rate_usd ?? t.avg_per_day_usd;
@@ -26,13 +31,18 @@ export default function TripPaceCard({ pace }: { pace: TripPace }) {
         </span>
       </div>
 
-      <div className="flex items-baseline gap-2">
-        <span className="font-display text-4xl leading-none tracking-[-0.02em] font-tabular text-ink">
-          <AnimatedUsd value={perDay ?? "0"} />
-        </span>
-        <span className="text-sm font-medium text-ink-3">
-          {t.status === "not_started" ? "/día previsto" : "/día"}
-        </span>
+      <div>
+        <div className="flex items-baseline gap-2">
+          <span className="font-display text-4xl leading-none tracking-[-0.02em] font-tabular text-ink">
+            <AnimatedUsd value={perDay ?? "0"} />
+          </span>
+          <span className="text-sm font-medium text-ink-3">
+            {t.status === "not_started" ? "/día previsto" : "/día"}
+          </span>
+        </div>
+        {/* Sin esto las dos cifras de la tarjeta parecen contradecirse: el $/día
+            no incluye generales y la proyección sí. */}
+        <p className="mt-1 text-xs text-ink-3">en ciudades · sin generales</p>
       </div>
 
       <div className="flex flex-col gap-1 text-sm text-ink-2">
@@ -42,12 +52,6 @@ export default function TripPaceCard({ pace }: { pace: TripPace }) {
             {t.total_nights} noches
           </span>
         )}
-        {showProjection && (
-          <span>
-            A este ritmo, el viaje ≈{" "}
-            <span className="font-tabular font-semibold">{formatUsd(t.projected_total_usd!)}</span>
-          </span>
-        )}
         {t.status === "finished" && (
           <span>
             Viaje terminado ·{" "}
@@ -55,12 +59,24 @@ export default function TripPaceCard({ pace }: { pace: TripPace }) {
             {t.total_nights} noches
           </span>
         )}
-        {!isZeroMoney(t.general_usd) && t.general_per_day_usd && (
-          <span className="text-xs text-ink-3">
-            + Generales aparte:{" "}
-            <span className="font-tabular font-semibold">{formatUsd(t.general_usd)}</span> ≈{" "}
-            <span className="font-tabular">{formatUsd(t.general_per_day_usd)}</span>/día
-          </span>
+        {!isZeroMoney(t.general_usd) && (
+          <div className="flex items-baseline justify-between gap-3 border-t border-border pt-2">
+            <span className="text-ink-3">Generales aparte</span>
+            <span className="font-tabular font-semibold">{formatUsd(t.general_usd)}</span>
+          </div>
+        )}
+        {showProjection && (
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-ink-3">
+              Proyección del viaje
+              {!isZeroMoney(t.general_usd) && (
+                <span className="block text-xs text-ink-faint">incluye generales</span>
+              )}
+            </span>
+            <span className="font-tabular font-semibold text-ink">
+              {formatUsd(t.projected_total_usd!)}
+            </span>
+          </div>
         )}
       </div>
     </Card>
