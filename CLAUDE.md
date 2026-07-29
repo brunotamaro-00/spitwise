@@ -27,6 +27,8 @@ No hay Telegram. No es multi-grupo: el negocio asume **exactamente 2 usuarios**.
 | Frontend | React 19, Vite 8, TypeScript, Tailwind v4, TanStack Query, React Router 7, Recharts, Lucide |
 | Deploy | Railway — **un solo** proceso Docker (API + SPA + webhook). **Nunca** `uvicorn --workers` (locks del bot son in-process) |
 
+**Demo pública (`demo.spitwise.lat`):** mismo repo y rama que prod, gobernada por `DEMO_MODE`. Apaga el router del webhook (la demo es solo la web) y `DEMO_TODAY` **congela el reloj del viaje** en `trip_time.today_in_tz` — el único punto donde la web lee la fecha. Tiene que ser el mismo valor que congela Andiamo (`NEXT_PUBLIC_DEMO_TODAY`) o cada app muestra una parada actual distinta. Seed: `scripts/seed_demo_money.py` (ver `DEPLOY.md`).
+
 ## Layout del repo
 
 ```
@@ -227,7 +229,7 @@ Auth JWT Bearer salvo lo indicado.
 | Dashboard | `/dashboard/summary`, `/by-category`, `/pace` (ritmo $/día: alojamiento prorrateado por noches, generales por todo el viaje — ver `app/analytics.py`) |
 | City analytics | `/dashboard/city/summary\|by-category\|movements` filtrado por `slugs` |
 | Stops | `GET /stops` (excluye candidatas y archivadas) |
-| Config | `GET /config` (JWT) — `andiamo_url` para deep links del frontend |
+| Config | `GET /config` (JWT) — `andiamo_url` para deep links del frontend; `GET /public-config` (sin auth) — agrega `demo`, que el frontend necesita en `/login` donde todavía no hay JWT |
 | Integration | `GET /cities/spend`, `GET /cities/spend-detail?slug=`, `GET /trip/spend`, `POST /andiamo/sync-hook` (todos `X-Api-Key`; body opcional `{event}`: `stops.changed` default, `notes.changed`, `guides.changed`), `POST /andiamo/sync` (JWT) |
 | Webhook | `GET/POST /webhooks/whatsapp` |
 | Health | `GET /health` |

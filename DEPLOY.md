@@ -103,8 +103,23 @@ Los nombres de las Postgres de demo los generó Railway (`railway add -d postgre
 
 | App | Efecto |
 |---|---|
-| Spitwise | No se monta el router del webhook (`main.py`); `GET /api/v1/public-config` devuelve `demo: true` y el frontend pinta la barra "Demo · datos ficticios" (también en `/login`, que es donde aterriza quien viene del CV) |
-| Andiamo | Barra equivalente (`DemoBanner`); se desactiva la subida de archivos (sin credenciales R2 el upload 500ea) — los documentos se agregan por link, que es lo que usa el seed |
+| Spitwise | No se monta el router del webhook (`main.py`); `GET /api/v1/public-config` devuelve `demo: true` y el frontend pinta el banner "Demo pública" + `DemoIntro` (presentación de una sola vez, recordada en `localStorage`). Los dos salen también en `/login`, que es donde aterriza quien viene del CV |
+| Andiamo | Banner e intro equivalentes; `/` redirige a `/stops#current` en vez de al detalle de la parada de hoy; se desactiva la subida de archivos (sin credenciales R2 el upload 500ea) — los documentos se agregan por link, que es lo que usa el seed |
+
+### El "hoy" congelado — `DEMO_TODAY`
+
+Las dos apps congelan el reloj del viaje en **`2026-09-25`** (Viena, noche 2 de 5). Sin eso, cada seed rebasea el itinerario contra el día en que corre el cron: quien abra el link en noviembre ve un viaje distinto al probado, y cualquier desfase entre los dos crons desalinea las apps.
+
+| Servicio | Variable |
+|---|---|
+| `andiamo-demo`, `andiamo-demo-cron` | `NEXT_PUBLIC_DEMO_TODAY=2026-09-25` |
+| `spitwise-demo`, `spitwise-demo-cron` | `DEMO_TODAY=2026-09-25` |
+
+**Las cuatro llevan la misma fecha.** Si divergen, cada app muestra una parada actual distinta. En Andiamo lo lee `todayStr()` (`src/lib/trip.ts`) y en Spitwise `today_in_tz()` (`app/trip_time.py`) — un único punto por app, y en Andiamo tiene que ser `NEXT_PUBLIC_` porque Next inlinea la variable **en build time**.
+
+Efecto lateral bueno: con `random.seed(42)` + hoy fijo, el reset nocturno produce una demo idéntica, no una parecida.
+
+Cambiar la fecha no es gratis: `seed_demo_money.py` falla si el hoy congelado cae a ≤1 día de un check-in, porque esa reserva entraría sola al aviso de "por confirmar" y la demo abriría con dos pendientes en vez del único que se quiere mostrar.
 
 ### Variables
 
@@ -118,6 +133,7 @@ Los nombres de las Postgres de demo los generó Railway (`railway add -d postgre
 | `NEXT_PUBLIC_SITE_URL` | `https://demo.andiamo.lat` |
 | `SPITWISE_URL` | `https://demo.spitwise.lat` |
 | `TRIP_SHARED_API_KEY` | **valor nuevo, distinto del de prod** |
+| `NEXT_PUBLIC_DEMO_TODAY` | `2026-09-25` |
 | `HOSTNAME` | `0.0.0.0` — **imprescindible** |
 | `NODE_ENV` | `production` |
 | `R2_*` | ausentes |
@@ -132,6 +148,7 @@ Sin `HOSTNAME=0.0.0.0` el server standalone de Next bindea al hostname del conte
 | `SECRET_KEY` | valor nuevo |
 | `AUTH_USERS` | `bruno:demo:,katia:demo:` (sin `wa_id`: no hay WhatsApp) |
 | `DEMO_MODE` | `true` |
+| `DEMO_TODAY` | `2026-09-25` |
 | `ANDIAMO_URL` | `https://demo.andiamo.lat` |
 | `SPITWISE_URL` | `https://demo.spitwise.lat` |
 | `TRIP_SHARED_API_KEY` | el mismo valor nuevo de `andiamo-demo` |
@@ -141,7 +158,7 @@ Sin `HOSTNAME=0.0.0.0` el server standalone de Next bindea al hostname del conte
 
 **La `TRIP_SHARED_API_KEY` de la demo tiene que ser distinta de la de producción.** Con la misma key, un `ANDIAMO_URL` mal tipeado en la demo sincronizaría contra `andiamo.lat` real y publicaría el itinerario y las notas personales en una URL pública. Antes de exponer los dominios, comparar las variables de los cuatro servicios y confirmar que ninguna env de demo apunta a la DB, el bucket o la key de prod.
 
-**Pititas queda apagada en la demo.** Sus fechas están hardcodeadas al 4–11 de septiembre de 2026 (`app/stops_local.py`), mientras que el seed de la demo rebasea todo el itinerario alrededor de *hoy*. Con `PITITAS_OWNER` seteado, la parada aparecería suelta en septiembre sin gastos y `_sync_counterpart_owner` no matchearía Portugal: se ve como un bug, no como una feature. Para mostrarla habría que parametrizar esas fechas.
+**Pititas no existe en la demo**, ni del lado de Spitwise (`PITITAS_OWNER` vacío) ni del de Andiamo (el slug está en `excludeSlugs` del seed). Es una parada personal y no aporta nada a quien evalúa el proyecto. Como consecuencia el seed de Andiamo también limpia `ownerPerson` de Lisboa/Oporto (`clearOwners`): sin la parada paralela, dejar el dueño le abriría a Katia un hueco de 8 noches y cada viewer vería un total de noches distinto al de Spitwise.
 
 ### DNS (Namecheap)
 
@@ -163,6 +180,7 @@ Ambos son destructivos e idempotentes. Corridos desde local apuntan a la DB de l
 cd andiamo
 DATABASE_URL="<DATABASE_PUBLIC_URL de Postgres-7098>" \
 NEXT_PUBLIC_SITE_URL=https://demo.andiamo.lat \
+NEXT_PUBLIC_DEMO_TODAY=2026-09-25 \
 npm run db:seed:demo
 
 # 2) Spitwise después: sincroniza las paradas desde la demo de Andiamo
@@ -172,10 +190,13 @@ PYTHONPATH=scripts \
 DATABASE_URL="<DATABASE_PUBLIC_URL de Postgres-ftfA>" \
 SECRET_KEY=... TRIP_SHARED_API_KEY=... AUTH_USERS="bruno:demo:,katia:demo:" \
 ANDIAMO_URL=https://demo.andiamo.lat PITITAS_OWNER= ENVIRONMENT=prod \
+DEMO_MODE=true DEMO_TODAY=2026-09-25 \
 .venv/bin/python scripts/seed_demo_money.py
 ```
 
 `seed_demo_money.py` no define paradas propias a propósito: duplicar el itinerario garantizaba que los slugs divergieran de Andiamo y que el primer arranque archivara paradas con gastos. Si el sync falla o vuelve vacío, aborta sin sembrar. El ritmo de gasto por región y los helpers de `Movement` viven en `scripts/demo_common.py`, compartidos con el seed de la demo local (`seed_demo_data.py`).
+
+Antes de commitear valida y aborta si algo no cierra, **antes** del commit — un fallo deja la demo de ayer en pie en vez de publicar una rota. Dos guardas: que las 11 categorías tengan al menos un movimiento (una vacía en el donut se lee como feature a medio hacer) y que haya **exactamente un** gasto por confirmar, espejando `lib/share.needsConfirmation` del frontend.
 
 ### Reset diario
 
