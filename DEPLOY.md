@@ -90,7 +90,14 @@ lo actualizan solos.
 
 Par de servicios de muestra linkeados desde el CV. **Mismos repos y misma rama `main`** que producción — no hay rama `demo`, para que no drifteen: todo lo que cambia son env vars y la base de datos. La demo es **solo la web**: el canal de WhatsApp queda exclusivamente en producción.
 
-Cuatro servicios Railway en total: `andiamo` + `spitwise` (prod) y `andiamo-demo` + `spitwise-demo`, cada demo con su propia Postgres.
+Los servicios demo viven **dentro de los proyectos existentes** (`Andiamo` y `spitwise`), no en proyectos aparte: un servicio nuevo nace sin variables, así que ninguna credencial de prod se filtra por accidente. Inventario real:
+
+| Proyecto | Servicios | Postgres |
+|---|---|---|
+| `Andiamo` | `andiamo` (prod) · `andiamo-demo` · `andiamo-demo-cron` | `Postgres` (prod) · `Postgres-7098` (demo) |
+| `spitwise` | `spitwise` (prod) · `spitwise-demo` · `spitwise-demo-cron` | `Postgres` (prod) · `Postgres-ftfA` (demo) |
+
+Los nombres de las Postgres de demo los generó Railway (`railway add -d postgres` no acepta nombre). **Renombrarlas en el dashboard rompe las referencias** `${{Postgres-7098.DATABASE_URL}}` de los servicios demo — si las renombrás, actualizá también esas variables.
 
 ### Qué cambia con `DEMO_MODE`
 
@@ -105,19 +112,23 @@ Cuatro servicios Railway en total: `andiamo` + `spitwise` (prod) y `andiamo-demo
 
 | Variable | Valor |
 |---|---|
-| `DATABASE_URL` | la Postgres nueva de la demo |
+| `DATABASE_URL` | `${{Postgres-7098.DATABASE_URL}}` |
 | `SESSION_SECRET` | valor nuevo, distinto de prod |
 | `DEMO_MODE` / `NEXT_PUBLIC_DEMO_MODE` | `1` |
 | `NEXT_PUBLIC_SITE_URL` | `https://demo.andiamo.lat` |
 | `SPITWISE_URL` | `https://demo.spitwise.lat` |
 | `TRIP_SHARED_API_KEY` | **valor nuevo, distinto del de prod** |
+| `HOSTNAME` | `0.0.0.0` — **imprescindible** |
+| `NODE_ENV` | `production` |
 | `R2_*` | ausentes |
+
+Sin `HOSTNAME=0.0.0.0` el server standalone de Next bindea al hostname del contenedor (`http://cf98e52f8eb8:8080`) y el proxy de Railway devuelve **502 con la app perfectamente Online** en el panel. Prod ya lo tiene seteado; un servicio nuevo no lo hereda. El otro 502 posible es el **target port del dominio**: hay que fijarlo en `8080` (`railway domain update <dominio> --port 8080 -s andiamo-demo`), porque Railway lo deja vacío al crear el dominio.
 
 **`spitwise-demo`**
 
 | Variable | Valor |
 |---|---|
-| `DATABASE_URL` | la Postgres nueva de la demo |
+| `DATABASE_URL` | `${{Postgres-ftfA.DATABASE_URL}}` |
 | `SECRET_KEY` | valor nuevo |
 | `AUTH_USERS` | `bruno:demo:,katia:demo:` (sin `wa_id`: no hay WhatsApp) |
 | `DEMO_MODE` | `true` |
@@ -132,24 +143,56 @@ Cuatro servicios Railway en total: `andiamo` + `spitwise` (prod) y `andiamo-demo
 
 **Pititas queda apagada en la demo.** Sus fechas están hardcodeadas al 4–11 de septiembre de 2026 (`app/stops_local.py`), mientras que el seed de la demo rebasea todo el itinerario alrededor de *hoy*. Con `PITITAS_OWNER` seteado, la parada aparecería suelta en septiembre sin gastos y `_sync_counterpart_owner` no matchearía Portugal: se ve como un bug, no como una feature. Para mostrarla habría que parametrizar esas fechas.
 
+### DNS (Namecheap)
+
+Los `.lat` están en Namecheap (BasicDNS, `dns1.registrar-servers.com`). Por cada subdominio, dos registros en *Advanced DNS* — el `Host` va **sin** el dominio:
+
+| Type | Host | Value |
+|---|---|---|
+| CNAME | `demo` | el `*.up.railway.app` que devuelve `railway domain <dominio>` |
+| TXT | `_railway-verify.demo` | el `railway-verify=…` de la misma salida |
+
+Railway emite el certificado solo cuando ve los dos. Verificación: `railway domain status demo.andiamo.lat -s andiamo-demo` hasta `Certificate status: VALID`.
+
 ### Seeds
 
-Ambos son destructivos e idempotentes.
+Ambos son destructivos e idempotentes. Corridos desde local apuntan a la DB de la demo con la **URL pública** de la Postgres (`DATABASE_PUBLIC_URL`; la interna `*.railway.internal` no resuelve fuera de Railway).
 
 ```bash
 # 1) Andiamo primero: es la fuente de verdad del itinerario.
-cd andiamo && npm run db:seed:demo
+cd andiamo
+DATABASE_URL="<DATABASE_PUBLIC_URL de Postgres-7098>" \
+NEXT_PUBLIC_SITE_URL=https://demo.andiamo.lat \
+npm run db:seed:demo
 
 # 2) Spitwise después: sincroniza las paradas desde la demo de Andiamo
 #    y siembra SOLO movimientos sobre ellas.
-cd spitwise/backend && python scripts/seed_demo_money.py
+cd spitwise/backend
+PYTHONPATH=scripts \
+DATABASE_URL="<DATABASE_PUBLIC_URL de Postgres-ftfA>" \
+SECRET_KEY=... TRIP_SHARED_API_KEY=... AUTH_USERS="bruno:demo:,katia:demo:" \
+ANDIAMO_URL=https://demo.andiamo.lat PITITAS_OWNER= ENVIRONMENT=prod \
+.venv/bin/python scripts/seed_demo_money.py
 ```
 
 `seed_demo_money.py` no define paradas propias a propósito: duplicar el itinerario garantizaba que los slugs divergieran de Andiamo y que el primer arranque archivara paradas con gastos. Si el sync falla o vuelve vacío, aborta sin sembrar. El ritmo de gasto por región y los helpers de `Movement` viven en `scripts/demo_common.py`, compartidos con el seed de la demo local (`seed_demo_data.py`).
 
 ### Reset diario
 
-Un servicio cron por app en Railway, `0 7 * * *` UTC (≈4am ART), corriendo el seed correspondiente contra su DB de demo. **Andiamo unos minutos antes que Spitwise**, porque el segundo depende del itinerario ya regenerado.
+Un servicio cron por app, del mismo repo y rama, con las variables de la DB de demo pero **sin dominio**. El CLI de Railway no setea ni el start command ni el schedule: eso va en el dashboard, *Settings → Deploy*.
+
+| Servicio | Custom Start Command | Cron Schedule (UTC) |
+|---|---|---|
+| `andiamo-demo-cron` | `npx tsx prisma/seed-demo.ts` | `0 7 * * *` |
+| `spitwise-demo-cron` | `python scripts/seed_demo_money.py` | `10 7 * * *` |
+
+**Andiamo diez minutos antes que Spitwise**: el segundo sincroniza el itinerario desde la demo de Andiamo y necesita el dataset ya regenerado. `0 7 * * *` UTC ≈ 4am ART.
+
+Notas:
+
+- `npx tsx` y no `npm run db:seed:demo` porque `tsx` es devDependency y el build de producción puede podarla; `npx` la baja si falta.
+- El `Dockerfile` de Spitwise deja `WORKDIR /app/backend`, así que el path del script es relativo a ahí. `PYTHONPATH=scripts` ya está en las variables del servicio (el seed importa `demo_common`).
+- Hasta que el schedule esté cargado conviene dejar el servicio **sin deployment activo** (`railway down -s <servicio> -y`): con el start command por defecto levantaría la app entera y quedaría corriendo 24/7 al pedo.
 
 ## Stop local Pititas
 
