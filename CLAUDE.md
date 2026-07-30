@@ -105,7 +105,7 @@ script espeja `webhook.process_message` (stops → due → **dispatch**) con LLM
 | Runner | `backend/scripts/bot_scenario_runner.py` |
 | Transcript de la última corrida | `backend/scripts/bot_scenarios.md` |
 | Suite crítica (default, **10**) | `SUITE_CRITICAL` — óptima para **una** sesión Claude/Fable |
-| Extras de valor (**7**) | `CONVERSATIONS_EXTRA` — con `--all` / `--only` (incluye 2 de guías/trip Q&A) |
+| Extras de valor (**16**) | `CONVERSATIONS_EXTRA` — con `--all` / `--only` (incluye 2 de guías/trip Q&A) |
 
 **Default = 10 críticas** (cuotas, batch+split, day-trip, pending+saldo, corrección
 corta, delete, settlement, batch+borrar, Pititas owner, moneda). Cada escenario
@@ -128,7 +128,7 @@ cd backend
 # Suite crítica (10)
 .venv/bin/python scripts/bot_scenario_runner.py
 
-# Crítica + 7 extras (17)
+# Crítica + 16 extras (26)
 .venv/bin/python scripts/bot_scenario_runner.py --all
 
 # Subconjunto: por índice o por id estable (los ids sobreviven al reordenamiento)
@@ -165,7 +165,7 @@ Mismos checks deterministas y exit code que el runner financiero (acá miran
 canal ruteado y tools: ningún escenario de viaje puede tocar `qa/tools.py`).
 
 Carga markdown real desde `../andiamo/content/guides` + notas alineadas al
-Itinerary. Hoy fijo `2026-09-25` (Viena). **10 escenarios**. Transcript →
+Itinerary. Hoy fijo `2026-09-25` (Viena). **11 escenarios**. Transcript →
 `scripts/bot_trip_scenarios.md`.
 
 ## Demo local (datos dummy, mid-trip)
@@ -271,14 +271,31 @@ Orden en `dispatch`:
 1. Resolver usuario por `whatsapp_wa_id`
 2. Interactive (botones) → `interactive.py`
 3. Fast path sin LLM: `borrar` / `ayuda` / `help`, y consultas `saldo` / `total` (`bot/quick.py`)
-4. Parser LLM → intents: `expense`/`settlement` → `capture.py`; `edit`/`delete` → `editor.py`; `question` → `qa.py`; `trip_question` → `trip_qa.py`; `unknown` → el canal Q&A (finanzas/viaje) con historial fresco más reciente (`trip_qa.latest_fresh_channel`), si no help
+4. Parser LLM (un solo retry, **solo** ante falla técnica: refusal / structured output vacío / proveedor caído → `ParsedMessage.parse_failure`) → intents: `expense`/`settlement` → `capture.py`; `edit`/`delete` → `editor.py`; `question` → `qa.py`; `trip_question` → `trip_qa.py`; `unknown` → finanzas si el mensaje trae señales inequívocas de plata (`quick.ledger_signal`), si no el canal Q&A con historial fresco más reciente (`trip_qa.latest_fresh_channel`), si no help. Un `parse_failure` NO se rutea a ningún agente: se dice que se trabó.
 
 Reglas del bot:
 
 - Strings UX → `bot/copy.py` y `bot/render.py` (voseo rioplatense; nunca exponer errores técnicos).
+- **Loop de chat** (`llm/chat.py`): `run()` devuelve `ChatResult` con outcome (`ok`,
+  `iteration_cap`, `budget_exceeded`, `empty_completion`, `provider_error`,
+  `tool_error`) + traza segura. Presupuestos separados de rondas, tool calls
+  (`qa_max_tool_calls`) y tiempo, con una **llamada final sin tools** reservada
+  para sintetizar la evidencia ya juntada. Sin texto usable, cada canal degrada
+  con su copy (`copy.chat_degraded`) y **ese turno no se guarda en el historial**.
+  Si una acción ya se aplicó (`ActionContext.performed`), se confirma el efecto real.
+- **Guardas de grounding** (prohibir no alcanza, hay que verificar): en viaje, una
+  respuesta con datos concretos, sin tools en el turno y sin hilo previo se
+  reemplaza por una negativa grounded; en finanzas, negar gastos ("no hay gastos",
+  "USD 0") sin haber llamado `aggregate_expenses`/`list_movements` tampoco se manda.
 - Números en es-AR (`1.234,5`) — mismo criterio en backend `render.ar_number` y frontend `lib/format.ts`.
 - Q&A: tools en `qa/tools.py`; **delete nunca es directo** — crea pending + botones de confirmación.
 - **Q&A de viaje** (`bot/trip_qa.py` + `qa/trip_tools.py`): canal AISLADO del financiero — prompt, tools (search/list/read de guías + notas) e historial propios. Grounded: solo responde con lo que hay en `guide_docs`/`trip_notes`; si no está, lo dice. Respuestas cortas + deep-link `{andiamo_url}/guias/<guide>/<doc>`. Preguntas de plata las deriva al canal financiero. No mezclar tools/prompt entre los dos agentes.
+- Escritura: nada entra a medias en silencio. Cuotas declaradas que no cierran no
+  se guardan (se pide la aclaración), montos <= 0 se rechazan igual que en la API,
+  y todo descarte (tope de 10 gastos, cashback fijo en cuotas, batch multi-moneda
+  no reescalable) se dice en la respuesta.
+- El "último movimiento corregible" es **por remitente** (`created_by`) e incluye
+  los pagos de saldo: son dos chats contra el mismo ledger.
 - Descripciones estandarizadas: el prompt pide sentence case + nombres propios; `app/textnorm.normalize_description` (nombres propios = Stops de la DB) es la red de seguridad en todos los bordes de escritura (capture, editor, API). One-off para datos viejos: `scripts/normalize_descriptions.py`.
 - Split por defecto shared; cambio de split vía NL (`edit`) o botones legacy `split_*`.
 - **Canal documentos** (`bot/documents/` + `llm/vision.py` + `andiamo_documents.py`): un adjunto (imagen/PDF) NUNCA entra al parser financiero — rama propia en `dispatch` antes del camino de texto. Vision (OpenAI, `OPENAI_VISION_MODEL`) extrae `{kind, doc_date, stop_slug, label, note}` con catálogo dinámico de Stops y kinds (`documents/kinds.py`, espejo del enum de Andiamo; desync degrada a `other`). Reglas del prompt: `doc_date` = fecha en que se NECESITA el doc (nunca compra/emisión; rango → primera), traslados → parada DESTINO, caption del usuario pisa ciudad/fecha y alimenta la nota (la IA redacta, no pega). Preview + botones `doc_save:`/`doc_cancel:` (pending `doc_upload`); al confirmar se re-descarga de Meta y se sube multipart a `POST {ANDIAMO_URL}/api/integration/documents` (X-Api-Key; Andiamo es dueño del storage R2). Con preview fresco (`DOC_PENDING_FRESH_MINUTES`), un texto puede corregirlo ('es en York') — costo en el camino financiero: UNA query indexada; sin pending, cero.

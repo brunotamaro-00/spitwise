@@ -2,42 +2,82 @@
 
 > **Auto-generado** por `scripts/bot_scenario_runner.py`.
 > Cada corrida **borra y reemplaza** este archivo (no acumula historial).
-> Catálogo: `SUITE_CRITICAL` (1–10) + `CONVERSATIONS_EXTRA` (11–15) en el script.
+> Catálogo: `SUITE_CRITICAL` (1–10) + `CONVERSATIONS_EXTRA` (11–17) en el script.
+> Los **checks** son deterministas (DB / intent / tools): si fallan, el runner sale con exit 1. El texto se evalúa a ojo.
 
-- Corrida: `2026-07-21T13:29:26-03:00`
-- Suite: **suite crítica (10)**
+- Corrida: `2026-07-30T13:18:39-03:00`
+- Suite: **custom (2)**
 - provider=`openai` parser=`gpt-5-mini` chat=`gpt-5-mini`
 - Hoy ficticio: `2026-08-20` (parada activa: Lisboa)
-- Escenarios corridos: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 (10 conversaciones)
+- Escenarios corridos: 19, 20 (2 conversaciones)
+- Checks: **2 ok** · **0 con fallas** · 0 sin checks
 - Latencia: fases espejo de `process_message` (stops → due → dispatch); Meta send/typing **no** medidos
 
 ---
 
-## 1 · Cuotas + corrección de total
+## 19 · Dos remitentes intercalados ✅
 
-**Meta:** Gasto en etapas (30% hoy / resto check-in) y corregir el total del batch.
+**Id:** `dos-remitentes` — reproducir con `--only dos-remitentes`
+
+**Meta:** El 'último gasto' es por chat: una corrección no cruza de teléfono.
+
+**Checks deterministas: ✅ pasan**
 
 **Mirar (qué corregir si falla):**
-- Turno 1: 2 filas mismo batch_key; montos 129+301 (=430); 2ª con pay=2026-09-03 y status=pending
-- Turno 2 FAIL típico: solo edita la cuota 2/2 a 480 (total 609). Debe redistribuir el batch a total 480 (≈144+336) o editar el gasto lógico, no un renglón suelto
-- Card no debe mostrar deuda por la cuota pending
+- Turno 3: debe editar el CAFÉ de Bruno (8 eur), no el tren de Katia
+- FAIL histórico: recent_movement global → 'no, fueron 8' editaba el tren ajeno
+- El tren de Katia queda intacto en 39
 
-**Dónde tocar:** `llm/client.py (installments) · bot/editor.py (edit amount + batch) · bot/capture.py (expand_installments)`
+**Dónde tocar:** `bot/editor.py (recent_movement created_by) · bot/dispatcher.py`
 
-**Bruno:** hostel interlaken 430 chf, 30% hoy y el resto al check-in el 3 de septiembre _cuotas_
+**Katia:** tren 39 usd _carga Katia_
 
-**Latencia:** dispatch 4.5s · stops 0.0s · due 0.0s · **total 4.5s** (sin Meta send)
+**Latencia:** dispatch 4.2s · stops 0.0s · due 0.0s · **total 4.2s** (sin Meta send)
+
+**Traza:** intent=expense · tools=-
 
 **Bot:**
 
 ```
-✅ *2 gastos guardados* · 📍 Interlaken · 👤 Pagó Bruno
+✅ *Gasto guardado*
 
-- 🏨 Hostel Interlaken (1/2) · CHF 129,0 → USD 154,8
-- 🏨 Hostel Interlaken (2/2) · CHF 301,0 → USD 361,2 · 📅 03/09
+🚆 Transporte — Tren
+💰 USD 39,0
+📍 Lisboa
+👤 Pagó Katia · ÷ 50/50
+⚖️ *Bruno* le debe *USD 19,5* por esto
+(movement_id=5)
+```
 
-💰 Total: *USD 516,0*
-⚖️ *Katia* le debe *USD 77,4* por esto
+<details><summary>DB (últimos)</summary>
+
+```
+#1 expense 200.00 EUR usd=220.00 desc='Hotel Paris' city=Paris split=shared paid_by=katia cat=Alojamiento pay=2026-08-10 status=confirmed batch=None
+#2 expense 60.00 EUR usd=66.00 desc='Cena Lisboa' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=None
+#3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
+#4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
+#5 expense 39.00 USD usd=39.00 desc='Tren' city=Lisboa split=shared paid_by=katia cat=Transporte pay=None status=confirmed batch=None
+```
+
+</details>
+
+**Bruno:** cafe 5 eur en lisboa _carga Bruno_
+
+**Latencia:** dispatch 4.3s · stops 0.0s · due 0.0s · **total 4.3s** (sin Meta send)
+
+**Traza:** intent=expense · tools=-
+
+**Bot:**
+
+```
+✅ *Gasto guardado*
+
+☕ Cafetería — Café
+💰 EUR 5,0 → USD 5,5
+📍 Lisboa
+👤 Pagó Bruno · ÷ 50/50
+📅 Pagado el 20/08
+⚖️ *Katia* le debe *USD 2,8* por esto
 (movement_id=6)
 ```
 
@@ -48,24 +88,25 @@
 #2 expense 60.00 EUR usd=66.00 desc='Cena Lisboa' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=None
 #3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 129.00 CHF usd=154.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 301.00 CHF usd=361.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
+#5 expense 39.00 USD usd=39.00 desc='Tren' city=Lisboa split=shared paid_by=katia cat=Transporte pay=None status=confirmed batch=None
+#6 expense 5.00 EUR usd=5.50 desc='Café' city=Lisboa split=shared paid_by=bruno cat=Cafetería pay=2026-08-20 status=confirmed batch=None
 ```
 
 </details>
 
-**Bruno:** no, el total era 480 no 430 _edit monto del batch_
+**Bruno:** no, fueron 8 _corrección de Bruno_
 
-**Latencia:** dispatch 3.8s · stops 0.0s · due 0.0s · **total 3.8s** (sin Meta send)
+**Latencia:** dispatch 4.1s · stops 0.0s · due 0.0s · **total 4.1s** (sin Meta send)
+
+**Traza:** intent=edit · tools=-
 
 **Bot:**
 
 ```
-✏️ *Editado* · _Hostel Interlaken_
+✏️ *Editado* · _Café_
 
-💰 Total: CHF 430,0 → *CHF 480,0*
-- Hostel Interlaken (1/2) · CHF 144,0 → USD 172,8
-- Hostel Interlaken (2/2) · CHF 336,0 → USD 403,2 · 📅 03/09
+💰: EUR 5,0 → *EUR 8,0*
+💵: USD 5,5 → *USD 8,8*
 ```
 
 <details><summary>DB (últimos)</summary>
@@ -75,765 +116,47 @@
 #2 expense 60.00 EUR usd=66.00 desc='Cena Lisboa' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=None
 #3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
+#5 expense 39.00 USD usd=39.00 desc='Tren' city=Lisboa split=shared paid_by=katia cat=Transporte pay=None status=confirmed batch=None
+#6 expense 8.00 EUR usd=8.80 desc='Café' city=Lisboa split=shared paid_by=bruno cat=Cafetería pay=2026-08-20 status=confirmed batch=None
 ```
 
 </details>
 
 ---
 
-## 2 · Multi-gasto mezclado + fix de split
+## 20 · Cuotas que no cierran ✅
 
-**Meta:** 3 ítems (payer/split distintos) y corregir el split del taxi por ref.
+**Id:** `cuotas-invalidas` — reproducir con `--only cuotas-invalidas`
+
+**Meta:** Etapas declaradas pero imposibles de repartir: aclarar, no guardar mal.
+
+**Checks deterministas: ✅ pasan**
 
 **Mirar (qué corregir si falla):**
-- Turno 1: 3 movimientos Roma, pay=ayer; cena paid_by=katia con split=shared ('pagó' ≠ 'solo de'); taxi payer_only Bruno; helado shared
-- FAIL típico: cena nace payer_only / Solo Katia sin que lo digan
-- Turno 2: debe editar el Taxi (ref_text), no el último (helado). DB: taxi.split → shared. FAIL: 'Nada que cambiar'
+- O entra en etapas con montos que suman 300, o NO entra nada y el bot pide los montos/fechas. FAIL: un gasto único de 300 con fecha de hoy y sin aviso
+- El texto tiene que decir qué falta (montos o fechas de cada etapa)
 
-**Dónde tocar:** `llm/client.py (split vs paid_by; expenses[]) · bot/editor.py (resolve ref_text en batch)`
+**Dónde tocar:** `bot/capture.py (expand_installments + INSTALLMENTS_UNCLEAR) · llm/client.py`
 
-**Bruno:** en Roma ayer: cena 45 euros pagó katia, taxi 12 solo mío, helado 5 _batch 3 ítems_
+**Bruno:** hostel praga 300 eur, una parte ahora y el resto después _etapas sin montos ni fechas_
 
-**Latencia:** dispatch 6.2s · stops 0.0s · due 0.0s · **total 6.2s** (sin Meta send)
+**Latencia:** dispatch 4.4s · stops 0.0s · due 0.0s · **total 4.4s** (sin Meta send)
+
+**Traza:** intent=expense · tools=-
 
 **Bot:**
 
 ```
-✅ *3 gastos guardados* · 📍 Roma
-
-- 🍽️ Cena · EUR 45,0 → USD 49,5 · pagó Katia
-- 🚆 Taxi · EUR 12,0 → USD 13,2 · Solo Bruno · pagó Bruno
-- 🍽️ Helado · EUR 5,0 → USD 5,5 · pagó Bruno
-
-💰 Total: *USD 68,2*
-⚖️ *Bruno* le debe *USD 22,0* por esto
-(movement_id=9)
+🤔 Entendí que eso se paga *en partes*, pero no me cerraron los montos, así que no lo guardé. Decímelo con el total y las etapas: _hostel 430 chf, 30% hoy y el resto el 3 de septiembre_.
 ```
 
 <details><summary>DB (últimos)</summary>
 
 ```
+#1 expense 200.00 EUR usd=220.00 desc='Hotel Paris' city=Paris split=shared paid_by=katia cat=Alojamiento pay=2026-08-10 status=confirmed batch=None
 #2 expense 60.00 EUR usd=66.00 desc='Cena Lisboa' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=None
 #3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
 #4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=payer_only paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-```
-
-</details>
-
-**Bruno:** el taxi en realidad era compartido _edit split taxi_
-
-**Latencia:** dispatch 3.1s · stops 0.0s · due 0.0s · **total 3.1s** (sin Meta send)
-
-**Bot:**
-
-```
-✏️ *Editado* · _Taxi_
-
-÷: Solo Bruno → *÷ 50/50*
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#2 expense 60.00 EUR usd=66.00 desc='Cena Lisboa' city=Lisboa split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=None
-#3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
-#4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-```
-
-</details>
-
----
-
-## 3 · Day-trip + payer/split + saldo
-
-**Meta:** Sintra (no parada) → Lisboa; pagó Katia + solo ella; pregunta de deuda.
-
-**Mirar (qué corregir si falla):**
-- Turno 1: city_name=Lisboa (no 'Sintra' libre); shared; pagó Bruno
-- Turno 2: paid_by=katia + split=payer_only (Solo Katia). FAIL: other_only / Solo Bruno
-- Turno 3: responder con el paseo recién editado (USD 30,8 a favor de Katia), no pedir ciudad si hay uno solo reciente
-
-**Dónde tocar:** `bot/capture.py (resolve_place) · llm/client.py (new_split relativo al NUEVO paid_by) · bot/qa.py + qa/tools.py`
-
-**Bruno:** paseo a sintra 28 euros _daytrip → Lisboa_
-
-**Latencia:** dispatch 3.6s · stops 0.0s · due 0.0s · **total 3.6s** (sin Meta send)
-
-**Bot:**
-
-```
-✅ *Gasto guardado*
-
-🎟️ Actividades — Paseo a Sintra
-💰 EUR 28,0 → USD 30,8
-📍 Lisboa
-👤 Pagó Bruno · ÷ 50/50
-⚖️ *Katia* le debe *USD 15,4* por esto
-(movement_id=10)
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
-#4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=shared paid_by=bruno cat=Actividades pay=None status=confirmed batch=None
-```
-
-</details>
-
-**Bruno:** en realidad lo pagó katia y es solo de ella _edit paid_by + split_
-
-**Latencia:** dispatch 3.8s · stops 0.0s · due 0.0s · **total 3.8s** (sin Meta send)
-
-**Bot:**
-
-```
-✏️ *Editado* · _Paseo a Sintra_
-
-👤: Pagó Bruno → *Pagó Katia*
-÷: ÷ 50/50 → *Solo Katia*
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
-#4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-```
-
-</details>
-
-**Bruno:** ¿cuánto le debo a katia por ese paseo? _Q&A_
-
-**Latencia:** dispatch 16.2s · stops 0.0s · due 0.0s · **total 16.2s** (sin Meta send)
-
-**Bot:**
-
-```
-No le debés nada: *USD 0,0* — el Paseo a Sintra está marcado *solo katia* por *USD 30,8*. 📍 Lisboa 💸
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#3 expense 80.00 EUR usd=88.00 desc='Cena Paris' city=Paris split=shared paid_by=bruno cat=Comida pay=2026-08-08 status=confirmed batch=None
-#4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-```
-
-</details>
-
----
-
-## 4 · Pago futuro + ¿entra al saldo? + traer a hoy
-
-**Meta:** payment_date futura → pending; preguntar si cuenta; mover a hoy.
-
-**Mirar (qué corregir si falla):**
-- Turno 1: city=Paris; status=pending; pay=2026-09-15; split=shared (NO inventar Solo Katia)
-- Turno 2: respuesta debe decir que NO entra al balance todavía (pending excluido de compute_balance). FAIL: 'sí, ya está incluido'
-- Turno 3: pay→hoy, status→confirmed; city debe seguir Paris. FAIL: arrastra ciudad a Lisboa
-
-**Dónde tocar:** `llm/client.py (no inventar split) · bot/qa.py / qa/tools get_balance · bot/editor.py (edit date sin re-resolve city)`
-
-**Bruno:** entrada al louvre 44 eur, se paga el 15 de septiembre en paris _pending futuro_
-
-**Latencia:** dispatch 3.4s · stops 0.0s · due 0.0s · **total 3.4s** (sin Meta send)
-
-**Bot:**
-
-```
-✅ *Gasto guardado*
-
-🎟️ Actividades — Entrada al Louvre
-💰 EUR 44,0 → USD 48,4
-📍 Paris
-👤 Pagó Bruno · ÷ 50/50
-📅 Se paga el 15/09 · TC provisorio
-(movement_id=11)
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-09-15 status=pending batch=None
-```
-
-</details>
-
-**Bruno:** eso del louvre, ¿ya entra en el saldo o todavía no? _Q&A pending vs balance_
-
-**Latencia:** dispatch 9.3s · stops 0.0s · due 0.0s · **total 9.3s** (sin Meta send)
-
-**Bot:**
-
-```
-Todavía no: la Entrada al Louvre está *PENDIENTE* hasta el *15/09* y no entra al saldo — *USD 48,4* 📅 📍 Paris.  
-En el saldo confirmado figura que *katia* te debe *USD 10,5*. 💸  
-Pendientes totales: *USD 451,6* (2 gastos).
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-09-15 status=pending batch=None
-```
-
-</details>
-
-**Bruno:** ok, poné que se paga hoy _edit payment_date_
-
-**Latencia:** dispatch 3.6s · stops 0.0s · due 0.0s · **total 3.6s** (sin Meta send)
-
-**Bot:**
-
-```
-✏️ *Editado* · _Entrada al Louvre_
-
-📅: 15/09 → *20/08*
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#4 expense 50.00 EUR usd=55.00 desc='Pasta Roma' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-03 status=confirmed batch=None
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-```
-
-</details>
-
----
-
-## 5 · Corrección corta post-carga
-
-**Meta:** last_expense → edit por mensaje sin monto propio.
-
-**Mirar (qué corregir si falla):**
-- Turno 1: city=Pititas; owner default puede ya ser Solo Katia — anotar estado real en DB
-- Turno 2: intent=edit (ref_last), NO expense nuevo; un solo movement_id. Si ya era payer_only, 'Nada que cambiar' es OK; si era shared → payer_only
-- No debe aparecer un 2.º tren
-
-**Dónde tocar:** `llm/client.py (regla Último gasto) · bot/editor.py · stops_local / capture.owner_split`
-
-**Katia:** tren 39 usd en pititas _carga_
-
-**Latencia:** dispatch 4.0s · stops 0.0s · due 0.0s · **total 4.0s** (sin Meta send)
-
-**Bot:**
-
-```
-✅ *Gasto guardado*
-
-🚆 Transporte — Tren
-💰 USD 39,0
-📍 Pititas
-👤 Pagó Katia · Solo Katia
-(movement_id=12)
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-```
-
-</details>
-
-**Katia:** no, contalo solo para katia _edit split corto_
-
-**Latencia:** dispatch 3.6s · stops 0.0s · due 0.0s · **total 3.6s** (sin Meta send)
-
-**Bot:**
-
-```
-Nada que cambiar: ya estaba así. 👌
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-```
-
-</details>
-
----
-
-## 6 · Delete por texto + confirmación
-
-**Meta:** intent delete del parser → botones; nunca hard-delete.
-
-**Mirar (qué corregir si falla):**
-- Turno 1: Museo en Roma; paid_by=katia; split=payer_only (Solo Katia). FAIL: Solo Bruno / other_only
-- Turno 2: botones de confirm; el resumen debe ser el museo, NO otro gasto (FAIL visto: ofreció 'Cena Lisboa')
-- Turno 3: tras tap, el museo desaparece de la DB; no hard-delete en el turno 2
-
-**Dónde tocar:** `bot/editor.py (resolve ref_text delete) · bot/interactive.py · llm/client.py (solo de ella → payer_only si paga ella)`
-
-**Bruno:** museo vaticano 25 eur en roma, solo de katia, pagó katia _carga_
-
-**Latencia:** dispatch 3.3s · stops 0.0s · due 0.0s · **total 3.3s** (sin Meta send)
-
-**Bot:**
-
-```
-✅ *Gasto guardado*
-
-🎟️ Actividades — Museo Vaticano
-💰 EUR 25,0 → USD 27,5
-📍 Roma
-👤 Pagó Katia · Solo Katia
-(movement_id=13)
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 expense 25.00 EUR usd=27.50 desc='Museo Vaticano' city=Roma split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-```
-
-</details>
-
-**Bruno:** borrá el museo _delete NL_
-
-**Latencia:** dispatch 3.2s · stops 0.0s · due 0.0s · **total 3.2s** (sin Meta send)
-
-**Bot:**
-
-```
-⚠️ ¿Borrar este movimiento? Es irreversible.
-Museo Vaticano · EUR 25,0 · 21/07 · Roma · Pagó Katia
-[botones]
-  · Borrar 🗑️  (`del_confirm:9yCdBJMEbGQdDj2pHC2j4BE1`)
-  · Cancelar  (`del_cancel:0`)
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 expense 25.00 EUR usd=27.50 desc='Museo Vaticano' city=Roma split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-```
-
-</details>
-
-**Bruno:** [tap] `del_confirm:9yCdBJMEbGQdDj2pHC2j4BE1` _confirmar_
-
-**Latencia:** dispatch 0.0s · stops 0.0s · due 0.0s · **total 0.0s** (sin Meta send)
-
-**Bot:**
-
-```
-🗑️ *Borrado*
-
-Museo Vaticano · EUR 25,0 · 21/07 · Roma · Pagó Katia
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#5 expense 144.00 CHF usd=172.80 desc='Hostel Interlaken (1/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=None status=confirmed batch=092673a3008d575c
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-```
-
-</details>
-
----
-
-## 7 · Settlement cruzado + ¿quién debe?
-
-**Meta:** Bruno salda con 'le pasé…'; Katia pregunta el neto.
-
-**Mirar (qué corregir si falla):**
-- Turno 1: type=settlement; Bruno→Katia; amount=80 USD; no crear expense de hotel
-- Turno 2: desde wa_id de Katia, get_balance coherente post-settlement; no invertir deudor
-
-**Dónde tocar:** `bot/capture.py (settlement) · balance.py · bot/qa.py`
-
-**Bruno:** le pasé 80 usd a katia por lo del hotel de paris _settlement_
-
-**Latencia:** dispatch 5.8s · stops 0.0s · due 0.0s · **total 5.8s** (sin Meta send)
-
-**Bot:**
-
-```
-💸 *Pago de saldo*
-
-*Bruno* → *Katia*
-💰 USD 80,0
-(movement_id=13)
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Pago a Katia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-```
-
-</details>
-
-**Katia:** che y ahora quién debe plata? _Q&A balance_
-
-**Latencia:** dispatch 7.4s · stops 0.0s · due 0.0s · **total 7.4s** (sin Meta send)
-
-**Bot:**
-
-```
-Che: 💸 *katia le debe a bruno* *USD 114,7*.  
-Ojo: hay 1 gasto pendiente por *USD 403,2* que todavía no entra al saldo.
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Pago a Katia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-```
-
-</details>
-
----
-
-## 8 · Batch + borrar (fast path) + confirmar los N
-
-**Meta:** Multi-gasto + comando borrar sin LLM + del_confirm del batch.
-
-**Mirar (qué corregir si falla):**
-- Turno 1: 3 gastos mismo batch_key, city=Paris
-- Turno 2: fast path (dispatch ~0s LLM); botones 'Borrar los 3' + 'Solo el último' + Cancelar
-- Turno 3: desaparecen los 3 del batch, no solo el último
-
-**Dónde tocar:** `bot/dispatcher.py (_handle_delete_command) · bot/interactive.py`
-
-**Bruno:** en paris: metro 4 eur, croissant 3, agua 2 _batch 3_
-
-**Latencia:** dispatch 6.4s · stops 0.0s · due 0.0s · **total 6.4s** (sin Meta send)
-
-**Bot:**
-
-```
-✅ *3 gastos guardados* · 📍 Paris · 👤 Pagó Bruno
-
-- 🚆 Metro · EUR 4,0 → USD 4,4
-- 🍽️ Croissant · EUR 3,0 → USD 3,3
-- 🍽️ Agua · EUR 2,0 → USD 2,2
-
-💰 Total: *USD 9,9*
-⚖️ *Katia* le debe *USD 5,0* por esto
-(movement_id=16)
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Pago a Katia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-#14 expense 4.00 EUR usd=4.40 desc='Metro' city=Paris split=shared paid_by=bruno cat=Transporte pay=None status=confirmed batch=ccb966467a5efdd6
-#15 expense 3.00 EUR usd=3.30 desc='Croissant' city=Paris split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=ccb966467a5efdd6
-#16 expense 2.00 EUR usd=2.20 desc='Agua' city=Paris split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=ccb966467a5efdd6
-```
-
-</details>
-
-**Bruno:** borrar _fast path_
-
-**Latencia:** dispatch 0.0s · stops 0.0s · due 0.0s · **total 0.0s** (sin Meta send)
-
-**Bot:**
-
-```
-⚠️ Eso entró como *3 gastos juntos*. ¿Borrar? Es irreversible.
-Metro · EUR 4,0 · 21/07 · Paris · Pagó Bruno
-Croissant · EUR 3,0 · 21/07 · Paris · Pagó Bruno
-Agua · EUR 2,0 · 21/07 · Paris · Pagó Bruno
-[botones]
-  · Borrar los 3 🗑️  (`del_confirm:qaGVDB_gas_s9upx_Ft5qF2h`)
-  · Solo el último  (`del_confirm:RtNOY42Fz12-oGqg0f0BY3Xi`)
-  · Cancelar  (`del_cancel:0`)
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Pago a Katia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-#14 expense 4.00 EUR usd=4.40 desc='Metro' city=Paris split=shared paid_by=bruno cat=Transporte pay=None status=confirmed batch=ccb966467a5efdd6
-#15 expense 3.00 EUR usd=3.30 desc='Croissant' city=Paris split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=ccb966467a5efdd6
-#16 expense 2.00 EUR usd=2.20 desc='Agua' city=Paris split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=ccb966467a5efdd6
-```
-
-</details>
-
-**Bruno:** [tap] `del_confirm:qaGVDB_gas_s9upx_Ft5qF2h` _confirmar batch_
-
-**Latencia:** dispatch 0.0s · stops 0.0s · due 0.0s · **total 0.0s** (sin Meta send)
-
-**Bot:**
-
-```
-🗑️ *Borrado* · 3 movimientos
-
-Metro · EUR 4,0 · 21/07 · Paris · Pagó Bruno
-Croissant · EUR 3,0 · 21/07 · Paris · Pagó Bruno
-Agua · EUR 2,0 · 21/07 · Paris · Pagó Bruno
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#6 expense 336.00 CHF usd=403.20 desc='Hostel Interlaken (2/2)' city=Interlaken split=shared paid_by=bruno cat=Alojamiento pay=2026-09-03 status=pending batch=092673a3008d575c
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Pago a Katia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-```
-
-</details>
-
----
-
-## 9 · Stop local / owner split (Pititas)
-
-**Meta:** Default split por owner_username; después forzar shared.
-
-**Mirar (qué corregir si falla):**
-- Turno 1: city=Pititas; Bruno puede cargar ahí; split default Solo Katia (owner). Relativo a paid_by=bruno → other_only en DB / label Solo Katia
-- Turno 2: edit → shared; un solo movimiento
-
-**Dónde tocar:** `bot/capture.py (owner_split) · stops_local.py · bot/editor.py`
-
-**Bruno:** super 22 eur en pititas _owner default_
-
-**Latencia:** dispatch 3.1s · stops 0.0s · due 0.0s · **total 3.1s** (sin Meta send)
-
-**Bot:**
-
-```
-✅ *Gasto guardado*
-
-🛒 Supermercado — Super
-💰 EUR 22,0 → USD 24,2
-📍 Pititas
-👤 Pagó Bruno · Solo Katia
-📅 Pagado el 20/08
-⚖️ *Katia* le debe *USD 24,2* por esto
-(movement_id=14)
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Pago a Katia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-#14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=other_only paid_by=bruno cat=Supermercado pay=2026-08-20 status=confirmed batch=None
-```
-
-</details>
-
-**Bruno:** en realidad era compartido _edit → shared_
-
-**Latencia:** dispatch 3.3s · stops 0.0s · due 0.0s · **total 3.3s** (sin Meta send)
-
-**Bot:**
-
-```
-✏️ *Editado* · _Super_
-
-÷: Solo Katia → *÷ 50/50*
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#7 expense 45.00 EUR usd=49.50 desc='Cena' city=Roma split=shared paid_by=katia cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Pago a Katia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-#14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=2026-08-20 status=confirmed batch=None
-```
-
-</details>
-
----
-
-## 10 · Moneda explícita ≠ moneda ciudad + edit
-
-**Meta:** USD dicho en Lisboa (EUR); después corregir a euros.
-
-**Mirar (qué corregir si falla):**
-- Turno 1: currency=USD (no forzar EUR de Lisboa); amount=40; city=Lisboa
-- Turno 2: edit currency→EUR + recalc amount_usd; no crear 2.ª cena
-
-**Dónde tocar:** `llm/client.py (currency explícita) · bot/editor.py (new_currency + FX)`
-
-**Bruno:** cena 40 usd en lisboa _USD explícito_
-
-**Latencia:** dispatch 3.8s · stops 0.0s · due 0.0s · **total 3.8s** (sin Meta send)
-
-**Bot:**
-
-```
-✅ *Gasto guardado*
-
-🍽️ Comida — Cena
-💰 USD 40,0
-📍 Lisboa
-👤 Pagó Bruno · ÷ 50/50
-⚖️ *Katia* le debe *USD 20,0* por esto
-(movement_id=15)
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Pago a Katia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-#14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=2026-08-20 status=confirmed batch=None
-#15 expense 40.00 USD usd=40.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
-```
-
-</details>
-
-**Bruno:** era en euros, no dólares _edit currency_
-
-**Latencia:** dispatch 3.1s · stops 0.0s · due 0.0s · **total 3.1s** (sin Meta send)
-
-**Bot:**
-
-```
-✏️ *Editado* · _Cena_
-
-💱: USD → *EUR*
-💵: USD 40,0 → *USD 44,0*
-```
-
-<details><summary>DB (últimos)</summary>
-
-```
-#8 expense 12.00 EUR usd=13.20 desc='Taxi' city=Roma split=shared paid_by=bruno cat=Transporte pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#9 expense 5.00 EUR usd=5.50 desc='Helado' city=Roma split=shared paid_by=bruno cat=Comida pay=2026-08-19 status=confirmed batch=622eba1fd2d561a5
-#10 expense 28.00 EUR usd=30.80 desc='Paseo a Sintra' city=Lisboa split=payer_only paid_by=katia cat=Actividades pay=None status=confirmed batch=None
-#11 expense 44.00 EUR usd=48.40 desc='Entrada al Louvre' city=Paris split=shared paid_by=bruno cat=Actividades pay=2026-08-20 status=confirmed batch=None
-#12 expense 39.00 USD usd=39.00 desc='Tren' city=Pititas split=payer_only paid_by=katia cat=Transporte pay=None status=confirmed batch=None
-#13 settlement 80.00 USD usd=80.00 desc='Pago a Katia por hotel de Paris' city=None split=shared paid_by=bruno cat=None pay=None status=confirmed batch=None
-#14 expense 22.00 EUR usd=24.20 desc='Super' city=Pititas split=shared paid_by=bruno cat=Supermercado pay=2026-08-20 status=confirmed batch=None
-#15 expense 40.00 EUR usd=44.00 desc='Cena' city=Lisboa split=shared paid_by=bruno cat=Comida pay=None status=confirmed batch=None
 ```
 
 </details>
@@ -844,32 +167,12 @@ Agua · EUR 2,0 · 21/07 · Paris · Pagó Bruno
 
 | Escenario | Turno | Quién | Nota | dispatch_s | stops_s | due_s | total_s |
 |---|---:|---|---|---:|---:|---:|---:|
-| 1 · Cuotas + corrección de total | 1 | bruno | cuotas | 4.5 | 0.0 | 0.0 | 4.5 |
-| 1 · Cuotas + corrección de total | 2 | bruno | edit monto del batch | 3.8 | 0.0 | 0.0 | 3.8 |
-| 2 · Multi-gasto mezclado + fix de split | 1 | bruno | batch 3 ítems | 6.2 | 0.0 | 0.0 | 6.2 |
-| 2 · Multi-gasto mezclado + fix de split | 2 | bruno | edit split taxi | 3.1 | 0.0 | 0.0 | 3.1 |
-| 3 · Day-trip + payer/split + saldo | 1 | bruno | daytrip → Lisboa | 3.6 | 0.0 | 0.0 | 3.6 |
-| 3 · Day-trip + payer/split + saldo | 2 | bruno | edit paid_by + split | 3.8 | 0.0 | 0.0 | 3.8 |
-| 3 · Day-trip + payer/split + saldo | 3 | bruno | Q&A | 16.2 | 0.0 | 0.0 | 16.2 |
-| 4 · Pago futuro + ¿entra al saldo? + traer a hoy | 1 | bruno | pending futuro | 3.4 | 0.0 | 0.0 | 3.4 |
-| 4 · Pago futuro + ¿entra al saldo? + traer a hoy | 2 | bruno | Q&A pending vs balance | 9.3 | 0.0 | 0.0 | 9.3 |
-| 4 · Pago futuro + ¿entra al saldo? + traer a hoy | 3 | bruno | edit payment_date | 3.6 | 0.0 | 0.0 | 3.6 |
-| 5 · Corrección corta post-carga | 1 | katia | carga | 4.0 | 0.0 | 0.0 | 4.0 |
-| 5 · Corrección corta post-carga | 2 | katia | edit split corto | 3.6 | 0.0 | 0.0 | 3.6 |
-| 6 · Delete por texto + confirmación | 1 | bruno | carga | 3.3 | 0.0 | 0.0 | 3.3 |
-| 6 · Delete por texto + confirmación | 2 | bruno | delete NL | 3.2 | 0.0 | 0.0 | 3.2 |
-| 6 · Delete por texto + confirmación | 3 | bruno | confirmar | 0.0 | 0.0 | 0.0 | 0.0 |
-| 7 · Settlement cruzado + ¿quién debe? | 1 | bruno | settlement | 5.8 | 0.0 | 0.0 | 5.8 |
-| 7 · Settlement cruzado + ¿quién debe? | 2 | katia | Q&A balance | 7.4 | 0.0 | 0.0 | 7.4 |
-| 8 · Batch + borrar (fast path) + confirmar los N | 1 | bruno | batch 3 | 6.4 | 0.0 | 0.0 | 6.4 |
-| 8 · Batch + borrar (fast path) + confirmar los N | 2 | bruno | fast path | 0.0 | 0.0 | 0.0 | 0.0 |
-| 8 · Batch + borrar (fast path) + confirmar los N | 3 | bruno | confirmar batch | 0.0 | 0.0 | 0.0 | 0.0 |
-| 9 · Stop local / owner split (Pititas) | 1 | bruno | owner default | 3.1 | 0.0 | 0.0 | 3.1 |
-| 9 · Stop local / owner split (Pititas) | 2 | bruno | edit → shared | 3.3 | 0.0 | 0.0 | 3.3 |
-| 10 · Moneda explícita ≠ moneda ciudad + edit | 1 | bruno | USD explícito | 3.8 | 0.0 | 0.0 | 3.8 |
-| 10 · Moneda explícita ≠ moneda ciudad + edit | 2 | bruno | edit currency | 3.1 | 0.0 | 0.0 | 3.1 |
+| 19 · Dos remitentes intercalados | 1 | katia | carga Katia | 4.2 | 0.0 | 0.0 | 4.2 |
+| 19 · Dos remitentes intercalados | 2 | bruno | carga Bruno | 4.3 | 0.0 | 0.0 | 4.3 |
+| 19 · Dos remitentes intercalados | 3 | bruno | corrección de Bruno | 4.1 | 0.0 | 0.0 | 4.1 |
+| 20 · Cuotas que no cierran | 1 | bruno | etapas sin montos ni fechas | 4.4 | 0.0 | 0.0 | 4.4 |
 
-Promedio dispatch **4.3s** · promedio total **4.3s** · más lento: bruno «¿cuánto le debo a katia por ese paseo?» (16.2s)
+Promedio dispatch **4.3s** · promedio total **4.3s** · más lento: bruno «hostel praga 300 eur, una parte ahora y …» (4.4s)
 
 > En prod, al `total_s` se suman typing/react/send Graph (~0.3–1.5s típico, no medido acá).
 
@@ -880,8 +183,9 @@ Promedio dispatch **4.3s** · promedio total **4.3s** · más lento: bruno «¿c
 ```bash
 cd backend
 .venv/bin/python scripts/bot_scenario_runner.py          # suite crítica (10)
-.venv/bin/python scripts/bot_scenario_runner.py --all    # 14 (10+4)
-.venv/bin/python scripts/bot_scenario_runner.py --only 1,4,6
+.venv/bin/python scripts/bot_scenario_runner.py --all    # 17 (10+7)
+.venv/bin/python scripts/bot_scenario_runner.py --only cuotas-total,pititas-owner
+.venv/bin/python scripts/bot_scenario_runner.py --provider anthropic
 ```
 
 Requiere `OPENAI_API_KEY` en `spitwise/.env`. Secuencial; pausas entre turnos.
