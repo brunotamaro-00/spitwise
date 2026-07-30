@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     anthropic_chat_model: str = "claude-sonnet-4-6"
     chat_timeout_seconds: float = 30.0  # por request; el loop hace hasta qa_max_iterations
     qa_max_iterations: int = 5  # la mayoría de consultas se resuelven en 1-2 tool-calls
+    # Presupuesto de tool calls del turno, independiente de las rondas: una sola
+    # ronda puede pedir 6 tools en paralelo. Al agotarse, el loop no descarta lo
+    # que ya juntó: reserva una llamada final sin tools para sintetizarlo.
+    qa_max_tool_calls: int = 10
     qa_history_max_turns: int = 8  # turnos (pregunta+respuesta) que se recuerdan
     qa_history_ttl_minutes: int = 60
     # Ventana en la que un gasto recién cargado sigue siendo "corregible": el

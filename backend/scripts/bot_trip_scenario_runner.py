@@ -434,6 +434,30 @@ CONVERSATIONS: list[Conversation] = [
         ],
         fix_in="costumbres PL · list_notes · dispatcher canal plata",
     ),
+    Conversation(
+        name="Harry Potter en Lisboa o Porto (multi-ciudad + sinónimos)",
+        id="harry-potter",
+        check=trip_check(needs=GUIDE_TOOLS),
+        goal=("Consulta que ninguna guía nombra literalmente: hay que expandirla "
+              "(Hogwarts / Livraria Lello) y cubrir DOS ciudades sin quedarse a "
+              "mitad de camino."),
+        turns=[
+            Turn(KATIA_WA,
+                 "¿hay algo de Harry Potter para ver en Lisboa o en Porto?",
+                 note="multi-ciudad + sinónimo (ninguna guía dice 'Harry Potter')"),
+            Turn(KATIA_WA, "¿y cuánto sale entrar?", note="follow-up sobre el mismo lugar"),
+        ],
+        expect_hints=[
+            "Turno 1: tiene que encontrar la Livraria Lello de Porto (la guía la liga a "
+            "Hogwarts) y decir en una línea, grounded, qué hay o no hay en Lisboa. "
+            "FAIL histórico: search_guides exige TODAS las palabras ('harry' + 'potter' + "
+            "'lisboa' + 'porto') y devuelve 0 hits → 'las guías no dicen nada'",
+            "FAIL grave: contestar de cultura general (tour de HP, estudios) sin tools",
+            "Turno 2: precio TAL CUAL la guía (€10 Silver / €15.95 Gold). FAIL si inventa "
+            "un precio o cambia de ciudad",
+        ],
+        fix_in="qa/trip_tools.py (search escalonado, multi guide_slugs) · bot/trip_qa.py",
+    ),
 ]
 
 

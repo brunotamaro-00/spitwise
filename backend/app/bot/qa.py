@@ -7,13 +7,14 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from app import trace
+from app.balance import UNSETTLED
+from app.bot import copy
 from app.bot.active_stop import get_state_payload, resolve_trip_timezone, update_state_payload
 from app.bot.capture import all_users
 from app.bot.render import BotReply, text_reply
-from app.balance import UNSETTLED
 from app.config import get_settings
 from app.db.models import User
-from app.llm.chat import FALLBACK, as_result
+from app.llm.chat import as_result
 from app.qa.tools import ActionContext, build_tools
 
 _SYSTEM = (
@@ -101,8 +102,6 @@ _SYSTEM = (
 
 
 def _render_system(sender: str, users: list[User], today: date) -> str:
-    from app.bot import copy
-
     home = copy.link_home()
     if home:
         app_link_rule = (
@@ -259,15 +258,25 @@ async def handle_question(session, user: User, wa_id: str, text: str, today: dat
         max_iterations=s.qa_max_iterations,
         channel="qa",
     ))
-    answer = result.text or FALLBACK
-
     # Si una acción preparó una respuesta interactiva (botones), esa manda.
-    reply = ctx.reply if ctx.reply is not None else text_reply(answer)
+    if ctx.reply is not None:
+        reply = ctx.reply
+    elif result.text:
+        reply = text_reply(result.text)
+    elif ctx.performed:
+        # El modelo se quedó sin presupuesto DESPUÉS de editar: el cambio ya está
+        # commiteado, así que se confirma con lo que pasó de verdad.
+        reply = text_reply(copy.action_done(ctx.performed))
+    else:
+        # Sin respuesta usable: copy por canal + causa, y NO se guarda en el
+        # historial — así el próximo follow-up sigue apoyado en el último turno
+        # que sí sirvió, en vez de en un "me enredé".
+        return text_reply(copy.chat_degraded("qa", result.outcome))
 
     now = datetime.now(timezone.utc).isoformat()
     history = history + [
         {"role": "user", "content": text, "ts": now},
-        {"role": "assistant", "content": reply.text or answer, "ts": now},
+        {"role": "assistant", "content": reply.text or result.text, "ts": now},
     ]
     await update_state_payload(session, wa_id, qa_history=history[-s.qa_history_max_turns * 2:])
     return reply

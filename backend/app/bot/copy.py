@@ -36,6 +36,55 @@ SAVED_BUT_UNCONFIRMED = (
 )
 EMPTY_MESSAGE = "Mandame un gasto, ej: _cena 20 euros_."
 
+# --- Degradación de los agentes Q&A, por canal y por causa --------------------
+# Un solo "me enredé" para todo escondía cosas distintas: el proveedor caído, la
+# consulta demasiado ancha o las herramientas fallando. Cada una se dice como es
+# y sugiere lo que de verdad ayuda; ninguna se guarda en el historial.
+_DEGRADED = {
+    "qa": {
+        "provider_error": (
+            f"{H_WARN} Se me cortó la conexión justo ahí. Mandámelo de nuevo en un toque."
+        ),
+        "tool_error": (
+            f"{H_WARN} No pude leer los datos para responder eso. Probá otra vez, "
+            "y si sigue, pedímelo más simple (ej: _gastos de Roma_)."
+        ),
+        "budget": (
+            f"{H_HUH} Esa consulta me quedó muy ancha y no llegué a cerrarla. "
+            "Acotala un poco: _gastos de Roma en comida_ · _cuánto puse yo en septiembre_."
+        ),
+    },
+    "trip": {
+        "provider_error": (
+            f"{H_WARN} Se me cortó la conexión justo ahí. Repetímelo en un toque."
+        ),
+        "tool_error": (
+            f"{H_WARN} No pude abrir las guías recién. Probá de nuevo en un rato."
+        ),
+        "budget": (
+            f"{H_HUH} Me perdí buscando en las guías. Preguntámelo más puntual "
+            "(ej: _entradas del Coliseo_ · _cómo llegar a Sintra_)."
+        ),
+    },
+}
+
+
+def chat_degraded(channel: str, outcome: str) -> str:
+    """Copy de degradación según canal y outcome del loop (`llm/chat.py`)."""
+    table = _DEGRADED.get(channel) or _DEGRADED["qa"]
+    if outcome == "provider_error":
+        return table["provider_error"]
+    if outcome == "tool_error":
+        return table["tool_error"]
+    return table["budget"]
+
+
+def action_done(performed: list[str]) -> str:
+    """Confirmación determinística de acciones YA aplicadas cuando el modelo no
+    llegó a redactar: el cambio está en la DB, no se puede responder 'me enredé'."""
+    detalle = "\n".join(f"· {p}" for p in performed)
+    return f"{H_EDIT}\n{detalle}\n_(no llegué a redactarte el resto, pero el cambio quedó)_"
+
 # --- Canal documentos (adjuntos → Andiamo) ---
 H_DOC = "📎 *Documento*"
 H_DOC_SAVED = "📎 *Documento guardado en Andiamo*"

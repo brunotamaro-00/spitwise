@@ -377,6 +377,27 @@ async def _chk_mixta(ctx: CheckCtx) -> list[str]:
     return e
 
 
+
+async def _chk_qa_multitool(ctx: CheckCtx) -> list[str]:
+    """Consulta pesada: varias tools en el turno y respuesta igual (con síntesis
+    si hizo falta). Lo que no puede pasar es perder la evidencia y degradar."""
+    from app.bot import copy
+
+    e = Errors()
+    movs = await load_movements(ctx.session)
+    e.want(len(movs) == SEED_MOVEMENTS, "una consulta no crea movimientos")
+    e.want(all(c == "qa" for c in ctx.channels()), f"canal financiero, fue {ctx.channels()}")
+    tools = [t for tr in ctx.traces for t in tr.tools]
+    e.want(len(tools) >= 2, f"esperaba varias tool calls, hubo {tools}")
+    for tr, reply in zip(ctx.traces, ctx.replies):
+        e.want(tr.outcome not in ("provider_error", "tool_error"),
+               f"outcome degradado sin evidencia: {tr.outcome}")
+        degraded = {copy.chat_degraded("qa", o)
+                    for o in ("provider_error", "tool_error", "budget_exceeded")}
+        e.want(reply.strip() not in degraded,
+               "la evidencia ya juntada tiene que llegar al usuario, no la copy de degradación")
+    return e
+
 FINANCE_TOOLS = {"aggregate_expenses", "list_movements", "get_balance", "get_itinerary",
                  "edit_movement", "delete_movements"}
 TRIP_TOOLS = {"search_guides", "list_guides", "read_guide_doc", "list_notes"}
@@ -684,13 +705,37 @@ CONVERSATIONS_EXTRA += [
         ],
         fix_in="llm/client.py (borde plata/contenido) · bot/dispatcher.py (ruteo por canal)",
     ),
+    Conversation(
+        name="Q&A multi-tool pesado",
+        id="qa-multitool",
+        check=_chk_qa_multitool,
+        goal="Consulta que obliga a varias tools: comparación entre ciudades + promedio por día.",
+        turns=[
+            Turn(BRUNO_WA,
+                 "comparame cuánto gastamos en Roma, Paris y Lisboa, y decime el "
+                 "promedio por día del viaje",
+                 note="multi-tool: aggregate x ciudad + itinerario"),
+            Turn(BRUNO_WA, "y de eso, ¿cuánto puse yo de bolsillo?",
+                 note="follow-up attribution=paid"),
+        ],
+        expect_hints=[
+            "Turno 1: varias tool calls en el turno (aggregate por ciudad / group_by=city + "
+            "get_itinerary). Debe responder con los tres totales, no pedir que acote",
+            "Si se corta por presupuesto, la síntesis final tiene que entregar lo que ya juntó "
+            "(respuesta parcial grounded). FAIL: copy de degradación con tools exitosas",
+            "Turno 2: attribution=paid para Bruno; sigue en el canal financiero",
+        ],
+        fix_in="llm/chat.py (presupuestos + síntesis) · qa/tools.py (aggregate) · bot/qa.py",
+    ),
 ]
 
-# Catálogo unificado: índices 1..10 = crítica, 11..17 = extra.
+# Catálogo unificado: índices 1..10 = crítica, 11..18 = extra.
 CONVERSATIONS: list[Conversation] = SUITE_CRITICAL + CONVERSATIONS_EXTRA
 assert len(SUITE_CRITICAL) == N_CRITICAL
-assert len(CONVERSATIONS_EXTRA) == 7
+assert len(CONVERSATIONS_EXTRA) == 8
 assert len(CONVERSATIONS) == N_CRITICAL + len(CONVERSATIONS_EXTRA)
+# Ids únicos: `--only <id>` tiene que ser inequívoco.
+assert len({c.id for c in CONVERSATIONS}) == len(CONVERSATIONS)
 
 
 async def seed(session: AsyncSession) -> None:

@@ -8,7 +8,7 @@ con recálculo de ciudad/FX). delete_movements NUNCA borra: crea un pending y de
 lista una respuesta con botones de confirmación en el ActionContext — el borrado
 real ocurre solo cuando el usuario toca el botón (interactive.py).
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
@@ -29,9 +29,15 @@ _MAX_DELETE_IDS = 5
 class ActionContext:
     """Canal lateral de las herramientas de acción hacia el handler: si una
     acción prepara una respuesta interactiva (botones), va acá y reemplaza
-    al texto final del modelo."""
+    al texto final del modelo.
+
+    `performed` lista las acciones que YA se aplicaron a la DB en este turno.
+    Si después el modelo se queda sin presupuesto o el proveedor falla, el
+    handler tiene con qué confirmar el efecto real: responder "me enredé" tras
+    haber editado un movimiento es peor que no responder."""
 
     reply: BotReply | None = None
+    performed: list[str] = field(default_factory=list)
 
 _CENT = Decimal("0.01")
 
@@ -266,7 +272,8 @@ async def get_itinerary(session: AsyncSession) -> dict:
 
 
 async def edit_movement(session: AsyncSession, users: list[User], today: date,
-                        asker: User | None = None, *, movement_id, **new_fields) -> dict:
+                        asker: User | None = None, *, movement_id,
+                        ctx: "ActionContext | None" = None, **new_fields) -> dict:
     """Aplica cambios a un movimiento reutilizando el flujo del intent 'edit'
     (normalización + apply_changes, con recálculo de ciudad/FX)."""
     from app.bot.editor import apply_changes
@@ -296,6 +303,11 @@ async def edit_movement(session: AsyncSession, users: list[User], today: date,
         )
     diffs = await apply_changes(session, mv, changes, today,
                                 asker.username if asker else None)
+    if ctx is not None and diffs:
+        # Ya está commiteado: que el handler pueda confirmarlo aunque el modelo
+        # no llegue a redactar la respuesta.
+        detalle = ", ".join(f"{label} {before} → {after}" for label, before, after in diffs)
+        ctx.performed.append(f"*{mv.description or 'movimiento'}*: {detalle}")
     return {
         "edited_id": mv.id,
         "changes": [{"campo": label, "antes": before, "despues": after}
@@ -375,7 +387,7 @@ def build_tools(session: AsyncSession, users: list[User], asker: User, *,
         return await get_itinerary(session)
 
     async def _edit(**kw):
-        return await edit_movement(session, users, today, asker, **kw)
+        return await edit_movement(session, users, today, asker, ctx=ctx, **kw)
 
     async def _delete(**kw):
         return await delete_movements(session, users, asker, ctx, **kw)

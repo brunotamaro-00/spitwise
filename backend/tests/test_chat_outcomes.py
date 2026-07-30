@@ -121,7 +121,7 @@ async def test_budget_exceeded_when_deadline_passes(monkeypatch):
     chat._budget_s = -1.0  # ya vencido: la 2ª vuelta corta por presupuesto
     res = await chat.run(system="s", history=[], user_text="x", tools=[_tool(_noop)],
                          max_iterations=5)
-    assert res.outcome == BUDGET_EXCEEDED and res.rounds == 1
+    assert (res.outcome, res.limit_hit) == (BUDGET_EXCEEDED, "time")
 
 
 async def test_openai_budget_exceeded():
@@ -150,19 +150,26 @@ def test_as_result_normalizes_plain_strings():
 async def test_tool_log_never_carries_arguments(caplog):
     """Los args son texto libre del usuario: no van al log."""
     async def boom(**kw):
-        raise ValueError("secreto")
-
-    async def create(**kwargs):
-        return SimpleNamespace(stop_reason="end_turn",
-                               content=[SimpleNamespace(type="text", text="ok")])
+        raise RuntimeError("detalle interno")
 
     with caplog.at_level("WARNING"):
         out, is_err = await chatmod._run_tool(
             {"sumar": _tool(boom)}, "sumar", {"city": "Lisboa secreta"},
         )
-    assert is_err
-    assert "Lisboa secreta" not in caplog.text and "secreto" not in caplog.text
-    assert "tool=sumar" in caplog.text
+    assert is_err and out == "la herramienta falló con esos parámetros"
+    assert "Lisboa secreta" not in caplog.text and "detalle interno" not in caplog.text
+    assert "tool=sumar" in caplog.text and "RuntimeError" in caplog.text
+
+
+async def test_value_error_message_goes_back_to_the_model(caplog):
+    """Los ValueError los escriben las tools para que el modelo se corrija."""
+    async def bad_arg(**kw):
+        raise ValueError("guide_slug desconocido: 'lisbon'; válidas: ['lisboa']")
+
+    with caplog.at_level("WARNING"):
+        out, is_err = await chatmod._run_tool({"sumar": _tool(bad_arg)}, "sumar", {})
+    assert is_err and "válidas: ['lisboa']" in out
+    assert caplog.text == ""  # un parámetro mal puesto no es un incidente
 
 
 @pytest.fixture(autouse=True)

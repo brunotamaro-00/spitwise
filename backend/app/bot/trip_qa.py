@@ -9,12 +9,13 @@ from datetime import date, datetime, timezone
 from sqlalchemy import func, select
 
 from app import trace
+from app.bot import copy
 from app.bot.active_stop import get_state_payload, update_state_payload
 from app.bot.qa import _fresh_history
 from app.bot.render import BotReply, text_reply
 from app.config import get_settings
 from app.db.models import GuideDoc, Stop, StopGuide, TripNote, User
-from app.llm.chat import FALLBACK, as_result
+from app.llm.chat import as_result
 from app.qa.trip_tools import build_trip_tools
 
 _SYSTEM = (
@@ -184,7 +185,11 @@ async def handle_trip_question(session, user: User, wa_id: str, text: str, today
         max_iterations=s.qa_max_iterations,
         channel="trip",
     ))
-    answer = result.text or FALLBACK
+    if not result.text:
+        # Sin respuesta usable: copy del canal viaje según la causa, sin
+        # persistirla — el próximo follow-up sigue colgado del último turno útil.
+        return text_reply(copy.chat_degraded("trip", result.outcome))
+    answer = result.text
     reply = text_reply(answer)
 
     now = datetime.now(timezone.utc).isoformat()
