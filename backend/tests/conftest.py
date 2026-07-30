@@ -1,8 +1,24 @@
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import get_settings
 from app.db.models import Base
+
+
+@pytest.fixture(autouse=True)
+def login_password(monkeypatch):
+    """`pw` es la contraseña del login en toda la suite.
+
+    /auth/login falla cerrado sin LOGIN_PASSWORDS, así que sin esto cualquier
+    test que pida un token daría 401. Los tests que ejercitan el gate en sí
+    (test_auth.py) pisan la env var con su propio monkeypatch.
+    """
+    monkeypatch.setenv("LOGIN_PASSWORDS", "pw")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest_asyncio.fixture

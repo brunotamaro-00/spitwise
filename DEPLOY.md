@@ -18,7 +18,9 @@ Un solo servicio web (FastAPI: API + webhook de WhatsApp + frontend estático) +
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (reference a la DB del proyecto) |
 | `ENVIRONMENT` | `prod` |
 | `SECRET_KEY` | random largo (`openssl rand -hex 32`) |
-| `AUTH_USERS` | `bruno:<pwd>:<wa_id_bruno>,katia:<pwd>:<wa_id_katia>` |
+| `AUTH_USERS` | `bruno:<pwd>:<wa_id_bruno>,katia:<pwd>:<wa_id_katia>` (hoy solo mapea `wa_id`: el login no usa esta contraseña) |
+| `LOGIN_PASSWORDS` | contraseñas válidas del login web, separadas por comas (ej. `bruny1003,sandia12#`). **Obligatoria fuera de la demo**: sin ella el servicio no arranca. |
+| `DEMO_URL` | `https://demo.spitwise.lat` — el CTA "Entrar a la demo" del `/login` de prod |
 | `ANTHROPIC_API_KEY` | key de Anthropic (parser por defecto) |
 | `ANTHROPIC_MODEL` | `claude-haiku-4-5` |
 | `OPENAI_API_KEY` | *(alternativa)* key de OpenAI — si es la única cargada, el parser usa OpenAI solo |
@@ -42,6 +44,8 @@ Secretos **solo** acá: nunca en el repo (`.env` está gitignoreado).
 |---|---|
 | `TRIP_SHARED_API_KEY` | mismo valor que arriba |
 | `SPITWISE_URL` | `https://spitwise.lat` |
+| `LOGIN_PASSWORDS` | mismas contraseñas que Spitwise (las dos apps comparten el gate) |
+| `NEXT_PUBLIC_DEMO_URL` | `https://demo.andiamo.lat` |
 
 Redeploy de Andiamo después de agregarlas (habilita `GET /api/stops` y el chip "Gastado").
 
@@ -57,7 +61,7 @@ lo actualizan solos.
 
 1. Railway → New Project `spitwise` → Add **PostgreSQL** → Add service desde el repo (o `railway up`).
 2. Cargar las envs de la tabla. Settings → Networking → Generate Domain + custom domain `spitwise.lat` (Andiamo usa `andiamo.lat`).
-3. Smoke: `curl https://spitwise.lat/health` → `{"status":"ok"}`; login → `curl -X POST .../api/v1/auth/login -d "username=bruno&password=<pwd>"` devuelve `access_token`; el dashboard web carga con balance "a mano".
+3. Smoke: `curl https://spitwise.lat/health` → `{"status":"ok"}`; login → `curl -X POST .../api/v1/auth/login -d "username=bruno&password=<una de LOGIN_PASSWORDS>"` devuelve `access_token` (con una contraseña cualquiera, 401); el dashboard web carga con balance "a mano".
 4. **Meta** (App → WhatsApp → Configuration): Callback URL `https://spitwise.lat/webhooks/whatsapp`, Verify token = `WHATSAPP_VERIFY_TOKEN`, suscribir el campo `messages`. El GET de verificación debe devolver el `hub.challenge`.
 5. Primer sync del itinerario:
    ```bash
@@ -105,6 +109,17 @@ Los nombres de las Postgres de demo los generó Railway (`railway add -d postgre
 |---|---|
 | Spitwise | No se monta el router del webhook (`main.py`); `GET /api/v1/public-config` devuelve `demo: true` y el frontend pinta el banner "Demo pública" + `DemoIntro` (presentación de una sola vez, recordada en `localStorage`). Los dos salen también en `/login`, que es donde aterriza quien viene del CV |
 | Andiamo | Banner e intro equivalentes; `/` redirige a `/stops#current` en vez de al detalle de la parada de hoy; se desactiva la subida de archivos (sin credenciales R2 el upload 500ea) — los documentos se agregan por link, que es lo que usa el seed |
+| Las dos | **El login no pide contraseña**: la demo es de entrada libre, que es todo el punto del deploy. El picker Bruno/Katia queda como estaba y el CTA "Entrar a la demo" no se renderiza (ya estás ahí) |
+
+### El gate de producción — `LOGIN_PASSWORDS`
+
+`andiamo.lat` y `spitwise.lat` están impresos en el CV y tienen datos personales reales detrás, así que su `/login` pide contraseña. La variable es una **lista separada por comas**: más de una contraseña válida a la vez, para poder rotar sin cortarle el acceso a nadie en medio del viaje. Va con el mismo valor en los dos servicios de producción.
+
+Falla cerrado: sin `LOGIN_PASSWORDS` no entra nadie, y Spitwise directamente **no arranca** (`_assert_prod_secrets`, salvo `DEMO_MODE`). Los servicios de demo **no la llevan**.
+
+> Si alguna contraseña tiene `#`, en la UI de Railway se pega tal cual; en un archivo `.env` local hay que comillar el valor entero (`LOGIN_PASSWORDS="a,b#"`), si no dotenv corta en el `#`.
+
+Y como contracara, el `/login` de producción es la puerta de entrada del portfolio: quien llega desde el CV encuentra arriba de todo la card "¿Venís desde mi CV o LinkedIn?" con el CTA primario hacia la demo (`DEMO_URL` / `NEXT_PUBLIC_DEMO_URL`), y la contraseña abajo, separada. Por eso el CV sigue apuntando a los dominios de producción y no a los `demo.*`: el muro es la prueba de que la app es real y está en uso.
 
 ### El "hoy" congelado — `DEMO_TODAY`
 
@@ -136,6 +151,7 @@ Cambiar la fecha no es gratis: `seed_demo_money.py` falla si el hoy congelado ca
 | `NEXT_PUBLIC_DEMO_TODAY` | `2026-09-25` |
 | `HOSTNAME` | `0.0.0.0` — **imprescindible** |
 | `NODE_ENV` | `production` |
+| `LOGIN_PASSWORDS`, `NEXT_PUBLIC_DEMO_URL` | **ausentes** (la demo entra sin contraseña) |
 | `R2_*` | ausentes |
 
 Sin `HOSTNAME=0.0.0.0` el server standalone de Next bindea al hostname del contenedor (`http://cf98e52f8eb8:8080`) y el proxy de Railway devuelve **502 con la app perfectamente Online** en el panel. Prod ya lo tiene seteado; un servicio nuevo no lo hereda. El otro 502 posible es el **target port del dominio**: hay que fijarlo en `8080` (`railway domain update <dominio> --port 8080 -s andiamo-demo`), porque Railway lo deja vacío al crear el dominio.
@@ -154,6 +170,7 @@ Sin `HOSTNAME=0.0.0.0` el server standalone de Next bindea al hostname del conte
 | `TRIP_SHARED_API_KEY` | el mismo valor nuevo de `andiamo-demo` |
 | `ENVIRONMENT` | `prod` (para que `_assert_prod_secrets` valide) |
 | `PITITAS_OWNER` | **vacío** (ver más abajo) |
+| `LOGIN_PASSWORDS`, `DEMO_URL` | **ausentes** (`DEMO_MODE` saltea el gate; sin él, `ENVIRONMENT=prod` no dejaría arrancar) |
 | `WHATSAPP_*`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | ausentes |
 
 **La `TRIP_SHARED_API_KEY` de la demo tiene que ser distinta de la de producción.** Con la misma key, un `ANDIAMO_URL` mal tipeado en la demo sincronizaría contra `andiamo.lat` real y publicaría el itinerario y las notas personales en una URL pública. Antes de exponer los dominios, comparar las variables de los cuatro servicios y confirmar que ninguna env de demo apunta a la DB, el bucket o la key de prod.

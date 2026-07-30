@@ -166,6 +166,7 @@ async def test_sync_hook_content_events(app_client, monkeypatch):
 async def test_config_endpoint(app_client, monkeypatch):
     from app.config import get_settings
     monkeypatch.setenv("ANDIAMO_URL", "http://andiamo.test")
+    monkeypatch.setenv("DEMO_URL", "http://demo.test")
     get_settings.cache_clear()
     await _seed(app_client)
     login = await app_client.post(
@@ -175,7 +176,11 @@ async def test_config_endpoint(app_client, monkeypatch):
     token = login.json()["access_token"]
     r = await app_client.get("/api/v1/config", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
-    assert r.json() == {"andiamo_url": "http://andiamo.test", "demo": False}
+    assert r.json() == {
+        "andiamo_url": "http://andiamo.test",
+        "demo": False,
+        "demo_url": "http://demo.test",
+    }
     get_settings.cache_clear()
 
 
@@ -187,7 +192,8 @@ async def test_public_config_endpoint_needs_no_token(app_client, monkeypatch):
     get_settings.cache_clear()
     r = await app_client.get("/api/v1/public-config")
     assert r.status_code == 200
-    assert r.json() == {"andiamo_url": "http://andiamo.test", "demo": True}
+    # demo_url va null en el propio deploy de demo: el CTA solo existe en prod.
+    assert r.json() == {"andiamo_url": "http://andiamo.test", "demo": True, "demo_url": None}
     get_settings.cache_clear()
 
 

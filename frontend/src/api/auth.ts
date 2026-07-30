@@ -2,8 +2,11 @@ import { resetSessionCache } from "@/lib/queryClient";
 
 import { api } from "./client";
 
-export async function loginAs(username: string): Promise<string> {
-  const form = new URLSearchParams({ username, password: "-" });
+/** `username` elige quién sos (preferencia de vista); `password` es la del
+ *  deploy, compartida — el backend la valida contra LOGIN_PASSWORDS salvo en la
+ *  demo pública, que es de entrada libre. */
+export async function loginAs(username: string, password: string): Promise<string> {
+  const form = new URLSearchParams({ username, password });
   const { data } = await api.post("/auth/login", form, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });

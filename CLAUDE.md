@@ -27,7 +27,9 @@ No hay Telegram. No es multi-grupo: el negocio asume **exactamente 2 usuarios**.
 | Frontend | React 19, Vite 8, TypeScript, Tailwind v4, TanStack Query, React Router 7, Recharts, Lucide |
 | Deploy | Railway — **un solo** proceso Docker (API + SPA + webhook). **Nunca** `uvicorn --workers` (locks del bot son in-process) |
 
-**Demo pública (`demo.spitwise.lat`):** mismo repo y rama que prod, gobernada por `DEMO_MODE`. Apaga el router del webhook (la demo es solo la web) y `DEMO_TODAY` **congela el reloj del viaje** en `trip_time.today_in_tz` — el único punto donde la web lee la fecha. Tiene que ser el mismo valor que congela Andiamo (`NEXT_PUBLIC_DEMO_TODAY`) o cada app muestra una parada actual distinta. Seed: `scripts/seed_demo_money.py` (ver `DEPLOY.md`).
+**Demo pública (`demo.spitwise.lat`):** mismo repo y rama que prod, gobernada por `DEMO_MODE`. Apaga el router del webhook (la demo es solo la web), **saltea el gate de contraseña del login** (entrada libre: es el punto del deploy) y `DEMO_TODAY` **congela el reloj del viaje** en `trip_time.today_in_tz` — el único punto donde la web lee la fecha. Tiene que ser el mismo valor que congela Andiamo (`NEXT_PUBLIC_DEMO_TODAY`) o cada app muestra una parada actual distinta. Seed: `scripts/seed_demo_money.py` (ver `DEPLOY.md`).
+
+**Login (`POST /auth/login`):** contraseña **del deploy**, no del usuario — `LOGIN_PASSWORDS` es una lista separada por comas y se compara constant-time contra todas las entradas, sin cortar en la primera. `AUTH_USERS`/`password_hash` siguen siendo solo el mapeo de `wa_id`: no los mezcles con el gate (el `AUTH_USERS` de la demo es literalmente `bruno:demo:`). El `username` sigue eligiendo *quién* sos. Falla cerrado y `main._assert_prod_secrets` no deja arrancar sin la variable fuera de `DEMO_MODE`. Throttle in-process de 8 fallos/10 min por IP en `api/auth.py` — depende del proceso único, igual que los locks del bot. La pantalla `/login` de prod lleva arriba el CTA a `DEMO_URL` (vía `/public-config`, porque el bundle se compila en el Dockerfile y ninguna `VITE_*` de runtime llega): es la puerta de entrada de quien viene del CV.
 
 ## Layout del repo
 
@@ -326,7 +328,8 @@ Mínimo local (`.env.example`): `DATABASE_URL`, `FRANKFURTER_URL`, `DOLARAPI_URL
 
 Producción / features (ver `config.py` y `DEPLOY.md`):
 
-- Auth: `SECRET_KEY`, `AUTH_USERS` (`user:pass:wa_id,...`), `JWT_EXPIRE_DAYS`, `CORS_ORIGINS`
+- Auth: `SECRET_KEY`, `LOGIN_PASSWORDS` (lista separada por comas), `AUTH_USERS` (`user:pass:wa_id,...` — solo el `wa_id` se usa), `JWT_EXPIRE_DAYS`, `CORS_ORIGINS`
+- Demo: `DEMO_MODE`, `DEMO_TODAY`, `DEMO_URL`
 - LLM: `LLM_PROVIDER`, `ANTHROPIC_*`, `OPENAI_*`, `CHAT_TIMEOUT_SECONDS`, `QA_*`
 - WhatsApp: `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_GRAPH_VERSION`
 - Integración: `TRIP_SHARED_API_KEY`, `ANDIAMO_URL`

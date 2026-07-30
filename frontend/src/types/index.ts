@@ -77,7 +77,12 @@ export type Stop = {
   is_archived: boolean;
 };
 
-export type AppConfig = { andiamo_url: string | null; demo: boolean };
+export type AppConfig = {
+  andiamo_url: string | null;
+  demo: boolean;
+  /** URL de la demo pública; solo viene en producción (en la demo es null). */
+  demo_url: string | null;
+};
 
 export type CitySummary = {
   total_usd: string;

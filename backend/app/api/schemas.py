@@ -268,3 +268,6 @@ class TripSpendOut(BaseModel):
 class ConfigOut(BaseModel):
     andiamo_url: str | None
     demo: bool = False
+    # URL de la demo pública. Solo tiene sentido cuando demo=False: es el CTA
+    # principal del /login de producción.
+    demo_url: str | None = None

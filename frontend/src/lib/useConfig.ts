@@ -9,9 +9,10 @@ export function useAndiamoUrl(): string | null {
   return data?.andiamo_url ?? null;
 }
 
-/** Config del deploy sin JWT — la usa el banner de demo, que también se ve en
- *  /login. Query key propia: `["config"]` se persiste con buster por usuario y
- *  se descarta al desloguear, y este dato no depende de la sesión. */
+/** Config del deploy sin JWT — la usan el banner de demo y el CTA de /login,
+ *  donde todavía no hay token. Query key propia: `["config"]` se persiste con
+ *  buster por usuario y se descarta al desloguear, y este dato no depende de la
+ *  sesión. */
 export function usePublicConfig() {
   const { data } = useQuery({
     queryKey: ["public-config"],

@@ -42,12 +42,20 @@ class Settings(BaseSettings):
     # Sin esto el itinerario sembrado se corre contra el día en que arranca el
     # cron y deja de coincidir con Andiamo. Misma fecha que NEXT_PUBLIC_DEMO_TODAY.
     demo_today: str = ""
+    # URL de la demo pública, el CTA principal del /login de producción.
+    # Vacío => el frontend cae al dominio conocido (ver useConfig.ts).
+    demo_url: str = ""
 
     # Auth
     secret_key: str = "change-me-in-production-use-a-long-random-string"
     jwt_expire_days: int = 90
     bot_api_key: str = "change-me-bot-key"
     auth_users: str = ""  # "user:pass:wa_id,user2:pass2:wa_id2"
+    # Contraseñas válidas del login web, separadas por comas. Más de una a la vez
+    # para poder rotar sin dejar a nadie afuera en medio del viaje. Vacío =>
+    # el login rechaza todo (salvo en demo_mode, que es de entrada libre).
+    # Ojo en archivos .env: comillar el valor si alguna contraseña tiene "#".
+    login_passwords: str = ""
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")
 
     # Integración Andiamo

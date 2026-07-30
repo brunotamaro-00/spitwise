@@ -38,6 +38,14 @@ def _assert_prod_secrets() -> None:
             f"Secrets con valor default en environment={s.environment!r}: {', '.join(bad)}. "
             "Configurá SECRET_KEY / TRIP_SHARED_API_KEY antes de arrancar."
         )
+    # La demo es de entrada libre a propósito; producción no. Sin contraseñas el
+    # login rechaza todo igual, pero es mejor no arrancar que quedar arriba con
+    # una puerta que nadie puede abrir.
+    if not s.demo_mode and not [p for p in s.login_passwords.split(",") if p.strip()]:
+        raise RuntimeError(
+            f"LOGIN_PASSWORDS vacío en environment={s.environment!r}. "
+            "Configurá al menos una contraseña (o DEMO_MODE=true) antes de arrancar."
+        )
 
 
 @asynccontextmanager
