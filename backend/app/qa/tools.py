@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.balance import UNSETTLED, compute_balance
 from app.bot.render import BotReply
+from app.cashback import net_amount
 from app.db.models import Category, Movement, Stop, User
 from app.llm.chat import ToolSpec
 from app.spend import user_share
@@ -80,21 +81,40 @@ async def _load_context(session: AsyncSession, cache: dict | None = None):
     return out
 
 
+_VALID_STATUS = {"confirmed", "pending", "awaiting"}
+
+
 def _filter(movements, stops, cats, *, tz_name=None, date_from=None, date_to=None, cities=None,
-            countries=None, categories=None, currency=None):
+            countries=None, categories=None, currency=None, status=None, date_field="created"):
     d_from = _to_date(date_from, "date_from")
     d_to = _to_date(date_to, "date_to")
     city_set = {_fold(c) for c in (cities or [])}
     country_set = {_fold(c) for c in (countries or [])}
     cat_set = {_fold(c) for c in (categories or [])}
     curr = str(currency).strip().upper() if currency else None
+    status_set = {_fold(s) for s in (status or [])}
+    if status_set - _VALID_STATUS:
+        raise ValueError(
+            f"status inválido: {sorted(status_set - _VALID_STATUS)}; "
+            f"válidos: {sorted(_VALID_STATUS)}"
+        )
+    if date_field not in ("created", "payment"):
+        raise ValueError("date_field tiene que ser 'created' (default) o 'payment'")
 
     out = []
     for m in movements:
-        day = _created_day(m, tz_name) if (d_from or d_to) else None
+        # Eje temporal: por defecto la fecha de CARGA (invariante: es el eje de
+        # listas y agrupación). 'payment' es opt-in explícito para preguntas del
+        # tipo "qué se paga en septiembre"; NULL = se paga el día de carga.
+        day = None
+        if d_from or d_to:
+            day = (m.payment_date or _created_day(m, tz_name)) if date_field == "payment" \
+                else _created_day(m, tz_name)
         if d_from and day < d_from:
             continue
         if d_to and day > d_to:
+            continue
+        if status_set and _fold(m.status) not in status_set:
             continue
         if city_set and _fold(m.city_name) not in city_set and _fold(m.stop_slug) not in city_set:
             continue
@@ -123,11 +143,13 @@ def _resolve_person(users: list[User], name: str | None, asker: User) -> User:
 async def aggregate_expenses(session: AsyncSession, users: list[User], asker: User, *,
                              tz_name=None, person=None, attribution="share", date_from=None,
                              date_to=None, cities=None, countries=None, categories=None,
-                             currency=None, group_by="none", cache=None) -> dict:
+                             currency=None, status=None, date_field="created",
+                             group_by="none", cache=None) -> dict:
     movements, stops, cats = await _load_context(session, cache)
     rows_src = _filter(movements, stops, cats, tz_name=tz_name, date_from=date_from,
                        date_to=date_to, cities=cities, countries=countries,
-                       categories=categories, currency=currency)
+                       categories=categories, currency=currency, status=status,
+                       date_field=date_field)
     who = _resolve_person(users, person, asker)
 
     def amount_for(m, uid: int) -> Decimal:
@@ -176,7 +198,8 @@ async def aggregate_expenses(session: AsyncSession, users: list[User], asker: Us
         "rows": [{"key": k, "total_usd": _money(v["total"]), "count": v["count"]} for k, v in items],
         "person": None if attribution == "total" or group_by == "person" else who.username,
         "attribution": attribution,
-        "note": "montos en USD",
+        "note": ("montos en USD, ya netos de cashback (el bruto solo se ve al editar). "
+                 "Incluye pendientes y por confirmar salvo que filtres por status."),
     }
 
 
@@ -195,11 +218,13 @@ def _app_link(cats: dict, *, date_from, date_to, cities, categories):
 
 async def list_movements(session: AsyncSession, users: list[User], *, tz_name=None,
                          date_from=None, date_to=None, cities=None, countries=None,
-                         categories=None, currency=None, limit=10, cache=None) -> dict:
+                         categories=None, currency=None, status=None,
+                         date_field="created", limit=10, cache=None) -> dict:
     movements, stops, cats = await _load_context(session, cache)
     rows_src = _filter(movements, stops, cats, tz_name=tz_name, date_from=date_from,
                        date_to=date_to, cities=cities, countries=countries,
-                       categories=categories, currency=currency)
+                       categories=categories, currency=currency, status=status,
+                       date_field=date_field)
     usernames = {u.id: u.username for u in users}
     limit = max(1, min(int(limit or 10), 50))
     newest_first = list(reversed(rows_src))
@@ -213,7 +238,11 @@ async def list_movements(session: AsyncSession, users: list[User], *, tz_name=No
             "category": cats.get(m.category_id),
             "city": m.city_name,
             "country": stop.country if stop else None,
-            "amount": _money(m.amount),
+            "amount": _money(net_amount(Decimal(m.amount), m.cashback_kind, m.cashback_value)),
+            "amount_gross": _money(m.amount) if m.cashback_kind else None,
+            "cashback": (f"{m.cashback_value}%" if m.cashback_kind == "pct"
+                         else (f"{m.currency} {_money(m.cashback_value)}"
+                               if m.cashback_kind else None)),
             "currency": m.currency,
             "amount_usd": _money(m.amount_usd),
             "paid_by": usernames.get(m.paid_by),
@@ -254,8 +283,12 @@ async def get_balance(session: AsyncSession, users: list[User]) -> dict:
 
 
 async def get_itinerary(session: AsyncSession) -> dict:
+    # Sin archivadas: son paradas borradas en Andiamo que sobreviven solo porque
+    # tienen gastos. Contarlas inflaba los días del viaje y con eso el promedio
+    # por día que el bot reporta.
     stops = (await session.execute(
-        select(Stop).where(Stop.is_candidate.is_(False)).order_by(Stop.order)
+        select(Stop).where(Stop.is_candidate.is_(False), Stop.is_archived.is_(False))
+        .order_by(Stop.order)
     )).scalars().all()
     rows = []
     for s in stops:
@@ -365,6 +398,18 @@ _FILTER_PROPS = {
     "categories": {"type": "array", "items": {"type": "string"},
                    "description": "Nombres exactos de categoría."},
     "currency": {"type": "string", "description": "Moneda ORIGINAL del gasto (ISO 4217, ej: EUR)."},
+    "status": {
+        "type": "array", "items": {"type": "string", "enum": ["confirmed", "pending", "awaiting"]},
+        "description": ("Estado del gasto: confirmed = ya cuenta en el saldo; pending = "
+                        "fecha de pago futura; awaiting = venció y espera confirmación en "
+                        "la web. Sin filtro entran todos."),
+    },
+    "date_field": {
+        "type": "string", "enum": ["created", "payment"],
+        "description": ("Contra qué fecha filtran date_from/date_to: 'created' (default) es "
+                        "cuándo se registró el gasto — el eje de siempre; 'payment' es cuándo "
+                        "se paga, para preguntas como 'qué se paga en septiembre'."),
+    },
 }
 
 

@@ -480,6 +480,29 @@ async def _chk_eliptica_plata(ctx: CheckCtx) -> list[str]:
                "la pregunta de plata no puede usar tools de guías")
     return e
 
+
+async def _chk_pendientes_query(ctx: CheckCtx) -> list[str]:
+    """Preguntar por lo pendiente se contesta con tools + filtro de status."""
+    e = Errors()
+    movs = await load_movements(ctx.session)
+    pend = [m for m in movs if m.status in ("pending", "awaiting")]
+    e.want(len(pend) == 1, f"el seed del turno 1 debe dejar 1 pendiente, hay {len(pend)}")
+    e.want(all(c == "qa" for c in ctx.channels()), f"canal financiero, fue {ctx.channels()}")
+    return e
+
+
+async def _chk_promedio_dia(ctx: CheckCtx) -> list[str]:
+    """El promedio por día sale del itinerario, no de los días con gastos."""
+    from app.bot import copy
+
+    e = Errors()
+    e.want(ctx.channels() == ["qa"], f"canal financiero, fue {ctx.channels()}")
+    e.want("get_itinerary" in ctx.tools_used() or "aggregate_expenses" in ctx.tools_used(),
+           f"un promedio exige tools, se usaron {sorted(ctx.tools_used())}")
+    e.want(ctx.replies[0].strip() != copy.QA_UNVERIFIED_ZERO,
+           "no puede degradar a 'no quiero contestarte de memoria' con gastos cargados")
+    return e
+
 FINANCE_TOOLS = {"aggregate_expenses", "list_movements", "get_balance", "get_itinerary",
                  "edit_movement", "delete_movements"}
 TRIP_TOOLS = {"search_guides", "list_guides", "read_guide_doc", "list_notes"}
@@ -905,12 +928,46 @@ CONVERSATIONS_EXTRA += [
         ],
         fix_in="bot/dispatcher.py (unknown → ledger_signal) · bot/quick.py",
     ),
+    Conversation(
+        name="Pendientes por confirmar",
+        id="pendientes-query",
+        check=_chk_pendientes_query,
+        goal="Preguntar qué está pendiente y qué se paga en septiembre (filtros de status/fecha de pago).",
+        turns=[
+            Turn(BRUNO_WA, "hostel viena 200 eur, se paga el 10 de septiembre",
+                 note="pending futuro"),
+            Turn(BRUNO_WA, "¿qué tengo pendiente de pago?", note="filtro status"),
+            Turn(BRUNO_WA, "¿y cuánto se paga en septiembre?", note="eje payment_date"),
+        ],
+        expect_hints=[
+            "Turno 2: debe listar el hostel como pendiente (status pending) y aclarar que "
+            "no entra al saldo. FAIL: dice que no hay nada pendiente",
+            "Turno 3: total de lo que se PAGA en septiembre (date_field=payment), no lo "
+            "cargado en septiembre. FAIL: responde 0 porque filtró por fecha de carga",
+        ],
+        fix_in="qa/tools.py (status + date_field) · bot/qa.py (prompt)",
+    ),
+    Conversation(
+        name="Promedio por día",
+        id="promedio-dia",
+        check=_chk_promedio_dia,
+        goal="Promedio $/día con los días del itinerario, no los días con gastos.",
+        turns=[
+            Turn(KATIA_WA, "¿cuánto estamos gastando por día?", note="promedio"),
+        ],
+        expect_hints=[
+            "Debe usar los días del itinerario (get_itinerary), no contar solo los días "
+            "con movimientos. FAIL: divide por 4 días porque hay 4 gastos",
+            "No puede degradar a la copy de 'no quiero contestarte de memoria': hay datos",
+        ],
+        fix_in="bot/qa.py (semántica del promedio) · qa/tools.py get_itinerary",
+    ),
 ]
 
-# Catálogo unificado: índices 1..10 = crítica, 11..24 = extra.
+# Catálogo unificado: índices 1..10 = crítica, 11..26 = extra.
 CONVERSATIONS: list[Conversation] = SUITE_CRITICAL + CONVERSATIONS_EXTRA
 assert len(SUITE_CRITICAL) == N_CRITICAL
-assert len(CONVERSATIONS_EXTRA) == 14
+assert len(CONVERSATIONS_EXTRA) == 16
 assert len(CONVERSATIONS) == N_CRITICAL + len(CONVERSATIONS_EXTRA)
 # Ids únicos: `--only <id>` tiene que ser inequívoco.
 assert len({c.id for c in CONVERSATIONS}) == len(CONVERSATIONS)

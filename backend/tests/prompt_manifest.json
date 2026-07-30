@@ -18,16 +18,20 @@
     "command": ".venv/bin/python scripts/bot_scenario_runner.py --only cuotas-total,batch-split-fix,correccion-corta,delete-por-texto,settlement-cruzado,moneda-explicita,multi-hostel,mixta-guia-plata,settlement-corregido,cuando-llegamos,cuotas-invalidas"
   },
   "app.bot.qa._SYSTEM": {
-    "sha256": "d414dac786e6eef18ac8dca4a11bc8043dce54a426d53e3523c9dc4e9e50b2c6",
+    "sha256": "64ab3eaa87db60791fe38ff2aac121e9a01efd1335d8f12e263585120be620be",
     "que_cubre": "Agente financiero: semántica share/paid/total, snapshot vs tools, formato.",
     "scenarios": [
       "qa-followup",
       "daytrip-payer",
       "pending-a-hoy",
       "settlement-cruzado",
-      "general-sin-ciudad"
+      "general-sin-ciudad",
+      "qa-multitool",
+      "pendientes-query",
+      "promedio-dia",
+      "cuando-llegamos"
     ],
-    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only qa-followup,daytrip-payer,pending-a-hoy,settlement-cruzado,general-sin-ciudad"
+    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only qa-followup,daytrip-payer,pending-a-hoy,settlement-cruzado,general-sin-ciudad,qa-multitool,pendientes-query,promedio-dia,cuando-llegamos"
   },
   "app.bot.trip_qa._SYSTEM": {
     "sha256": "1ec1f6ee4a20548c19e6b867b3fbe01e869d8905c0b343893f15d347ecf063c7",

@@ -3,6 +3,8 @@
 Responde consultas de gastos/saldos/itinerario en lenguaje natural, con
 memoria corta por wa_id (WhatsAppSessionState) para follow-ups.
 """
+import logging
+import re
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -16,6 +18,8 @@ from app.config import get_settings
 from app.db.models import User
 from app.llm.chat import as_result
 from app.qa.tools import ActionContext, build_tools
+
+logger = logging.getLogger(__name__)
 
 _SYSTEM = (
     "Sos Spitwise, el bot de gastos del viaje por Europa de {users}.\n"
@@ -34,7 +38,13 @@ _SYSTEM = (
     "- Una PREGUNTA sobre un dato ('¿en qué ciudad quedó X?') se responde con "
     "el dato; no asumas que quieren editar salvo pedido explícito de cambio.\n"
     "- Un gasto 'pendiente' (fecha de pago futura) NO entra al saldo entre los "
-    "dos hasta que llegue su fecha; sí cuenta en los totales del viaje.\n"
+    "dos hasta que llegue su fecha; sí cuenta en los totales del viaje. Para "
+    "preguntas sobre ellos usá el filtro status: 'pending' (fecha futura) o "
+    "'awaiting' (ya venció, falta confirmarlo en la web).\n"
+    "- Las fechas filtran por CARGA por default. Si preguntan por cuándo se "
+    "PAGA algo ('qué se paga en septiembre'), pasá date_field='payment'.\n"
+    "- Los montos ya vienen NETOS de cashback; el bruto solo se ve al editar. "
+    "Si citás un gasto con cashback, el número es el neto.\n"
     "- Si las herramientas no devuelven datos para lo que piden, decilo "
     "('no hay gastos cargados para eso').\n"
     "- Los montos están normalizados en USD; aclaralo cuando cites totales.\n\n"
@@ -134,12 +144,16 @@ async def _context_snapshot(session, users: list[User], today: date,
 
     from app.balance import compute_balance
     from app.bot.active_stop import place_for_date
-    from app.bot.render import ar_number, fmt_date
+    from app.bot.render import ar_number, cashback_text, fmt_date
+    from app.cashback import net_amount
     from app.db.models import Movement
     from app.trip_time import day_in_tz
 
+    # Orden por created_at (el eje temporal del producto), no por id: un
+    # movimiento cargado con fecha vieja tiene id alto, y ordenar por id ponía
+    # "los últimos" en un orden que no era el que ve el usuario en la app.
     movements = (await session.execute(
-        select(Movement).order_by(Movement.id)
+        select(Movement).order_by(Movement.created_at, Movement.id)
     )).scalars().all()
     names = {u.id: u.username for u in users}
 
@@ -190,9 +204,17 @@ async def _context_snapshot(session, users: list[User], today: date,
                 reparto = f"solo {payer}"
             else:
                 reparto = "solo " + next((n for n in names.values() if n != payer), "?")
+            # Invariante 10: el gasto real es el NETO (bruto - cashback), que es
+            # lo que ya vive en amount_usd. Mostrar solo el bruto local hacía que
+            # el modelo citara un número que no cerraba con el total en USD.
+            net = net_amount(Decimal(m.amount), m.cashback_kind, m.cashback_value)
+            monto = f"{m.currency} {ar_number(net)}"
+            if m.cashback_kind:
+                monto += (f" (bruto {ar_number(m.amount)}, cashback "
+                          f"{cashback_text(m.cashback_kind, m.cashback_value, m.currency)})")
             line = (
                 f"  · id={m.id} · {day} · {m.description or 'gasto'} · "
-                f"{m.currency} {ar_number(m.amount)} (USD {ar_number(m.amount_usd)}) · "
+                f"{monto} (USD {ar_number(m.amount_usd)}) · "
                 f"{m.city_name or 'sin ciudad'} · pagó {payer} · {reparto}"
             )
             if m.payment_date and m.status == "pending":
@@ -202,9 +224,50 @@ async def _context_snapshot(session, users: list[User], today: date,
                     f" · VENCIÓ el {fmt_date(m.payment_date)}, falta confirmarlo en la web"
                 )
             lines.append(line)
+        # Truncación explícita: sin esto el modelo trataba la lista como si fuera
+        # el historial completo y contestaba totales mirando 8 filas.
+        if len(movements) > _SNAPSHOT_MOVES:
+            lines.append(
+                f"  · … y {len(movements) - _SNAPSHOT_MOVES} movimientos más NO "
+                f"listados acá ({len(movements)} en total). Para cualquier suma o "
+                "filtro usá aggregate_expenses/list_movements."
+            )
     else:
         lines.append("- Sin movimientos cargados todavía")
     return "\n".join(lines)
+
+
+# Afirmaciones de "no hay nada" que el snapshot NO puede sostener: trae solo los
+# últimos movimientos, así que un cero con filtros exige haber sumado con tools.
+_ZERO_CLAIM = re.compile(
+    r"(usd\s*0(?![.,]\d*[1-9])|no hay gastos|no tenemos gastos|sin gastos|"
+    r"no hay nada cargado|no figura ning[uú]n gasto|no encontr[eé] gastos)",
+    re.IGNORECASE,
+)
+_EVIDENCE_TOOLS = {"aggregate_expenses", "list_movements"}
+
+
+async def _has_expenses(session) -> bool:
+    from sqlalchemy import func, select
+
+    from app.db.models import Movement
+
+    return bool((await session.execute(
+        select(func.count()).select_from(Movement).where(Movement.type == "expense")
+    )).scalar_one())
+
+
+def _false_zero(answer: str, tool_calls) -> bool:
+    """¿La respuesta niega gastos sin haberlos contado en este turno?
+
+    Los pendientes y el saldo SÍ salen verificados en el snapshot, así que un
+    'no hay pendientes' no cuenta como falso cero."""
+    if _EVIDENCE_TOOLS & set(tool_calls):
+        return False
+    low = answer.casefold()
+    if "pendiente" in low or "por confirmar" in low or "a mano" in low:
+        return False
+    return bool(_ZERO_CLAIM.search(answer))
 
 
 def _fresh_history(entries: list[dict], *, max_turns: int, ttl_minutes: int) -> list[dict]:
@@ -262,6 +325,14 @@ async def handle_question(session, user: User, wa_id: str, text: str, today: dat
     if ctx.reply is not None:
         reply = ctx.reply
     elif result.text:
+        # Falso cero: negar gastos sin haberlos sumado en este turno. El snapshot
+        # trae solo los últimos 8 movimientos, así que "no hay gastos en Roma"
+        # mirándolo es una afirmación que el bot no puede hacer. Se corta acá y
+        # no se persiste: que la vuelva a pedir es mejor que un cero falso.
+        if _false_zero(result.text, result.tool_calls) and await _has_expenses(session):
+            trace.set_fields(outcome="unverified_zero")
+            logger.info("qa_unverified_zero blocked=1")
+            return text_reply(copy.QA_UNVERIFIED_ZERO)
         reply = text_reply(result.text)
     elif ctx.performed:
         # El modelo se quedó sin presupuesto DESPUÉS de editar: el cambio ya está

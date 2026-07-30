@@ -99,6 +99,15 @@ TRIP_NO_EVIDENCE = (
 )
 
 
+# Falso cero: el agente negó gastos sin haberlos sumado. No se le manda el cero
+# (sería un dato falso) ni se inventa un total: se pide la consulta concreta.
+QA_UNVERIFIED_ZERO = (
+    f"{H_HUH} No quiero contestarte de memoria y me faltó chequearlo. "
+    "Pedímelo con el filtro concreto: _gastos de Roma_ · _cuánto gastamos en comida_ · "
+    "_cuánto puse yo en septiembre_."
+)
+
+
 def correction_hint(description: str | None, summary: str) -> str:
     """Guía única para corregir el último gasto cargado. La usan el dispatcher
     (gasto sin monto justo después de cargar) y el editor (edit sin cambios):
