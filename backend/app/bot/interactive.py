@@ -57,7 +57,7 @@ async def handle_interactive(session: AsyncSession, user: User, wa_id: str, inte
 async def _handle_interactive(session: AsyncSession, user: User, wa_id: str, interactive_id: str, today: date) -> BotReply:
     if interactive_id.startswith("cat_pick:"):
         token, cid = _token_and_id(interactive_id, "cat_pick:")
-        return await apply_category_pick(session, user, token, cid)
+        return await apply_category_pick(session, user, token, cid, today)
 
     if interactive_id.startswith("edit_pick:"):
         from app.bot.editor import apply_edit_pick

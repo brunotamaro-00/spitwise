@@ -398,6 +398,51 @@ async def _chk_qa_multitool(ctx: CheckCtx) -> list[str]:
                "la evidencia ya juntada tiene que llegar al usuario, no la copy de degradación")
     return e
 
+
+async def _chk_dos_remitentes(ctx: CheckCtx) -> list[str]:
+    """Dos teléfonos intercalados: la corrección elíptica de uno no puede tocar
+    el gasto que el otro acaba de cargar."""
+    e = Errors()
+    movs = await load_movements(ctx.session)
+    users = {u.username: u.id for u in (await ctx.session.execute(select(User))).scalars()}
+    tren = one_by_desc(movs, "tren")
+    cafe = one_by_desc(movs, "cafe") or one_by_desc(movs, "café")
+    if e.want(tren is not None and cafe is not None,
+              f"esperaba el tren de Katia y el café de Bruno; hay {[m.description for m in movs]}"):
+        e.want(tren.created_by == users["katia"], "el tren lo cargó Katia")
+        e.want(Decimal(cafe.amount) == Decimal("8"),
+               f"'no, fueron 8' debe corregir el café de Bruno, quedó en {cafe.amount}")
+        e.want(Decimal(tren.amount) == Decimal("39"),
+               f"el tren de Katia no se toca desde el chat de Bruno (quedó {tren.amount})")
+    return e
+
+
+async def _chk_cuotas_invalidas(ctx: CheckCtx) -> list[str]:
+    """Etapas que no cierran: no se escribe nada (ni el total como gasto único)."""
+    e = Errors()
+    movs = await load_movements(ctx.session)
+    hostel = by_desc(movs, "hostel")
+    e.want(not hostel or len(hostel) >= 2,
+           f"o entra en etapas o no entra: quedó {len(hostel)} movimiento(s) suelto(s)")
+    if hostel:
+        total = sum(Decimal(m.amount) for m in hostel)
+        e.want(total == Decimal("300"), f"si entró en partes, el total sigue siendo 300 ({total})")
+    return e
+
+
+async def _chk_ciudad_a_pititas(ctx: CheckCtx) -> list[str]:
+    """Mover un gasto compartido a una parada con dueño lo hace de esa persona,
+    igual que si hubiera nacido ahí (paridad captura/edición)."""
+    e = Errors()
+    movs = await load_movements(ctx.session)
+    farmacia = one_by_desc(movs, "farmacia")
+    if not e.want(farmacia is not None, "no encontré la farmacia"):
+        return e
+    e.want(farmacia.stop_slug == "pititas", f"quedó en {farmacia.stop_slug}, no en Pititas")
+    e.want(farmacia.split != "shared",
+           "Pititas tiene dueña: el gasto no puede quedar 50/50 sin que lo pidan")
+    return e
+
 FINANCE_TOOLS = {"aggregate_expenses", "list_movements", "get_balance", "get_itinerary",
                  "edit_movement", "delete_movements"}
 TRIP_TOOLS = {"search_guides", "list_guides", "read_guide_doc", "list_notes"}
@@ -727,12 +772,62 @@ CONVERSATIONS_EXTRA += [
         ],
         fix_in="llm/chat.py (presupuestos + síntesis) · qa/tools.py (aggregate) · bot/qa.py",
     ),
+    Conversation(
+        name="Dos remitentes intercalados",
+        id="dos-remitentes",
+        check=_chk_dos_remitentes,
+        goal="El 'último gasto' es por chat: una corrección no cruza de teléfono.",
+        turns=[
+            Turn(KATIA_WA, "tren 39 usd", note="carga Katia"),
+            Turn(BRUNO_WA, "cafe 5 eur en lisboa", note="carga Bruno"),
+            Turn(BRUNO_WA, "no, fueron 8", note="corrección de Bruno"),
+        ],
+        expect_hints=[
+            "Turno 3: debe editar el CAFÉ de Bruno (8 eur), no el tren de Katia",
+            "FAIL histórico: recent_movement global → 'no, fueron 8' editaba el tren ajeno",
+            "El tren de Katia queda intacto en 39",
+        ],
+        fix_in="bot/editor.py (recent_movement created_by) · bot/dispatcher.py",
+    ),
+    Conversation(
+        name="Cuotas que no cierran",
+        id="cuotas-invalidas",
+        check=_chk_cuotas_invalidas,
+        goal="Etapas declaradas pero imposibles de repartir: aclarar, no guardar mal.",
+        turns=[
+            Turn(BRUNO_WA,
+                 "hostel praga 300 eur, una parte ahora y el resto después",
+                 note="etapas sin montos ni fechas"),
+        ],
+        expect_hints=[
+            "O entra en etapas con montos que suman 300, o NO entra nada y el bot pide "
+            "los montos/fechas. FAIL: un gasto único de 300 con fecha de hoy y sin aviso",
+            "El texto tiene que decir qué falta (montos o fechas de cada etapa)",
+        ],
+        fix_in="bot/capture.py (expand_installments + INSTALLMENTS_UNCLEAR) · llm/client.py",
+    ),
+    Conversation(
+        name="Mover un gasto a Pititas (owner split)",
+        id="ciudad-a-pititas",
+        check=_chk_ciudad_a_pititas,
+        goal="Edición de ciudad hacia una parada con dueño: mismo default que al cargar.",
+        turns=[
+            Turn(BRUNO_WA, "farmacia 15 eur", note="carga en Lisboa, shared"),
+            Turn(BRUNO_WA, "en realidad fue en pititas", note="edit ciudad"),
+        ],
+        expect_hints=[
+            "Turno 2: city → Pititas Y el reparto pasa a Solo Katia (dueña), como si "
+            "hubiera nacido ahí. FAIL: queda 50/50 y el balance miente",
+            "Si el mensaje hubiera pedido un reparto explícito, ese manda",
+        ],
+        fix_in="bot/editor.py (apply_changes + owner_split) · bot/capture.py (owner_split)",
+    ),
 ]
 
-# Catálogo unificado: índices 1..10 = crítica, 11..18 = extra.
+# Catálogo unificado: índices 1..10 = crítica, 11..21 = extra.
 CONVERSATIONS: list[Conversation] = SUITE_CRITICAL + CONVERSATIONS_EXTRA
 assert len(SUITE_CRITICAL) == N_CRITICAL
-assert len(CONVERSATIONS_EXTRA) == 8
+assert len(CONVERSATIONS_EXTRA) == 11
 assert len(CONVERSATIONS) == N_CRITICAL + len(CONVERSATIONS_EXTRA)
 # Ids únicos: `--only <id>` tiene que ser inequívoco.
 assert len({c.id for c in CONVERSATIONS}) == len(CONVERSATIONS)

@@ -239,6 +239,23 @@ def expand_installments(parsed, today: date) -> list | None:
     ]
 
 
+def _declares_installments(parsed) -> bool:
+    """¿El mensaje pidió pagar en etapas? (aunque después no se puedan expandir)"""
+    return bool(parsed.installments) and not parsed.is_settlement
+
+
+def _installment_notes(parsed, parts) -> list[str]:
+    """Avisos de lo que se perdió al expandir las etapas. Hoy solo el cashback
+    de monto fijo: no tiene un reparto obvio entre cuotas y se descarta — pero
+    en silencio hacía que el neto no cerrara con lo que el usuario tipeó."""
+    if parsed.cashback_kind == "amount" and len(parts) > 1:
+        return [
+            f"{copy.H_WARN} El *cashback fijo* no lo repartí entre las cuotas. "
+            "Si aplica al total, decímelo como porcentaje (_2% de cashback_)."
+        ]
+    return []
+
+
 def _payment_status(payment_date: date | None, today: date) -> str:
     """pending = se paga en el futuro con TC proxy; la liquidación lazy (app/due.py)
     lo confirma con el TC real cuando llega la fecha."""
@@ -281,6 +298,15 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
         for it in parsed.batch:
             if desc_counts[(it.description or "").casefold()] > 1 and it.city:
                 it.description = f"{it.description or 'gasto'} {it.city}"
+        # Todo descarte se avisa: un mensaje que entra a medias sin decirlo es
+        # peor que uno rechazado, porque el total del viaje queda mal callado.
+        notes: list[str] = []
+        kept = parsed.batch[:_BATCH_MAX]
+        if len(parsed.batch) > _BATCH_MAX:
+            notes.append(
+                f"{copy.H_WARN} Me mandaste *{len(parsed.batch)} gastos* y guardé los "
+                f"primeros {_BATCH_MAX}. Mandame el resto en otro mensaje."
+            )
         # Un ítem del multi-gasto puede a su vez pagarse en etapas ('34 usd
         # hostel X hoy, el resto 134 gbp al ingresar'): expandirlo en sus
         # partes antes de persistir el batch.
@@ -288,18 +314,38 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
         # después de expandir partía un gasto por la mitad (3 gastos × 4 cuotas =
         # 12 ítems → se guardaban 10) y el total no cerraba, sin ningún aviso.
         items = []
-        for item in parsed.batch[:_BATCH_MAX]:
+        for item in kept:
             parts = expand_installments(item, today)
-            items.extend(parts if parts is not None else [item])
-        return await handle_capture_batch(session, user, wa_id, text, today, items=items)
+            if parts is None:
+                if _declares_installments(item):
+                    notes.append(
+                        f"{copy.H_WARN} *{item.description or 'Un gasto'}* lo guardé "
+                        "entero: no me cerraron las etapas de pago."
+                    )
+                items.append(item)
+                continue
+            notes.extend(_installment_notes(item, parts))
+            items.extend(parts)
+        return await handle_capture_batch(session, user, wa_id, text, today,
+                                          items=items, notes=notes)
 
     # Pago en etapas: N movimientos hermanos por el camino batch (batch_key
     # compartido => "borrar" ofrece las cuotas juntas, una sola transacción).
     if (parts := expand_installments(parsed, today)) is not None:
-        return await handle_capture_batch(session, user, wa_id, text, today, items=parts)
+        return await handle_capture_batch(session, user, wa_id, text, today, items=parts,
+                                          notes=_installment_notes(parsed, parts))
+    if _declares_installments(parsed):
+        # El mensaje declara etapas pero no cierran (falta el total, el resto da
+        # <= 0, dos 'restos'…). Guardar el total como gasto único deja mal la
+        # fecha de pago y el status: mejor no escribir nada y pedir la aclaración.
+        return text_reply(copy.INSTALLMENTS_UNCLEAR)
 
     if parsed.amount is None:
         return text_reply(f"{copy.H_WARN} No le pesqué el *monto*. Probá: _cena 20 euros_.")
+    if parsed.amount <= 0:
+        # Paridad con la API (`MovementIn.amount` gt=0): un 0 o un negativo
+        # rompía el balance sin que nada lo frenara en el camino del bot.
+        return text_reply(copy.NON_POSITIVE_AMOUNT)
 
     parsed.description = normalize_description(
         parsed.description, await load_proper_nouns(session)
@@ -375,14 +421,26 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
 
 
 async def handle_capture_batch(session, user: User, wa_id: str, text: str, today: date,
-                               *, items) -> BotReply:
+                               *, items, notes: list[str] | None = None) -> BotReply:
     """N movimientos de un mensaje multi-gasto, en UNA transacción (o entran todos
     o ninguno; si algo falla, el borde de dispatch descarta y el usuario reintenta).
 
     Sin pendings acá: la categoría dudosa se guarda igual (marcada ❓ en el card) y
     se corrige por el flujo edit de siempre — WhatsApp da 3 botones por mensaje y
     encadenar pendings deja gastos en el limbo.
+
+    `notes` son avisos de lo que NO entró (tope de gastos, etapas que no cerraron,
+    cashback descartado): se muestran al pie del card, nunca se omiten.
     """
+    notes = list(notes or [])
+    # Montos no positivos: la API los rechaza (gt=0) y acá entraban derecho.
+    invalid = [it for it in items if it.amount is None or it.amount <= 0]
+    if invalid:
+        items = [it for it in items if it not in invalid]
+        nombres = ", ".join(f"*{it.description or 'sin descripción'}*" for it in invalid)
+        notes.append(f"{copy.H_WARN} No guardé {nombres}: el monto no era válido.")
+    if not items:
+        return text_reply(copy.NON_POSITIVE_AMOUNT)
     # Red de seguridad: los callers ya acotan por gasto (_BATCH_MAX), y un gasto
     # aporta a lo sumo _INSTALLMENTS_MAX partes. Cortar acá nunca debería partir
     # un gasto al medio.
@@ -438,27 +496,60 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
 
     session.add_all(movements)
     await session.commit()
-    reply = text_reply(batch_card(rows, usernames))
+    card = batch_card(rows, usernames)
+    if notes:
+        card += "\n\n" + "\n".join(notes)
+    reply = text_reply(card)
     reply.movement_id = movements[-1].id
     return reply
 
 
-async def apply_category_pick(session, user: User, token: str, category_id: int) -> BotReply:
+async def _repriced_pending(session, data: dict, amount: Decimal, cb_kind, cb_value,
+                            payment_date: date | None, today: date | None):
+    """TC del pending de categoría al CONFIRMAR, no al preguntar.
+
+    Entre el mensaje y el tap pueden pasar horas (o cruzarse la medianoche del
+    viaje): persistir el snapshot a ciegas dejaba un gasto con la tasa de otro
+    día. Se recotiza con la misma regla de siempre (fecha de pago capeada a hoy)
+    y, si el proveedor está caído, se conserva la tasa buena del snapshot —
+    misma guarda que `fx.reprice_movement` y `due.py`.
+    """
+    snapshot = (Decimal(data["amount_usd"]), Decimal(data["fx_rate"]), data["fx_source"])
+    if today is None:
+        return snapshot
+    currency = data["currency"]
+    net = net_amount(amount, cb_kind, cb_value)
+    amount_usd, rate, src = await convert_to_usd(
+        session, net, currency, fx_reference_date(payment_date, today)
+    )
+    if src == "fallback" and data.get("fx_source") != "fallback":
+        return snapshot
+    return amount_usd, rate, _map_source(src, currency)
+
+
+async def apply_category_pick(session, user: User, token: str, category_id: int,
+                              today: date | None = None) -> BotReply:
     data = await load_pending(session, token, owner=user.username)
     if data is None:
         return text_reply("⚠️ Expiró: ese pending ya no está disponible.")
     payer_id = int(data.get("paid_by") or user.id)
     pay_date = data.get("payment_date")
+    payment_date = date.fromisoformat(pay_date) if pay_date else None
+    amount = Decimal(data["amount"])
+    cb_kind = data.get("cashback_kind")
+    cb_value = Decimal(data["cashback_value"]) if data.get("cashback_value") else None
+    amount_usd, rate, src = await _repriced_pending(
+        session, data, amount, cb_kind, cb_value, payment_date, today,
+    )
     mv = Movement(
-        type="expense", amount=Decimal(data["amount"]), currency=data["currency"],
-        amount_usd=Decimal(data["amount_usd"]), fx_rate=Decimal(data["fx_rate"]),
-        fx_source=data["fx_source"], paid_by=payer_id, split=data["split"],
+        type="expense", amount=amount, currency=data["currency"],
+        amount_usd=amount_usd, fx_rate=rate,
+        fx_source=src, paid_by=payer_id, split=data["split"],
         description=data.get("description"), category_id=category_id,
         stop_slug=data.get("stop_slug"), city_name=data.get("city_name"),
-        payment_date=date.fromisoformat(pay_date) if pay_date else None,
+        payment_date=payment_date,
         status=data.get("status") or "confirmed",
-        cashback_kind=data.get("cashback_kind"),
-        cashback_value=Decimal(data["cashback_value"]) if data.get("cashback_value") else None,
+        cashback_kind=cb_kind, cashback_value=cb_value,
         created_by=user.id, raw_message=data.get("raw_message"),
     )
     session.add(mv)

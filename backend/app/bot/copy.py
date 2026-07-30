@@ -35,6 +35,17 @@ SAVED_BUT_UNCONFIRMED = (
     "Revisá la app por las dudas."
 )
 EMPTY_MESSAGE = "Mandame un gasto, ej: _cena 20 euros_."
+# Etapas declaradas que no cierran: no se guarda nada. Guardar el total como un
+# gasto único dejaba mal la fecha de pago y el status, y nadie se enteraba.
+INSTALLMENTS_UNCLEAR = (
+    f"{H_HUH} Entendí que eso se paga *en partes*, pero no me cerraron los montos, "
+    "así que no lo guardé. Decímelo con el total y las etapas: "
+    "_hostel 430 chf, 30% hoy y el resto el 3 de septiembre_."
+)
+NON_POSITIVE_AMOUNT = (
+    f"{H_WARN} Un gasto tiene que tener un monto mayor a cero. "
+    "Probá: _cena 20 euros_."
+)
 
 # --- Degradación de los agentes Q&A, por canal y por causa --------------------
 # Un solo "me enredé" para todo escondía cosas distintas: el proveedor caído, la

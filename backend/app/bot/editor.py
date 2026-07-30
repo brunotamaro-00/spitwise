@@ -5,7 +5,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import copy
-from app.bot.capture import _category_id, _map_source, other_user, resolve_place, user_by_username
+from app.bot.capture import (
+    _category_id, _map_source, other_user, owner_split, resolve_place, user_by_username,
+)
 from app.bot.pending import close_pending, create_pending, load_pending
 from app.bot.render import (
     BotReply, ar_number, buttons_reply, cashback_text, cat_label, edit_card, fmt_date,
@@ -20,17 +22,27 @@ from app.textnorm import fold, load_proper_nouns, normalize_description
 _SEARCH_LIMIT = 50  # movimientos recientes donde buscar referencias
 
 
-async def recent_movement(session: AsyncSession, *, ttl_minutes: int) -> Movement | None:
-    """El último gasto cargado, si es lo bastante fresco como para esperar una
-    corrección. Sirve de contexto al parser: apenas guardado, un mensaje que ajusta
-    monto/ciudad/categoría/división/pagador casi seguro lo corrige, no carga uno nuevo.
+async def recent_movement(session: AsyncSession, *, ttl_minutes: int,
+                          created_by: int | None = None) -> Movement | None:
+    """El último gasto cargado POR ESE remitente, si es lo bastante fresco como
+    para esperar una corrección. Sirve de contexto al parser: apenas guardado, un
+    mensaje que ajusta monto/ciudad/categoría/división/pagador casi seguro lo
+    corrige, no carga uno nuevo.
+
+    El filtro por `created_by` importa porque son dos chats distintos contra el
+    mismo ledger: sin él, un 'no, eran 45' de Bruno podía terminar editando el
+    gasto que Katia acababa de cargar desde su teléfono. Las referencias
+    explícitas ('el taxi') siguen alcanzando los movimientos de los dos —
+    `find_candidates` no filtra.
 
     Solo gastos (los settlements no tienen las 5 dimensiones corregibles). El corte
     es por created_at UTC-naive, igual criterio que find_candidates."""
     cutoff = datetime.utcnow() - timedelta(minutes=ttl_minutes)
+    q = select(Movement).where(Movement.type == "expense", Movement.created_at >= cutoff)
+    if created_by is not None:
+        q = q.where(Movement.created_by == created_by)
     return (await session.execute(
-        select(Movement).where(Movement.type == "expense", Movement.created_at >= cutoff)
-        .order_by(Movement.id.desc()).limit(1)
+        q.order_by(Movement.id.desc()).limit(1)
     )).scalars().first()
 
 
@@ -183,6 +195,22 @@ async def apply_changes(session, mv: Movement, changes: dict, today: date,
         if (slug, city) != (mv.stop_slug, mv.city_name):
             diffs.append(("📍", mv.city_name or "Sin ciudad", city or "Sin ciudad"))
             mv.stop_slug, mv.city_name = slug, city
+            # Paridad con la captura (invariante 8): mover un gasto COMPARTIDO a
+            # una parada con dueño lo hace de esa persona, igual que si hubiera
+            # nacido ahí. Solo pisa el default: un split individual explícito —
+            # sea de este mismo edit o el que ya tenía— se respeta.
+            if (mv.split == "shared" and "only_user" not in changes
+                    and "split" not in changes):
+                payer = (await session.execute(
+                    select(User).where(User.id == mv.paid_by)
+                )).scalar_one_or_none()
+                new_split = await owner_split(session, slug, payer, mv.split) if payer else mv.split
+                if new_split != mv.split:
+                    other = await other_user(session, payer)
+                    other_name = other.username.capitalize() if other else "el otro"
+                    diffs.append(("÷", split_label(mv.split, payer.username.capitalize(), other_name),
+                                  split_label(new_split, payer.username.capitalize(), other_name)))
+                    mv.split = new_split
     if new_date is not None and mv.type != "settlement" and new_date != mv.payment_date:
         diffs.append(("📅", fmt_date(mv.payment_date or mv.created_at.date()), fmt_date(new_date)))
         mv.payment_date = new_date
@@ -279,33 +307,50 @@ async def handle_edit(session, user: User, wa_id: str, parsed, today: date,
 async def apply_edit_to(session, user: User, mv: Movement, changes: dict, today: date) -> BotReply:
     # "El total era 480" sobre un gasto en partes/cuotas: redistribuir el batch
     # entero en proporción, no editar un renglón suelto.
+    warning = ""
     if changes.get("amount_is_total") and mv.batch_key and "amount" in changes:
-        reply = await _apply_batch_total(session, mv, changes["amount"], today)
+        reply, reason = await _apply_batch_total(session, mv, changes["amount"], today)
         if reply is not None:
             return reply
+        # No se pudo repartir: se edita el renglón suelto, pero DICIÉNDOLO. En
+        # silencio, "el total era 480" dejaba un batch cuyo total no era 480.
+        if reason:
+            warning = f"\n{copy.H_WARN} {reason}"
     changes = {k: v for k, v in changes.items() if k != "amount_is_total"}
     diffs = await apply_changes(session, mv, changes, today, user.username)
     if not diffs:
-        return text_reply("Nada que cambiar: ya estaba así. 👌")
-    return text_reply(edit_card(mv, diffs))
+        return text_reply("Nada que cambiar: ya estaba así. 👌" + warning)
+    return text_reply(edit_card(mv, diffs) + warning)
 
 
 async def _apply_batch_total(session, mv: Movement, new_total: Decimal,
-                             today: date) -> BotReply | None:
+                             today: date) -> tuple[BotReply | None, str | None]:
     """Re-escala todos los hermanos del batch a un total nuevo, conservando las
     proporciones (misma regla que expand_installments: la última fila absorbe el
-    redondeo). Devuelve None si el batch no es re-escalable (moneda mixta, total
-    inválido…): el edit cae al camino puntual de siempre."""
+    redondeo).
+
+    Devuelve (reply, motivo). Con reply=None el edit cae al camino puntual de
+    siempre y el motivo se le muestra al usuario: un batch en dos monedas no
+    tiene un total único contra el cual repartir, y callarlo dejaba el conjunto
+    sumando otra cosa que la pedida."""
     from app.bot.render import batch_total_card
 
     siblings = (await session.execute(
         select(Movement).where(Movement.batch_key == mv.batch_key).order_by(Movement.id)
     )).scalars().all()
-    if len(siblings) < 2 or len({m.currency for m in siblings}) != 1:
-        return None
+    if len(siblings) < 2:
+        return None, None
+    if len({m.currency for m in siblings}) != 1:
+        monedas = ", ".join(sorted({m.currency for m in siblings}))
+        return None, (
+            f"Ese gasto entró en varias monedas ({monedas}), así que no puedo "
+            "repartir un total único: cambié solo esta parte. Corregí la otra aparte."
+        )
     old_total = sum((Decimal(m.amount) for m in siblings), Decimal(0))
-    if old_total <= 0 or new_total <= 0 or new_total == old_total:
-        return None
+    if old_total <= 0 or new_total <= 0:
+        return None, None
+    if new_total == old_total:
+        return None, None
 
     cent = Decimal("0.01")
     amounts = [
@@ -314,7 +359,10 @@ async def _apply_batch_total(session, mv: Movement, new_total: Decimal,
     ]
     remainder = new_total - sum(amounts)
     if remainder <= 0 or any(a <= 0 for a in amounts):
-        return None
+        return None, (
+            f"Con un total de {ar_number(new_total)} alguna parte quedaba en cero o "
+            "en negativo, así que cambié solo esta. Decime los montos de cada parte."
+        )
     amounts.append(remainder)
 
     for m, amt in zip(siblings, amounts):
@@ -327,7 +375,7 @@ async def _apply_batch_total(session, mv: Movement, new_total: Decimal,
             session, m, net, fx_reference_date(m.payment_date, today)
         )
     await session.commit()
-    return text_reply(batch_total_card(siblings, old_total, new_total))
+    return text_reply(batch_total_card(siblings, old_total, new_total)), None
 
 
 async def handle_delete(session, user: User, wa_id: str, parsed, today: date) -> BotReply:

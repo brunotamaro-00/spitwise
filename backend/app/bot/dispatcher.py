@@ -135,8 +135,12 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
     from app.llm.parser import parse_message
     from app.bot.editor import describe_recent, recent_movement
     users = await all_users(session)
-    # Gasto recién cargado como contexto: el bot espera una posible corrección.
-    recent = await recent_movement(session, ttl_minutes=get_settings().edit_recent_ttl_minutes)
+    # Gasto recién cargado POR ESTE remitente como contexto: el bot espera una
+    # posible corrección. Filtrar por quien escribe evita que una corrección
+    # elíptica de un chat edite lo que el otro acaba de cargar.
+    recent = await recent_movement(
+        session, ttl_minutes=get_settings().edit_recent_ttl_minutes, created_by=user.id,
+    )
     parsed = await parse_message(
         stripped, today=today, categories=await load_categories(session),
         usernames=[u.username for u in users], sender=user.username, client=llm_client,
