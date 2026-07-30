@@ -30,17 +30,18 @@ const pace = (trip: Partial<TripBlock>): TripPace => ({
 describe("TripPaceCard", () => {
   it("aclara que el ritmo excluye generales", () => {
     render(<TripPaceCard pace={pace({})} />);
-    expect(screen.getByText(/105,3/)).toBeTruthy();
+    // Las cifras grandes van en dólares enteros (precisión "whole"): 105,30 → 105.
+    expect(screen.getByText(/USD 105$/)).toBeTruthy();
     expect(screen.getByText("en ciudades · sin generales")).toBeTruthy();
   });
 
   it("muestra generales aparte y la proyección diciendo que los incluye", () => {
     render(<TripPaceCard pace={pace({})} />);
     expect(screen.getByText("Generales aparte")).toBeTruthy();
-    expect(screen.getByText(/1\.768,5/)).toBeTruthy();
+    expect(screen.getByText("USD 1.769")).toBeTruthy();
     expect(screen.getByText("Proyección del viaje")).toBeTruthy();
     expect(screen.getByText("incluye generales")).toBeTruthy();
-    expect(screen.getByText(/11\.701,4/)).toBeTruthy();
+    expect(screen.getByText("USD 11.701")).toBeTruthy();
   });
 
   it("sin generales no promete que la proyección los incluya", () => {

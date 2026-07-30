@@ -90,7 +90,7 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
           type="button"
           onClick={toggle}
           aria-expanded={open}
-          className={`flex min-h-[44px] w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg border bg-surface px-3 text-left text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/30 ${
+          className={`flex min-h-[44px] w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg border bg-surface px-3 text-left text-base font-medium transition-colors focus-ring ${
             open ? "border-brick" : "border-border"
           }`}
         >
@@ -106,7 +106,7 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
             type="button"
             aria-label="Borrar fechas"
             onClick={() => onChange({ from: "", to: "" })}
-            className="animate-fade-in absolute inset-y-0 right-0 z-10 flex w-11 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+            className="animate-fade-in absolute inset-y-0 right-0 z-10 flex w-11 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:text-ink focus-ring"
           >
             <X size={14} strokeWidth={2} aria-hidden="true" />
           </button>
@@ -133,7 +133,7 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
               type="button"
               aria-label="Mes anterior"
               onClick={() => shiftMonth(-1)}
-              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
             >
               <ChevronLeft size={17} strokeWidth={2} aria-hidden="true" />
             </button>
@@ -144,7 +144,7 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
               type="button"
               aria-label="Mes siguiente"
               onClick={() => shiftMonth(1)}
-              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
             >
               <ChevronRight size={17} strokeWidth={2} aria-hidden="true" />
             </button>
@@ -165,7 +165,7 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
               if (isStart || isEnd) {
                 cls = `bg-brick font-bold text-white ${single ? "rounded-lg" : isStart ? "rounded-l-lg" : "rounded-r-lg"}`;
               } else if (inRange) {
-                cls = "rounded-none bg-brick-bg font-semibold text-brick";
+                cls = "rounded-none bg-brick-bg font-semibold text-brick-ink";
               } else if (day === today) {
                 cls = "rounded-lg font-bold text-brick hover:bg-surface-2";
               }
@@ -176,7 +176,7 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
                   onClick={() => pick(day)}
                   aria-label={`${i + 1} de ${MONTHS[view.m].toLowerCase()} de ${view.y}`}
                   aria-pressed={isStart || isEnd || inRange}
-                  className={`flex h-10 cursor-pointer items-center justify-center text-sm font-tabular transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brick/40 ${cls}`}
+                  className={`flex h-10 cursor-pointer items-center justify-center text-sm font-tabular transition-colors focus-ring-inset ${cls}`}
                 >
                   {i + 1}
                 </button>

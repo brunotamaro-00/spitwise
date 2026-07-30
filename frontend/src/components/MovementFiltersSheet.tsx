@@ -39,7 +39,7 @@ function Switch({ checked, onChange, label }: {
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+      className={`relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors focus-ring ${
         checked ? "bg-brick" : "bg-border-strong"
       }`}
     >
@@ -54,7 +54,7 @@ function Switch({ checked, onChange, label }: {
 }
 
 const chipBase =
-  "flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40";
+  "flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors focus-ring";
 const chipIdle = "border-border bg-surface text-ink-2 hover:bg-surface-2";
 
 /** Bottom sheet de filtros de /movimientos: toggle "solo míos", categorías como
@@ -89,8 +89,8 @@ export default function MovementFiltersSheet({
 
         {categories.length > 0 && (
           <div className="flex flex-col gap-2">
-            <Label>Categoría</Label>
-            <div className="flex flex-wrap gap-1.5">
+            <Label id="filter-cat-label">Categoría</Label>
+            <div role="group" aria-labelledby="filter-cat-label" className="flex flex-wrap gap-1.5">
               {categories.map((c) => {
                 const active = filters.categoryId === String(c.id);
                 const Icon = categoryIcon(c.name);
@@ -119,8 +119,8 @@ export default function MovementFiltersSheet({
 
         {cities.length > 0 && (
           <div className="flex flex-col gap-2">
-            <Label>Ciudad</Label>
-            <div className="flex flex-wrap gap-1.5">
+            <Label id="filter-city-label">Ciudad</Label>
+            <div role="group" aria-labelledby="filter-city-label" className="flex flex-wrap gap-1.5">
               {cities.map((c) => {
                 const active = filters.city === c.name;
                 const isNone = c.name === NO_CITY;
@@ -131,7 +131,7 @@ export default function MovementFiltersSheet({
                     onClick={() => onChange({ city: active ? "" : c.name })}
                     aria-pressed={active}
                     whileTap={{ scale: 0.94 }}
-                    className={`${chipBase} ${active ? "border-brick bg-brick-bg text-brick" : chipIdle}`}
+                    className={`${chipBase} ${active ? "border-brick bg-brick-bg text-brick-ink" : chipIdle}`}
                   >
                     {isNone
                       ? <MapPinOff size={13} strokeWidth={2} aria-hidden="true" />
@@ -145,7 +145,7 @@ export default function MovementFiltersSheet({
         )}
 
         <div className="flex flex-col gap-2">
-          <Label>Fechas</Label>
+          <Label id="filter-dates-label">Fechas</Label>
           <DateRangeField
             from={filters.from}
             to={filters.to}

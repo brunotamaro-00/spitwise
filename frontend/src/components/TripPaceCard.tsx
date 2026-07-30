@@ -48,21 +48,21 @@ export default function TripPaceCard({ pace }: { pace: TripPace }) {
       <div className="flex flex-col gap-1 text-sm text-ink-2">
         {t.status === "not_started" && (
           <span>
-            <span className="font-tabular font-semibold">{formatUsd(t.total_usd)}</span> comprometidos ·{" "}
+            <span className="font-tabular font-semibold">{formatUsd(t.total_usd, "whole")}</span> comprometidos ·{" "}
             {t.total_nights} noches
           </span>
         )}
         {t.status === "finished" && (
           <span>
             Viaje terminado ·{" "}
-            <span className="font-tabular font-semibold">{formatUsd(t.total_usd)}</span> en{" "}
+            <span className="font-tabular font-semibold">{formatUsd(t.total_usd, "whole")}</span> en{" "}
             {t.total_nights} noches
           </span>
         )}
         {!isZeroMoney(t.general_usd) && (
           <div className="flex items-baseline justify-between gap-3 border-t border-border pt-2">
             <span className="text-ink-3">Generales aparte</span>
-            <span className="font-tabular font-semibold">{formatUsd(t.general_usd)}</span>
+            <span className="font-tabular font-semibold">{formatUsd(t.general_usd, "whole")}</span>
           </div>
         )}
         {showProjection && (
@@ -74,7 +74,7 @@ export default function TripPaceCard({ pace }: { pace: TripPace }) {
               )}
             </span>
             <span className="font-tabular font-semibold text-ink">
-              {formatUsd(t.projected_total_usd!)}
+              {formatUsd(t.projected_total_usd!, "whole")}
             </span>
           </div>
         )}

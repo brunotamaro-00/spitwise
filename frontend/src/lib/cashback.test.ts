@@ -27,11 +27,13 @@ describe("cashbackLabel", () => {
     expect(cashbackLabel(base)).toBeNull();
   });
 
+  // Etiqueta compacta, sin ceros de relleno: en un badge de 10px "2,00%" es ruido.
   it("porcentaje", () => {
-    expect(cashbackLabel({ ...base, cashback_kind: "pct", cashback_value: "2" })).toBe("2,0%");
+    expect(cashbackLabel({ ...base, cashback_kind: "pct", cashback_value: "2" })).toBe("2%");
+    expect(cashbackLabel({ ...base, cashback_kind: "pct", cashback_value: "2.5" })).toBe("2,5%");
   });
 
   it("monto fijo con símbolo de moneda", () => {
-    expect(cashbackLabel({ ...base, cashback_kind: "amount", cashback_value: "5" })).toBe("5,0 €");
+    expect(cashbackLabel({ ...base, cashback_kind: "amount", cashback_value: "5" })).toBe("5 €");
   });
 });

@@ -28,10 +28,7 @@ export default function DateField({
 }) {
   return (
     <div
-      className={cn(
-        "relative rounded-lg focus-within:ring-2 focus-within:ring-brick/30",
-        className,
-      )}
+      className={cn("focus-ring-within relative rounded-lg", className)}
     >
       <div
         aria-hidden="true"
@@ -61,7 +58,7 @@ export default function DateField({
           type="button"
           aria-label="Borrar fecha"
           onClick={() => onChange("")}
-          className="animate-fade-in absolute inset-y-0 right-0 z-10 flex w-11 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+          className="animate-fade-in absolute inset-y-0 right-0 z-10 flex w-11 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:text-ink focus-ring"
         >
           <X size={14} strokeWidth={2} aria-hidden="true" />
         </button>

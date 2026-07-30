@@ -34,7 +34,7 @@ function Chapter({ city, onOpen }: { city: CityPace; onOpen: () => void }) {
       {/* Card es un <div>: sin role/tabIndex/handler de teclado, los capítulos
           del viaje no eran accionables ni navegables sin mouse. */}
       <Card
-        className={`cursor-pointer p-3.5 transition-colors hover:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+        className={`cursor-pointer p-3.5 transition-colors hover:border-border-strong focus-ring ${
           current ? "border-brick/40" : ""
         }`}
         role="button"
@@ -55,19 +55,19 @@ function Chapter({ city, onOpen }: { city: CityPace; onOpen: () => void }) {
               {city.city_name}
             </span>
             {current && (
-              <span className="rounded-full bg-brick-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brick">
+              <span className="rounded-full bg-brick-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brick-ink">
                 hoy
               </span>
             )}
           </div>
           {!future && hasSpend && (
             <span className="shrink-0 font-tabular text-sm font-bold text-ink">
-              {formatUsd(city.total_usd)}
+              {formatUsd(city.total_usd, "whole")}
             </span>
           )}
           {future && hasSpend && (
             <span className="shrink-0 text-[11px] font-medium text-ink-3">
-              reservado <span className="font-tabular font-semibold">{formatUsd(city.total_usd)}</span>
+              reservado <span className="font-tabular font-semibold">{formatUsd(city.total_usd, "whole")}</span>
             </span>
           )}
         </div>
@@ -79,7 +79,7 @@ function Chapter({ city, onOpen }: { city: CityPace; onOpen: () => void }) {
           )}
           {city.nights > 0 && <span>· {city.nights} noche{city.nights === 1 ? "" : "s"}</span>}
           {!future && city.per_day_usd && (
-            <span className="font-tabular">· {formatUsd(city.per_day_usd)}/día</span>
+            <span className="font-tabular">· {formatUsd(city.per_day_usd, "whole")}/día</span>
           )}
           {!future && <DeltaBadge pct={city.delta_vs_trip_pct} compact />}
         </div>
@@ -143,7 +143,7 @@ function TripBody({ trip, cities }: { trip: TripBlock; cities: CityPace[] }) {
               </span>
             </span>
             <span className="font-tabular text-sm font-bold text-ink">
-              {formatUsd(trip.general_usd)}
+              {formatUsd(trip.general_usd, "whole")}
             </span>
           </Card>
         </div>

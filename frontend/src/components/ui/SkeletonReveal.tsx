@@ -39,7 +39,17 @@ export default function SkeletonReveal({ ready, skeleton, children }: {
     return () => clearTimeout(t);
   }, [phase, lit]);
 
-  if (phase === "loading") return <>{skeleton}</>;
+  // `aria-busy` + un status con texto: los skeletons son aria-hidden, así que sin
+  // esto un lector de pantalla no oía nada mientras cargaba y el contenido
+  // aparecía sin aviso.
+  if (phase === "loading") {
+    return (
+      <div aria-busy="true">
+        <span role="status" className="sr-only">Cargando…</span>
+        {skeleton}
+      </div>
+    );
+  }
   if (phase === "done") return <>{children()}</>;
   return (
     <div className={cn("t-skel relative", lit && "is-revealed")}>

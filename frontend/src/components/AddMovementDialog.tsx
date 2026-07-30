@@ -31,11 +31,18 @@ const SPLITS = [
  *  offsetLeft/offsetWidth del botón activo y los escribe inline; el CSS
  *  (.seg-pill) tweenea. En primer paint y resize se posiciona sin animar
  *  (snap). El borde va como ring-inset para que offsetLeft (border-box) y
- *  el pill (left:0 padding-box) compartan origen. */
-function Segmented({ options, value, onChange }: {
+ *  el pill (left:0 padding-box) compartan origen.
+ *
+ *  A11y: es opción ÚNICA, así que va como `radiogroup`/`radio` y no con
+ *  `aria-pressed` (que describe toggles independientes: un lector anunciaba
+ *  "Bruno, pressed / Katia, not pressed" como si se pudieran prender las dos).
+ *  Eso obliga al contrato de teclado del patrón: un solo tab-stop (el activo) y
+ *  flechas para moverse. */
+function Segmented({ options, value, onChange, labelledBy }: {
   options: { value: string; label: string }[];
   value: string;
   onChange: (v: string) => void;
+  labelledBy?: string;
 }) {
   const pillRef = useRef<HTMLSpanElement>(null);
   const btnRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -75,27 +82,49 @@ function Segmented({ options, value, onChange }: {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // Flechas: mueve la selección al vecino y le lleva el foco (patrón radiogroup).
+  function onKeyDown(e: React.KeyboardEvent, i: number) {
+    const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1
+      : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!delta) return;
+    e.preventDefault();
+    const next = options[(i + delta + options.length) % options.length];
+    onChange(next.value);
+    btnRefs.current.get(next.value)?.focus();
+  }
+
   return (
-    <div className="relative flex rounded-lg bg-surface-2 p-0.5 ring-1 ring-inset ring-border">
+    <div
+      role="radiogroup"
+      aria-labelledby={labelledBy}
+      className="relative flex rounded-lg bg-surface-2 p-0.5 ring-1 ring-inset ring-border"
+    >
       <span
         ref={pillRef}
         aria-hidden="true"
         className="seg-pill pointer-events-none absolute bottom-0.5 left-0 top-0.5 w-0 rounded-md bg-surface shadow-sm"
       />
-      {options.map((o) => (
-        <button
-          key={o.value}
-          ref={(el) => { if (el) btnRefs.current.set(o.value, el); }}
-          type="button"
-          onClick={() => onChange(o.value)}
-          aria-pressed={value === o.value}
-          className={`relative z-10 min-h-[36px] flex-1 cursor-pointer rounded-md px-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
-            value === o.value ? "text-ink" : "text-ink-3 hover:text-ink"
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
+      {options.map((o, i) => {
+        const active = value === o.value;
+        return (
+          <button
+            key={o.value}
+            ref={(el) => { if (el) btnRefs.current.set(o.value, el); }}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            // Un solo tab-stop por grupo: Tab entra y sale, las flechas navegan.
+            tabIndex={active ? 0 : -1}
+            onClick={() => onChange(o.value)}
+            onKeyDown={(e) => onKeyDown(e, i)}
+            className={`relative z-10 min-h-[36px] flex-1 cursor-pointer rounded-md px-2 text-[13px] font-semibold transition-colors focus-ring ${
+              active ? "text-ink" : "text-ink-3 hover:text-ink"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -136,6 +165,8 @@ export default function AddMovementDialog({ editing, onClose }: {
     editing?.cashback_kind === "amount" ? "amount" : "pct",
   );
   const [err, setErr] = useState<string | null>(null);
+  // Error de validación del monto, aparte del de red: se muestra junto al campo.
+  const [amountErr, setAmountErr] = useState<string | null>(null);
   const isExpense = (editing?.type ?? "expense") === "expense";
 
   // Nuevo movimiento: default de pagador = usuario logueado, cuando llega `me`.
@@ -228,8 +259,12 @@ export default function AddMovementDialog({ editing, onClose }: {
   function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setErr(null);
+    setAmountErr(null);
     if (!amount || Number.isNaN(Number(normalizeAmountInput(amount)))) {
-      setErr("Ingresá un monto válido.");
+      // El mensaje va pegado al campo y el foco vuelve ahí: el sheet puede estar
+      // scrolleado y un error al pie no se ve (el Monto está arriba de todo).
+      setAmountErr("Ingresá un monto válido.");
+      firstRef.current?.focus();
       return;
     }
     save.mutate();
@@ -241,7 +276,7 @@ export default function AddMovementDialog({ editing, onClose }: {
     <Modal title={title} onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-2">
         {/* El monto manda: input display grande + moneda al lado. */}
-        <div className="rounded-xl border border-border bg-surface-2/50 p-2.5">
+        <div className={`rounded-xl border bg-surface-2/50 p-2.5 ${amountErr ? "border-danger" : "border-border"}`}>
           <Label>Monto</Label>
           <div className="mt-1 flex items-center gap-3">
             <input
@@ -249,8 +284,10 @@ export default function AddMovementDialog({ editing, onClose }: {
               inputMode="decimal"
               placeholder="0,00"
               aria-label="Monto"
+              aria-invalid={amountErr ? true : undefined}
+              aria-describedby={amountErr ? "amount-error" : undefined}
               value={amount}
-              onChange={(e) => setAmount(sanitizeAmountInput(e.target.value))}
+              onChange={(e) => { setAmount(sanitizeAmountInput(e.target.value)); setAmountErr(null); }}
               className="w-full min-w-0 bg-transparent font-display text-3xl leading-none tracking-[-0.02em] text-ink outline-none font-tabular placeholder:text-ink-faint"
             />
             {/* wrapper de ancho fijo: el Select base trae w-full */}
@@ -264,6 +301,11 @@ export default function AddMovementDialog({ editing, onClose }: {
               </Select>
             </div>
           </div>
+          {amountErr && (
+            <p id="amount-error" role="alert" className="mt-1.5 text-[13px] font-semibold text-danger">
+              {amountErr}
+            </p>
+          )}
         </div>
 
         {/* Cashback opcional: un solo campo con la unidad togglable (% ↔ moneda)
@@ -282,7 +324,7 @@ export default function AddMovementDialog({ editing, onClose }: {
                 type="button"
                 onClick={() => setCashbackKind((k) => (k === "pct" ? "amount" : "pct"))}
                 aria-label={`Unidad del cashback: ${cashbackKind === "pct" ? "porcentaje" : currency}`}
-                className="flex min-h-[44px] w-16 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-surface-2 text-base font-semibold text-ink transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+                className="flex min-h-[44px] w-16 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-surface-2 text-base font-semibold text-ink transition-colors hover:bg-surface focus-ring"
               >
                 {cashbackKind === "pct" ? "%" : currency}
               </button>
@@ -299,8 +341,11 @@ export default function AddMovementDialog({ editing, onClose }: {
             Los saldos no llevan categoría. */}
         {isExpense && (
         <div className="flex flex-col gap-1">
-          <Label>Categoría</Label>
-          <div className="flex flex-wrap gap-1">
+          <Label id="cat-label">Categoría</Label>
+          {/* `group` + aria-labelledby: los chips se apagan tocándolos de nuevo,
+              así que son toggles (aria-pressed), no radios — pero el grupo
+              necesita nombre para que se entienda qué se está eligiendo. */}
+          <div role="group" aria-labelledby="cat-label" className="flex flex-wrap gap-1">
             {categories.map((c) => {
               const active = categoryId === String(c.id);
               const Icon = categoryIcon(c.name);
@@ -311,7 +356,7 @@ export default function AddMovementDialog({ editing, onClose }: {
                   onClick={() => setCategoryId(active ? "" : String(c.id))}
                   aria-pressed={active}
                   whileTap={{ scale: 0.94 }}
-                  className={`flex min-h-[32px] cursor-pointer items-center gap-1.5 rounded-full border px-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+                  className={`flex min-h-[32px] cursor-pointer items-center gap-1.5 rounded-full border px-2 text-[13px] font-semibold transition-colors focus-ring ${
                     active ? "" : "border-border bg-surface text-ink-2 hover:bg-surface-2"
                   }`}
                   style={active ? {
@@ -330,8 +375,9 @@ export default function AddMovementDialog({ editing, onClose }: {
         )}
 
         <div className="flex flex-col gap-1">
-          <Label>{isExpense ? "Pagó" : "Pagó (transferencia)"}</Label>
+          <Label id="payer-label">{isExpense ? "Pagó" : "Pagó (transferencia)"}</Label>
           <Segmented
+            labelledBy="payer-label"
             options={users.map((u) => ({ value: String(u.id), label: capitalize(u.username) }))}
             value={paidBy}
             onChange={setPaidBy}
@@ -341,8 +387,13 @@ export default function AddMovementDialog({ editing, onClose }: {
         {/* División y ciudad no aplican a saldos (siempre sin ciudad). */}
         {isExpense && (
           <div className="flex flex-col gap-1">
-            <Label>División</Label>
-            <Segmented options={SPLITS} value={split} onChange={(v) => setSplit(v as MovementSplit)} />
+            <Label id="split-label">División</Label>
+            <Segmented
+              labelledBy="split-label"
+              options={SPLITS}
+              value={split}
+              onChange={(v) => setSplit(v as MovementSplit)}
+            />
           </div>
         )}
 

@@ -17,8 +17,8 @@ export default function DeltaBadge({
     Math.abs(pct) < 10
       ? "bg-surface-2 text-ink-3"
       : pct > 0
-        ? "bg-accent-amber-bg text-accent-amber"
-        : "bg-accent-teal-bg text-accent-teal";
+        ? "bg-accent-amber-bg text-accent-amber-ink"
+        : "bg-accent-teal-bg text-accent-teal-ink";
   const sign = rounded > 0 ? "+" : "";
   return (
     <span

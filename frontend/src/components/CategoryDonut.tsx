@@ -77,7 +77,7 @@ export default function CategoryDonut({
           <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
             <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Total</span>
             <span className="font-display text-2xl leading-none text-ink font-tabular">
-              {formatUsd(total.toFixed(2))}
+              {formatUsd(total.toFixed(2), "whole")}
             </span>
           </div>
           <div className="relative z-10 h-full w-full">

@@ -155,17 +155,17 @@ export default function Cities() {
             onClick={() => setParams(new URLSearchParams(), { replace: true })}
             aria-pressed={selected.length === 0}
             whileTap={{ scale: 0.96 }}
-            className={`flex w-[9.5rem] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+            className={`flex w-[9.5rem] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors ${
               selected.length === 0
-                ? "border-brick bg-brick text-white soft-pop"
-                : "border-border bg-surface text-ink-2 soft-card hover:bg-surface-2"
+                ? "focus-ring-inverse border-brick bg-brick text-white soft-pop"
+                : "focus-ring border-border bg-surface text-ink-2 soft-card hover:bg-surface-2"
             }`}
           >
             <span className="text-sm font-bold">Todo el viaje</span>
             <span className={`font-display text-lg leading-none font-tabular ${selected.length === 0 ? "text-white" : "text-ink"}`}>
-              {pace?.trip.avg_per_day_usd ? `${formatUsd(pace.trip.avg_per_day_usd)}/día` : "—"}
+              {pace?.trip.avg_per_day_usd ? `${formatUsd(pace.trip.avg_per_day_usd, "whole")}/día` : "—"}
             </span>
-            <span className={`text-[11px] font-medium ${selected.length === 0 ? "text-white/75" : "text-ink-faint"}`}>
+            <span className={`text-[11px] font-medium ${selected.length === 0 ? "text-white/85" : "text-ink-3"}`}>
               {pace?.trip.status === "not_started" ? "previsto · " : ""}
               {cities.length} paradas
             </span>
@@ -178,12 +178,12 @@ export default function Cities() {
                 onClick={() => toggle(c.stop_slug)}
                 aria-pressed={active}
                 whileTap={{ scale: 0.96 }}
-                className={`flex w-[9.5rem] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 ${
+                className={`flex w-[9.5rem] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-colors ${
                   active
-                    ? "border-brick bg-brick text-white soft-pop"
+                    ? "focus-ring-inverse border-brick bg-brick text-white soft-pop"
                     : c.status === "future"
-                      ? "border-border bg-surface-2/60 text-ink-3 soft-card hover:bg-surface-2"
-                      : "border-border bg-surface text-ink-2 soft-card hover:bg-surface-2"
+                      ? "focus-ring border-border bg-surface-2/60 text-ink-3 soft-card hover:bg-surface-2"
+                      : "focus-ring border-border bg-surface text-ink-2 soft-card hover:bg-surface-2"
                 }`}
               >
                 <span className="flex max-w-full items-center gap-1.5 text-sm font-bold">
@@ -204,9 +204,11 @@ export default function Cities() {
                     ya se puede comparar el ritmo previsto contra el resto del
                     viaje. Que sea una proyección lo dice la línea "reservado". */}
                 <span className={`font-display text-lg leading-none font-tabular ${active ? "text-white" : "text-ink"}`}>
-                  {c.per_day_usd && parseMoney(c.per_day_usd) > 0 ? `${formatUsd(c.per_day_usd)}/día` : "—"}
+                  {c.per_day_usd && parseMoney(c.per_day_usd) > 0 ? `${formatUsd(c.per_day_usd, "whole")}/día` : "—"}
                 </span>
-                <span className={`text-[11px] font-medium ${active ? "text-white/75" : "text-ink-faint"}`}>
+                {/* ink-3, no ink-faint: los chips futuros son surface-2, donde
+                    ink-faint no llega a 4.5:1. */}
+                <span className={`text-[11px] font-medium ${active ? "text-white/85" : "text-ink-3"}`}>
                   {chipStatusLine(c)}
                 </span>
               </motion.button>
@@ -242,7 +244,7 @@ export default function Cities() {
                 href={`${andiamoUrl}/stops/${single.slug}`}
                 target="_blank"
                 rel="noopener"
-                className="ml-auto flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-white/40 px-3 text-[11px] font-semibold uppercase tracking-wide text-white/90 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                className="focus-ring-inverse ml-auto flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-white/40 px-3 text-[11px] font-semibold uppercase tracking-wide text-white/90 transition-colors hover:bg-white/10"
               >
                 Andiamo
                 <ExternalLink size={12} strokeWidth={2} aria-hidden="true" />
@@ -272,17 +274,17 @@ export default function Cities() {
             icon={TrendingUp}
             tint="brick"
             label={singlePace.status === "current" ? "$/día · hoy" : "$/día"}
-            value={formatUsd(singlePace.per_day_usd ?? "0")}
+            value={formatUsd(singlePace.per_day_usd ?? "0", "whole")}
             badge={<DeltaBadge pct={singlePace.delta_vs_trip_pct} compact />}
           />
-          <Kpi icon={BedDouble} tint="blue" label="Dormir /noche" value={formatUsd(singlePace.lodging_per_night_usd ?? "0")} />
-          <Kpi icon={UtensilsCrossed} tint="teal" label="Vivir /día" value={formatUsd(singlePace.other_per_day_usd ?? "0")} />
+          <Kpi icon={BedDouble} tint="blue" label="Dormir /noche" value={formatUsd(singlePace.lodging_per_night_usd ?? "0", "whole")} />
+          <Kpi icon={UtensilsCrossed} tint="teal" label="Vivir /día" value={formatUsd(singlePace.other_per_day_usd ?? "0", "whole")} />
         </div>
       ) : (
         <div className="animate-rise-in stagger-2 grid grid-cols-3 gap-3">
           <Kpi icon={Receipt} tint="blue" label="Movimientos" value={String(summary?.movement_count ?? 0)} />
           <Kpi icon={BedDouble} tint="teal" label="Noches" value={String(summary?.days ?? 0)} />
-          <Kpi icon={TrendingUp} tint="amber" label="Prom./día" value={formatUsd(summary?.avg_per_day_usd ?? "0")} />
+          <Kpi icon={TrendingUp} tint="amber" label="Prom./día" value={formatUsd(summary?.avg_per_day_usd ?? "0", "whole")} />
         </div>
       )}
 
@@ -317,7 +319,8 @@ export default function Cities() {
                   <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
                     {formatDayHeader(g.date)}
                   </span>
-                  <span className="font-tabular text-[11px] font-semibold text-ink-faint">
+                  {/* Los headers de día van sobre canvas, afuera del Card: ink-3. */}
+                  <span className="font-tabular text-[11px] font-semibold text-ink-3">
                     {formatUsd(String(me ? dayTotalShare(g.items, me.id) : 0))}
                   </span>
                 </h3>

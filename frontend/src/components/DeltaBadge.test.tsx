@@ -11,17 +11,17 @@ describe("DeltaBadge", () => {
   it("ámbar por encima del promedio", () => {
     const { container } = render(<DeltaBadge pct={40.4} />);
     expect(screen.getByText(/\+40% vs promedio/)).toBeTruthy();
-    expect(container.querySelector(".text-accent-amber")).toBeTruthy();
+    expect(container.querySelector(".text-accent-amber-ink")).toBeTruthy();
   });
   it("teal por debajo del promedio", () => {
     const { container } = render(<DeltaBadge pct={-15.2} />);
     expect(screen.getByText(/-15% vs promedio/)).toBeTruthy();
-    expect(container.querySelector(".text-accent-teal")).toBeTruthy();
+    expect(container.querySelector(".text-accent-teal-ink")).toBeTruthy();
   });
   it("neutro dentro de ±10%", () => {
     const { container } = render(<DeltaBadge pct={4} />);
     expect(screen.getByText(/\+4% vs promedio/)).toBeTruthy();
-    expect(container.querySelector(".text-accent-amber")).toBeNull();
-    expect(container.querySelector(".text-accent-teal")).toBeNull();
+    expect(container.querySelector(".text-accent-amber-ink")).toBeNull();
+    expect(container.querySelector(".text-accent-teal-ink")).toBeNull();
   });
 });

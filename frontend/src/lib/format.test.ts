@@ -13,18 +13,24 @@ import {
 } from "./format";
 
 describe("format", () => {
-  it("formatUsd usa coma decimal, punto de miles y siempre 1 decimal", () => {
-    expect(formatUsd("1234.5")).toBe("USD 1.234,5");
-    expect(formatUsd("174.33")).toBe("USD 174,3");
-    expect(formatUsd("20.55")).toBe("USD 20,6");
+  it("formatUsd usa coma decimal, punto de miles y centavos por default", () => {
+    expect(formatUsd("1234.5")).toBe("USD 1.234,50");
+    expect(formatUsd("174.33")).toBe("USD 174,33");
+    expect(formatUsd("20.55")).toBe("USD 20,55");
+    expect(formatUsd("20")).toBe("USD 20,00");
   });
-  it("formatUsd de un entero también muestra 1 decimal (estándar único)", () => {
-    expect(formatUsd("20")).toBe("USD 20,0");
-    expect(formatUsd("370")).toBe("USD 370,0");
+  // Las cifras de titular (hero, KPI, chips) van sin decimales: el centavo es
+  // ruido a 60px y además no entraba en el ancho de un iPhone.
+  it("formatUsd 'whole' redondea a dólares enteros", () => {
+    expect(formatUsd("12345.6", "whole")).toBe("USD 12.346");
+    expect(formatUsd("105.30", "whole")).toBe("USD 105");
+    expect(formatUsd("370", "whole")).toBe("USD 370");
   });
-  it("formatAmount siempre con 1 decimal", () => {
-    expect(formatAmount("20.00")).toBe("20,0");
-    expect(formatAmount("20.50")).toBe("20,5");
+  it("formatAmount con centavos, y 'whole' cuando se lo pide", () => {
+    expect(formatAmount("20.00")).toBe("20,00");
+    expect(formatAmount("20.50")).toBe("20,50");
+    expect(formatAmount("1234.56")).toBe("1.234,56");
+    expect(formatAmount("1234.56", "whole")).toBe("1.235");
   });
   it("toInputValue", () => {
     expect(toInputValue("20.00")).toBe("20");

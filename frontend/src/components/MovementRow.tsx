@@ -54,13 +54,13 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
             {mv.description || (isSettlement ? "Pago (saldo)" : "Sin descripción")}
           </p>
           {(mv.status === "pending" || mv.status === "awaiting") && (
-            <span className="shrink-0 rounded-full bg-accent-amber-bg px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-accent-amber">
+            <span className="shrink-0 rounded-full bg-accent-amber-bg px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-accent-amber-ink">
               {mv.status === "awaiting" ? "Por confirmar" : "Pendiente"}
             </span>
           )}
           {cbLabel && (
             <span
-              className="shrink-0 rounded-full bg-accent-teal-bg px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-accent-teal"
+              className="shrink-0 rounded-full bg-accent-teal-bg px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-accent-teal-ink"
               title={`Cashback ${cbLabel}`}
             >
               CB {cbLabel}
@@ -107,7 +107,7 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
         <button
           onClick={() => onOpen(mv)}
           aria-label={`Ver detalle de ${mv.description || "movimiento"}`}
-          className="-mx-2 flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-surface-2/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brick/40"
+          className="-mx-2 flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-surface-2/60 focus-ring-inset"
         >
           {body}
         </button>
@@ -120,14 +120,14 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
         <div className="-mr-2 hidden shrink-0 items-center lg:flex">
           <button
             aria-label={`Editar ${mv.description || "movimiento"}`}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-ink-faint/50 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
             onClick={() => onEdit?.(mv)}
           >
             <Pencil size={14} strokeWidth={1.75} aria-hidden="true" />
           </button>
           <button
             aria-label={`Borrar ${mv.description || "movimiento"}`}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-ink-faint/50 transition-colors hover:bg-danger-bg hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
+            className="focus-ring-danger flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-danger-bg hover:text-danger"
             onClick={() => onDelete?.(mv)}
           >
             <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />

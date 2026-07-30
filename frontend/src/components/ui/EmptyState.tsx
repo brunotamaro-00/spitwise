@@ -1,10 +1,13 @@
 import type { LucideIcon } from "lucide-react";
 
-/** Estado vacío con la llama de Spitwise + badge del contexto (ícono). */
-export default function EmptyState({ icon: Icon, title, description }: {
+/** Estado vacío con la llama de Spitwise + badge del contexto (ícono).
+ *  `action` es la salida: un vacío causado por filtros sin forma de deshacerlos
+ *  es un callejón sin salida. */
+export default function EmptyState({ icon: Icon, title, description, action }: {
   icon: LucideIcon;
   title: string;
   description?: string;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="relative flex flex-col items-center gap-3 overflow-hidden px-6 py-12 text-center">
@@ -17,6 +20,7 @@ export default function EmptyState({ icon: Icon, title, description }: {
       </span>
       <p className="relative font-semibold text-ink">{title}</p>
       {description && <p className="relative max-w-[28ch] text-sm text-ink-3">{description}</p>}
+      {action && <div className="relative mt-1">{action}</div>}
     </div>
   );
 }

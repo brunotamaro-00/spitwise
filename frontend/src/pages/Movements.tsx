@@ -17,6 +17,7 @@ import MovementRow from "@/components/MovementRow";
 import MovementSheet from "@/components/MovementSheet";
 import PendingConfirmBanner from "@/components/PendingConfirmBanner";
 import { PageTitle } from "@/components/ui/Brand";
+import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
@@ -37,13 +38,13 @@ const EMPTY = { onlyMine: false, city: "", categoryId: "", from: "", to: "", q: 
 /** Pill removible de un filtro activo. */
 function FilterPill({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <span className="animate-fade-in inline-flex items-center gap-0.5 rounded-full border border-brick-border bg-brick-bg py-1 pl-2.5 pr-1 text-xs font-semibold text-brick">
+    <span className="animate-fade-in inline-flex items-center gap-0.5 rounded-full border border-brick-border bg-brick-bg py-1 pl-2.5 pr-1 text-xs font-semibold text-brick-ink">
       {label}
       <button
         type="button"
         aria-label={`Quitar filtro ${label}`}
         onClick={onRemove}
-        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-brick/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-brick/15 focus-ring"
       >
         <X size={12} strokeWidth={2.25} aria-hidden="true" />
       </button>
@@ -192,7 +193,7 @@ export default function Movements() {
           onClick={() => setShowFilters(true)}
           aria-label="Filtros"
           aria-haspopup="dialog"
-          className="relative flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-lg border border-border bg-surface text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+          className="relative flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-lg border border-border bg-surface text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
         >
           <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
           {activeCount > 0 && (
@@ -231,7 +232,7 @@ export default function Movements() {
             type="button"
             aria-label="Limpiar búsqueda"
             onClick={() => setF({ ...f, q: "" })}
-            className="animate-fade-in absolute inset-y-0 right-0 flex w-11 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+            className="animate-fade-in absolute inset-y-0 right-0 flex w-11 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:text-ink focus-ring"
           >
             <X size={16} strokeWidth={2} aria-hidden="true" />
           </button>
@@ -272,15 +273,20 @@ export default function Movements() {
           )}
           <button
             onClick={() => setF(EMPTY)}
-            className="cursor-pointer rounded px-1 text-xs font-medium text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+            className="cursor-pointer rounded px-1 text-xs font-medium text-ink-3 transition-colors hover:text-ink focus-ring"
           >
             Limpiar todo
           </button>
         </div>
       )}
 
+      {/* aria-live: al tipear en la búsqueda o tocar un filtro, esta barra es lo
+          único que dice cuántos quedaron. Sin live region el cambio era mudo. */}
       {!isLoading && data.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-xl border border-border bg-surface-2 px-4 py-2.5">
+        <div
+          aria-live="polite"
+          className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-xl border border-border bg-surface-2 px-4 py-2.5"
+        >
           <span className="text-xs text-ink-3">
             {filtered.length} de {data.length} · visible{" "}
             <span className="font-tabular text-sm font-semibold text-ink">{formatUsd(String(totals.visible))}</span>
@@ -316,7 +322,12 @@ export default function Movements() {
         ) : filtered.length === 0 ? (
         <Card>
           <EmptyState icon={SearchX} title="Nada coincide"
-            description="Ningún movimiento coincide con los filtros aplicados." />
+            description="Ningún movimiento coincide con los filtros aplicados."
+            action={
+              <Button variant="secondary" size="sm" onClick={() => setF(EMPTY)}>
+                Limpiar filtros
+              </Button>
+            } />
         </Card>
         ) : (
         <div className="flex flex-col gap-4">
@@ -326,7 +337,8 @@ export default function Movements() {
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
                   {formatDayHeader(g.date)}
                 </span>
-                <span className="font-tabular text-[11px] font-semibold text-ink-faint">
+                {/* Los headers de día van sobre canvas, afuera del Card: ink-3. */}
+                <span className="font-tabular text-[11px] font-semibold text-ink-3">
                   {formatUsd(String(
                     f.onlyMine && me ? dayTotalShare(g.items, me.id) : dayTotalUsd(g.items),
                   ))}

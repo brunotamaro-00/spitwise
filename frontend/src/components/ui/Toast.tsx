@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -13,19 +13,31 @@ export function useToast() {
   return useContext(ToastContext);
 }
 
-const DURATION_MS = 2600;
+/** Duración por tipo. Un éxito se puede perder sin costo; un error hay que poder
+ *  leerlo — y son los mensajes más largos ("No se pudo confirmar. Probá de
+ *  nuevo."). Los 2,6s que había para ambos no alcanzaban para el de error. */
+const DURATION_MS: Record<Kind, number> = { success: 4000, error: 8000 };
+const MAX_VISIBLE = 3;
 
-/** Pills efímeras sobre la bottom nav, con la superficie espresso de marca.
- *  Una a la vez alcanza para esta app (acciones puntuales, no streams). */
+/** Pills efímeras sobre la bottom nav, con la superficie espresso de marca. */
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+
+  const dismiss = useCallback((id: number) => {
+    const t = timers.current.get(id);
+    if (t) { clearTimeout(t); timers.current.delete(id); }
+    setToasts((ts) => ts.filter((x) => x.id !== id));
+  }, []);
 
   const show = useCallback((kind: Kind, text: string) => {
     const id = nextId.current++;
-    setToasts((ts) => [...ts.slice(-1), { id, kind, text }]);
-    setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== id)), DURATION_MS);
-  }, []);
+    // Cola real: antes `ts.slice(-1)` dejaba UNO solo, así que un éxito posterior
+    // se comía el error que el usuario todavía no había leído.
+    setToasts((ts) => [...ts, { id, kind, text }].slice(-MAX_VISIBLE));
+    timers.current.set(id, setTimeout(() => dismiss(id), DURATION_MS[kind]));
+  }, [dismiss]);
 
   const viewport = useMemo(
     () =>
@@ -38,12 +50,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             {toasts.map((t) => (
               <motion.div
                 key={t.id}
-                role="status"
+                // Un error es una interrupción, no un status: `alert` lo hace
+                // anunciar de inmediato en vez de esperar una pausa del lector.
+                role={t.kind === "error" ? "alert" : "status"}
                 initial={{ opacity: 0, y: 14, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.97 }}
                 transition={{ type: "spring", stiffness: 500, damping: 32 }}
-                className={`flex max-w-full items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold soft-pop ${
+                className={`pointer-events-auto flex max-w-full items-center gap-2 rounded-full py-2.5 pl-4 pr-2 text-sm font-semibold soft-pop ${
                   t.kind === "success" ? "espresso-panel" : "bg-danger text-white"
                 }`}
               >
@@ -52,14 +66,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 ) : (
                   <AlertCircle size={17} strokeWidth={2.25} className="shrink-0" aria-hidden="true" />
                 )}
-                <span className="truncate">{t.text}</span>
+                <span className="min-w-0 flex-1 truncate">{t.text}</span>
+                {/* Cerrar a mano: el contenedor es pointer-events-none y cada
+                    toast lo reactiva, para poder sacarlo antes de que expire. */}
+                <button
+                  type="button"
+                  aria-label="Cerrar aviso"
+                  onClick={() => dismiss(t.id)}
+                  className="focus-ring-inverse flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-white/15"
+                >
+                  <X size={14} strokeWidth={2.25} aria-hidden="true" />
+                </button>
               </motion.div>
             ))}
           </AnimatePresence>
         </div>,
         document.body,
       ),
-    [toasts],
+    [toasts, dismiss],
   );
 
   return (

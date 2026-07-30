@@ -44,8 +44,16 @@
   --color-border-strong: #CFC8BB;
   --color-ink: #1B1A17;
   --color-ink-2: #56534C;
-  --color-ink-3: #857F74;
-  --color-ink-faint: #ABA598;
+  /* ink-3 carga TODO el texto secundario/metadata y pasa AA (4.5:1) sobre los
+     tres fondos: 5.77 surface · 5.30 canvas · 4.94 surface-2. El #857F74 de
+     antes daba 3.97/3.65/3.40 — no llegaba en ninguno. */
+  --color-ink-3: #6B655B;
+  /* ink-faint es SOLO para placeholders e íconos decorativos sobre `surface`
+     (4.63:1 ahí). No usar sobre canvas ni surface-2: en un canvas cálido no hay
+     lugar de luminancia para dos grises que pasen AA — el mínimo que cumple
+     sobre surface-2 es #6F6B63, indistinguible de ink-3. Si el texto es un dato,
+     va en ink-3. */
+  --color-ink-faint: #7A746A;
 
   /* Acento de marca — ladrillo/terracota (ancla, se mantiene) */
   --color-brick: #C44428;
@@ -53,6 +61,9 @@
   --color-brick-press: #9A341D;
   --color-brick-bg: #FBEAE4;
   --color-brick-border: #E9C4B9;
+  /* Variante de TEXTO sobre brick-bg: el brick puro daba 4.28:1 (pill de filtro,
+     item de nav activo). */
+  --color-brick-ink: #BE4227;
 
   /* Espresso — marrón profundo del tile del logo. Superficie de marca oscura
      (hero, login, splash). Muestreado del master: #342112. */
@@ -84,6 +95,14 @@
   --color-accent-cyan-bg: #DFF0F7;
   --color-accent-indigo: #7A5AC4; /* Otros */
   --color-accent-indigo-bg: #ECE7F8;
+
+  /* Variantes de TEXTO de los acentos. Los `--color-accent-*` de arriba salieron
+     de la paleta dataviz, validada a 3:1 para MARCAS DE CHART; como texto sobre
+     su propio tinte no llegaban a 4.5:1 (amber 3.16, teal 3.41). Los badges y
+     las notas usan estas; los charts y los íconos siguen con las de arriba. */
+  --color-accent-amber-ink: #866722;   /* 4.50:1 sobre accent-amber-bg */
+  --color-accent-teal-ink: #09786C;    /* 4.50:1 sobre accent-teal-bg  */
+  --color-accent-amber-solid: #8A6A23; /* relleno con texto blanco: 5.04:1 */
 
   /* Secundarios / semánticos */
   --color-gold: #C8A24B;
@@ -164,6 +183,44 @@ body {
   .soft-pop { box-shadow: var(--shadow-md); }
   .soft-hero { box-shadow: var(--shadow-hero); }
   .font-tabular { font-variant-numeric: tabular-nums; }
+
+  /* ── Indicador de foco ────────────────────────────────────────────────────
+     WCAG 2.2 SC 1.4.11 pide 3:1 para el indicador de foco. El `ring-brick/40`
+     que usaba toda la app daba 1.83:1 sobre surface, y sobre un elemento con
+     relleno de marca (chip de ciudad activo, FAB) 1.00:1 — o sea, invisible.
+     El ring sólido da 4.99:1 sobre surface y 4.59 sobre canvas; el offset lo
+     despega del borde para que se lea también contra bordes oscuros.
+
+     Va como `outline` y no como box-shadow a propósito: media la app tiene
+     `soft-card`/`soft-pop` encima y un ring de box-shadow le pisaba la
+     elevación al enfocar. El outline moderno sigue el border-radius. */
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--color-brick);
+    outline-offset: 2px;
+  }
+  /* Para superficies con relleno de marca, donde un outline ladrillo desaparece. */
+  .focus-ring-inverse:focus-visible {
+    outline: 2px solid #FFFFFF;
+    outline-offset: 2px;
+  }
+  /* Variante inset: para targets que llenan su contenedor (filas de lista, tabs
+     de la bottom nav), donde un outline por fuera se recorta. */
+  .focus-ring-inset:focus-visible {
+    outline: 2px solid var(--color-brick);
+    outline-offset: -3px;
+  }
+  /* Acciones destructivas: mismo contrato, tinte de peligro. */
+  .focus-ring-danger:focus-visible {
+    outline: 2px solid var(--color-danger);
+    outline-offset: 2px;
+  }
+  /* Para controles compuestos donde el input real es transparente y está encima
+     de la capa visible (DateField/DateRangeField): el foco lo recibe el input,
+     pero el que se tiene que ver es el wrapper. */
+  .focus-ring-within:focus-within {
+    outline: 2px solid var(--color-brick);
+    outline-offset: 2px;
+  }
 
   .hero-gradient { background-image: var(--gradient-hero); }
   .brick-gradient { background-image: var(--gradient-brick); }

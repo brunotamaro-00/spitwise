@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellRing, Check, RefreshCcw } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { errorDetail } from "@/api/client";
 import { confirmMovement } from "@/api/movements";
@@ -25,7 +25,7 @@ export default function PendingConfirmBanner({ items }: { items: Movement[] }) {
   return (
     <div className="animate-fade-in mb-3 rounded-xl border border-accent-amber/30 bg-accent-amber-bg/60 p-3">
       <div className="mb-2 flex items-center gap-2 px-1">
-        <BellRing size={16} strokeWidth={2.25} className="text-accent-amber" aria-hidden="true" />
+        <BellRing size={16} strokeWidth={2.25} className="text-accent-amber-ink" aria-hidden="true" />
         <p className="text-sm font-semibold text-ink">
           {title}
           <span className="ml-1 font-normal text-ink-3"> · confirmá quién pagó</span>
@@ -44,6 +44,7 @@ function PendingRow({ mv }: { mv: Movement }) {
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
   // Pagador elegido para confirmar; arranca en quién quedó cargado por default.
   const [paidBy, setPaidBy] = useState<number>(mv.paid_by);
+  const radioRefs = useRef(new Map<number, HTMLButtonElement>());
 
   const confirm = useMutation({
     mutationFn: () => confirmMovement(mv.id, paidBy !== mv.paid_by ? paidBy : undefined),
@@ -78,18 +79,37 @@ function PendingRow({ mv }: { mv: Movement }) {
         </p>
       )}
       <div className="mt-2.5 flex items-center gap-2">
-        {/* Toggle de pagador: quién pagó realmente este gasto. */}
-        <div className="flex flex-1 overflow-hidden rounded-lg border border-border">
-          {users.map((u) => {
+        {/* Toggle de pagador: quién pagó realmente este gasto. Opción única, así
+            que va como radiogroup (no aria-pressed) y con nombre propio: si no,
+            un lector anuncia "Bruno, pressed" sin decir de qué gasto ni de qué. */}
+        <div
+          role="radiogroup"
+          aria-label={`Quién pagó ${mv.description || "este gasto"}`}
+          className="flex flex-1 overflow-hidden rounded-lg border border-border"
+        >
+          {users.map((u, i) => {
             const active = u.id === paidBy;
             return (
               <button
                 key={u.id}
+                ref={(el) => { if (el) radioRefs.current.set(u.id, el); }}
                 type="button"
+                role="radio"
+                aria-checked={active}
+                // Un solo tab-stop; las flechas mueven la selección (radiogroup).
+                tabIndex={active ? 0 : -1}
+                onKeyDown={(e) => {
+                  const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1
+                    : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+                  if (!d) return;
+                  e.preventDefault();
+                  const next = users[(i + d + users.length) % users.length];
+                  setPaidBy(next.id);
+                  radioRefs.current.get(next.id)?.focus();
+                }}
                 onClick={() => setPaidBy(u.id)}
-                aria-pressed={active}
-                className={`flex-1 cursor-pointer px-2 py-2 text-sm font-semibold transition-colors ${
-                  active ? "bg-brick-bg text-brick" : "bg-surface text-ink-3 hover:bg-surface-2"
+                className={`focus-ring-inset flex-1 cursor-pointer px-2 py-2 text-sm font-semibold transition-colors ${
+                  active ? "bg-brick-bg text-brick-ink" : "bg-surface text-ink-3 hover:bg-surface-2"
                 }`}
               >
                 {capitalize(u.username)}

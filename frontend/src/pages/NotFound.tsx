@@ -21,7 +21,7 @@ export default function NotFound() {
         <div className="flex justify-center pb-8">
           <Link
             to="/"
-            className="flex items-center gap-1 rounded-md text-sm font-semibold text-brick transition-colors hover:text-brick-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+            className="flex items-center gap-1 rounded-md text-sm font-semibold text-brick transition-colors hover:text-brick-hover focus-ring"
           >
             Volver al dashboard
             <ArrowRight size={14} strokeWidth={2.25} aria-hidden="true" />

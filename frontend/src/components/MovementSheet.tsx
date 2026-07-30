@@ -28,7 +28,10 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-border py-2.5 last:border-b-0">
       <dt className="shrink-0 text-[13px] font-semibold text-ink-3">{label}</dt>
-      <dd className="min-w-0 truncate text-right text-[15px] font-semibold text-ink">{children}</dd>
+      {/* Wrapea, no trunca: este sheet existe para mostrar la ficha completa,
+          así que la fila de cashback ("2% · bruto CZK 1.234,56") y las ciudades
+          de nombre largo tienen que verse enteras. */}
+      <dd className="min-w-0 break-words text-right text-[15px] font-semibold text-ink">{children}</dd>
     </div>
   );
 }
@@ -88,10 +91,10 @@ export default function MovementSheet({ mv, category, flag, myId, onEdit, onDele
           <Row label={mv.status === "pending" ? "Se paga" : mv.status === "awaiting" ? "Venció" : "Pagado"}>
             {capitalize(formatDayHeader(mv.payment_date))}
             {mv.status === "pending" && (
-              <span className="ml-1.5 font-semibold text-accent-amber"> · TC provisorio</span>
+              <span className="ml-1.5 font-semibold text-accent-amber-ink"> · TC provisorio</span>
             )}
             {mv.status === "awaiting" && (
-              <span className="ml-1.5 font-semibold text-accent-amber"> · falta confirmarlo</span>
+              <span className="ml-1.5 font-semibold text-accent-amber-ink"> · falta confirmarlo</span>
             )}
           </Row>
         )}

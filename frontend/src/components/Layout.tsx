@@ -43,7 +43,7 @@ export default function Layout() {
   const logoutBtn = (
     <button
       aria-label="Cerrar sesión"
-      className="flex min-h-[40px] min-w-[40px] cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+      className="flex min-h-[40px] min-w-[40px] cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
       onClick={() => { void logout().then(() => { window.location.assign("/login"); }); }}
     >
       <LogOut size={18} strokeWidth={1.75} aria-hidden="true" />
@@ -58,7 +58,7 @@ export default function Layout() {
           to="/"
           end
           aria-label="Ir al dashboard"
-          className="flex items-center gap-3 rounded-lg px-2 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+          className="flex items-center gap-3 rounded-lg px-2 transition-opacity hover:opacity-80 focus-ring"
         >
           <img src="/brand/mark-tile.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 object-contain drop-shadow-sm" />
           <div>
@@ -75,8 +75,8 @@ export default function Layout() {
               to={to}
               end={to === "/"}
               className={({ isActive }) =>
-                `flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/30 ${
-                  isActive ? "bg-brick-bg text-brick" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
+                `flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors focus-ring ${
+                  isActive ? "bg-brick-bg text-brick-ink" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
                 }`
               }
             >
@@ -86,7 +86,7 @@ export default function Layout() {
                   {label}
                   {to === "/movimientos" && confirmCount > 0 && (
                     <span
-                      className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-amber px-1.5 text-[11px] font-bold text-white"
+                      className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-amber-solid px-1.5 text-[11px] font-bold text-white"
                       aria-label={`${confirmCount} por confirmar`}
                     >
                       <span aria-hidden="true">{confirmCount}</span>
@@ -112,7 +112,7 @@ export default function Layout() {
           to="/"
           end
           aria-label="Ir al dashboard"
-          className="flex items-center gap-2.5 rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+          className="flex items-center gap-2.5 rounded-lg transition-opacity hover:opacity-80 focus-ring"
         >
           <img src="/brand/mark-tile.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain drop-shadow-sm" />
           <Wordmark className="text-[1.8rem]" />
@@ -177,7 +177,7 @@ export default function Layout() {
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.9 }}
         transition={{ type: "spring", stiffness: 500, damping: 26 }}
-        className="brick-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full text-white soft-hero focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 lg:bottom-8 lg:right-8"
+        className="brick-gradient focus-ring-inverse fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full text-white soft-hero lg:bottom-8 lg:right-8"
       >
         <Plus size={26} strokeWidth={2} aria-hidden="true" />
       </motion.button>
@@ -194,7 +194,7 @@ export default function Layout() {
               to={to}
               end={to === "/"}
               className={({ isActive }) =>
-                `flex min-h-[56px] flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brick/30 ${
+                `flex min-h-[56px] flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors focus-ring-inset ${
                   isActive ? "text-brick" : "text-ink-3 hover:text-ink"
                 }`
               }
@@ -215,7 +215,7 @@ export default function Layout() {
                     <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} className="relative" aria-hidden="true" />
                     {to === "/movimientos" && confirmCount > 0 && (
                       <span
-                        className="absolute right-1.5 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-amber px-1 text-[10px] font-bold text-white"
+                        className="absolute right-1.5 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-amber-solid px-1 text-[10px] font-bold text-white"
                         aria-label={`${confirmCount} por confirmar`}
                       >
                         <span aria-hidden="true">{confirmCount}</span>

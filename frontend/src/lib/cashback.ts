@@ -1,4 +1,4 @@
-import { formatAmount } from "@/lib/format";
+import { formatCompact } from "@/lib/format";
 import type { Movement } from "@/types";
 
 /** Símbolo corto por moneda para la etiqueta de cashback fijo (fallback = ISO). */
@@ -23,6 +23,6 @@ export function cashbackLabel(
 ): string | null {
   const value = mv.cashback_value != null ? Number(mv.cashback_value) : null;
   if (!mv.cashback_kind || value == null || Number.isNaN(value)) return null;
-  if (mv.cashback_kind === "pct") return `${formatAmount(String(value))}%`;
-  return `${formatAmount(String(value))} ${CURRENCY_SYMBOL[mv.currency] ?? mv.currency}`;
+  if (mv.cashback_kind === "pct") return `${formatCompact(String(value))}%`;
+  return `${formatCompact(String(value))} ${CURRENCY_SYMBOL[mv.currency] ?? mv.currency}`;
 }

@@ -6,12 +6,12 @@ export function capitalize(s: string): string {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
-/** Número con formato argentino: punto de miles, coma decimal. Siempre con
- *  exactamente 1 decimal ("20,0", "306,5"): un solo estándar en toda la app. */
-function formatNumber(n: number): string {
+/** Número con formato argentino: punto de miles, coma decimal, con `decimals`
+ *  decimales fijos. */
+function formatNumber(n: number, decimals: number): string {
   return n.toLocaleString("es-AR", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   });
 }
 
@@ -22,13 +22,33 @@ export function isZeroMoney(s: string | null | undefined): boolean {
   return Number.isNaN(n) || Math.abs(n) < 0.005;
 }
 
-export function formatUsd(s: string): string {
-  return `USD ${formatNumber(parseMoney(s))}`;
+/** Precisión monetaria según el rol de la cifra.
+ *
+ *  `cents` (default) es el estándar de plata: filas, sheet de detalle, balance,
+ *  totales por día — donde los centavos son el dato.
+ *
+ *  `whole` es para las cifras grandes (hero, KPI, chips de ciudad, ritmo,
+ *  centro del donut): ahí el decimal es ruido y además no entra. Medido con
+ *  Anton a 60px en un viewport de 402px, "USD 12.345,6" son 330,6px contra
+ *  322px disponibles — el hero se partía en dos líneas pasando los 10.000.
+ *  Sin decimales, "USD 123.456" mide 316,8px y entra. */
+export type MoneyPrecision = "cents" | "whole";
+
+const DECIMALS: Record<MoneyPrecision, number> = { cents: 2, whole: 0 };
+
+export function formatUsd(s: string, precision: MoneyPrecision = "cents"): string {
+  return `USD ${formatNumber(parseMoney(s), DECIMALS[precision])}`;
 }
 
-/** Monto en moneda original para las filas: "20", "20,50", "1.234,56". */
-export function formatAmount(s: string): string {
-  return formatNumber(parseMoney(s));
+/** Monto en moneda original para las filas: "20,00", "20,50", "1.234,56". */
+export function formatAmount(s: string, precision: MoneyPrecision = "cents"): string {
+  return formatNumber(parseMoney(s), DECIMALS[precision]);
+}
+
+/** Número sin ceros de relleno: "2", "2,5", "1.234,56". Para etiquetas cortas
+ *  donde el decimal fijo es ruido (badge de cashback: "2%", no "2,00%"). */
+export function formatCompact(s: string): string {
+  return parseMoney(s).toLocaleString("es-AR", { maximumFractionDigits: 2 });
 }
 
 /** Valor inicial del input al editar: entero => "20"; decimal => "20,50". */

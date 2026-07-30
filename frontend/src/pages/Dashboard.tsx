@@ -26,6 +26,19 @@ import { myShare } from "@/lib/share";
 import { useMe } from "@/lib/useMe";
 import type { Category, Movement } from "@/types";
 
+/** Slot de card asíncrona: loading → skeleton, error → ErrorState CONTENIDO acá.
+ *  Antes el dashboard hacía un early-return con un ErrorState de página completa
+ *  si fallaba cualquiera de los cuatro queries, y se perdían los datos de los
+ *  otros tres — una caída de /pace escondía el hero y el balance. */
+function Slot({ query, skeleton, children }: {
+  query: { isError: boolean; data: unknown; refetch: () => unknown };
+  skeleton: React.ReactNode;
+  children: () => React.ReactNode;
+}) {
+  if (query.isError) return <ErrorState onRetry={() => void query.refetch()} />;
+  return <SkeletonReveal ready={!!query.data} skeleton={skeleton}>{children}</SkeletonReveal>;
+}
+
 export default function Dashboard() {
   const [settle, setSettle] = useState(false);
   const [viewing, setViewing] = useState<Movement | null>(null);
@@ -70,16 +83,6 @@ export default function Dashboard() {
     (users.data ?? []).map((u) => [u.id, capitalize(u.username)]),
   );
 
-  const queries = [balance, summary, byCat, pace];
-  if (queries.some((q) => q.isError)) {
-    return (
-      <div className="flex flex-col gap-5">
-        <PageTitle>Dashboard</PageTitle>
-        <ErrorState onRetry={() => queries.forEach((q) => q.isError && q.refetch())} />
-      </div>
-    );
-  }
-
   const trip = pace.data?.trip;
   const preTrip = trip?.status === "not_started";
 
@@ -91,7 +94,7 @@ export default function Dashboard() {
 
       {/* Hero del viaje: el gasto total manda; el balance es secundario. */}
       <div className="animate-rise-in stagger-1">
-        <SkeletonReveal ready={!!summary.data} skeleton={<Skeleton className="h-44" />}>
+        <Slot query={summary} skeleton={<Skeleton className="h-44" />}>
           {() => (
           <Card className="relative overflow-hidden p-6 text-white hero-gradient soft-hero lg:p-7">
             <div className="spit-dots absolute inset-0" aria-hidden="true" />
@@ -111,7 +114,7 @@ export default function Dashboard() {
                 {trip?.avg_per_day_usd && (
                   <span className="inline-flex items-center gap-1.5">
                     <TrendingUp size={15} strokeWidth={2} aria-hidden="true" />
-                    <span className="font-tabular">{formatUsd(trip.avg_per_day_usd)}</span>
+                    <span className="font-tabular">{formatUsd(trip.avg_per_day_usd, "whole")}</span>
                     {preTrip ? " previsto/día" : " por día"}
                   </span>
                 )}
@@ -127,35 +130,35 @@ export default function Dashboard() {
             </div>
           </Card>
           )}
-        </SkeletonReveal>
+        </Slot>
       </div>
 
       <div className="animate-rise-in stagger-2">
-        <SkeletonReveal ready={!!balance.data} skeleton={<Skeleton className="h-20" />}>
+        <Slot query={balance} skeleton={<Skeleton className="h-20" />}>
           {() => (
             <BalanceHero balance={balance.data!} names={names} myId={me.data?.id} onSettle={() => setSettle(true)} />
           )}
-        </SkeletonReveal>
+        </Slot>
       </div>
 
       <div className="animate-rise-in stagger-3">
-        <SkeletonReveal ready={!!pace.data} skeleton={<Skeleton className="h-40" />}>
+        <Slot query={pace} skeleton={<Skeleton className="h-40" />}>
           {() => <TripPaceCard pace={pace.data!} />}
-        </SkeletonReveal>
+        </Slot>
       </div>
 
       {/* items-stretch + grid 12: el donut (denso) va angosto, el ritmo por
           ciudad respira en la columna ancha; nadie deja huecos. */}
       <div className="animate-rise-in stagger-4 grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
         <div className="lg:col-span-5">
-          <SkeletonReveal ready={!!byCat.data} skeleton={<Skeleton className="h-64" />}>
+          <Slot query={byCat} skeleton={<Skeleton className="h-64" />}>
             {() => <CategoryDonut data={byCat.data!} subtitle="Todo el viaje" />}
-          </SkeletonReveal>
+          </Slot>
         </div>
         <div className="lg:col-span-7">
-          <SkeletonReveal ready={!!pace.data} skeleton={<Skeleton className="h-64" />}>
+          <Slot query={pace} skeleton={<Skeleton className="h-64" />}>
             {() => <CityPaceChart cities={pace.data!.cities} trip={pace.data!.trip} />}
-          </SkeletonReveal>
+          </Slot>
         </div>
       </div>
 
@@ -168,7 +171,7 @@ export default function Dashboard() {
               <h2 className="text-sm font-bold text-ink">Últimos movimientos</h2>
               <Link
                 to="/movimientos"
-                className="flex items-center gap-1 text-[12px] font-semibold text-brick transition-colors hover:text-brick-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40 rounded-md"
+                className="flex items-center gap-1 text-[12px] font-semibold text-brick transition-colors hover:text-brick-hover focus-ring rounded-md"
               >
                 Ver todos
                 <ArrowRight size={13} strokeWidth={2.25} aria-hidden="true" />

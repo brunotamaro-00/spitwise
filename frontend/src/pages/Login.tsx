@@ -70,7 +70,7 @@ export default function Login() {
                 type="button"
                 disabled={busy !== null}
                 onClick={() => { void choose(username); }}
-                className="flex min-h-[64px] items-center justify-center rounded-xl border-2 border-border bg-surface-2 text-sm font-extrabold uppercase tracking-[0.08em] text-ink transition-all duration-150 hover:border-brick hover:bg-brick-bg hover:text-brick active:translate-y-px disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brick/40"
+                className="flex min-h-[64px] items-center justify-center rounded-xl border-2 border-border bg-surface-2 text-sm font-extrabold uppercase tracking-[0.08em] text-ink transition-all duration-150 hover:border-brick hover:bg-brick-bg hover:text-brick-ink active:translate-y-px disabled:opacity-50 focus-ring"
               >
                 {busy === username ? "Entrando…" : label}
               </button>
