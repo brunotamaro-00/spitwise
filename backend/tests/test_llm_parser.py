@@ -246,3 +246,24 @@ async def test_batch_item_fields_normalized_like_flat():
     assert a.payment_date == date(2026, 8, 5) and a.city == "Roma"
     assert b.amount == Decimal("3.5") and b.currency == "GBP"
     assert b.paid_by is None and b.split == "shared"
+
+
+# --- parse fallido (técnico) vs 'unknown' semántico ---------------------------
+# Un refusal del proveedor devolvía el mismo ParsedMessage que "hola qué tal":
+# los dos terminaban en unknown y el bot no podía reintentar ni loguear distinto.
+
+async def test_refusal_marks_parse_failure_not_semantic_unknown():
+    from app.llm.client import PARSE_FAILURE_PAYLOAD
+
+    got = await _parse(dict(PARSE_FAILURE_PAYLOAD))
+    assert got.intent == "unknown" and got.parse_failure == "empty_parse"
+
+
+async def test_empty_payload_is_also_a_parse_failure():
+    got = await _parse({})
+    assert got.intent == "unknown" and got.parse_failure == "empty_parse"
+
+
+async def test_real_unknown_has_no_parse_failure():
+    got = await _parse(_payload(intent="unknown"))
+    assert got.intent == "unknown" and got.parse_failure is None

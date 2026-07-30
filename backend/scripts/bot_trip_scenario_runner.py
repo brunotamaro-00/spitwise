@@ -43,7 +43,22 @@ MANIFEST_PATH = ANDIAMO_CONTENT / "manifest.json"
 load_dotenv(ROOT / ".env", override=False)
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
-os.environ.setdefault("LLM_PROVIDER", "openai")
+
+
+def _provider_from_argv() -> str:
+    """--provider se lee antes que argparse: `get_settings()` congela el
+    proveedor apenas se importa la app."""
+    for i, a in enumerate(sys.argv):
+        if a == "--provider" and i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+        if a.startswith("--provider="):
+            return a.split("=", 1)[1]
+    return ""
+
+
+# Default: lo que diga .env (= producción), no openai a la fuerza.
+PROVIDER = (_provider_from_argv() or os.getenv("LLM_PROVIDER") or "openai").lower()
+os.environ["LLM_PROVIDER"] = PROVIDER
 os.environ.setdefault("ENVIRONMENT", "dev")
 os.environ.setdefault("SECRET_KEY", "trip-scenario-runner-local-only")
 os.environ["AUTH_USERS"] = "bruno:demo:549111,katia:demo:549222"
@@ -60,6 +75,8 @@ from app.db.models import (  # noqa: E402
     Base, Category, FxRate, GuideDoc, Movement, Stop, StopGuide, TripNote, User,
 )
 from app.due import ensure_due_settled  # noqa: E402
+from app import trace  # noqa: E402
+from scripts.scenario_lib import Check, CheckCtx, Errors, TurnTrace  # noqa: E402
 
 get_settings.cache_clear()
 
@@ -100,8 +117,12 @@ class Conversation:
     name: str
     goal: str
     turns: list[Turn]
+    # Id estable: `--only guias-viena` sobrevive a reordenar el catálogo.
+    id: str = ""
     expect_hints: list[str] = field(default_factory=list)
     fix_in: str = ""
+    # Asserts deterministas (canal, tools, hits). Sin wording del LLM.
+    check: Check | None = None
 
 
 @dataclass
@@ -114,6 +135,7 @@ class TurnRecord:
     due_s: float
     dispatch_s: float
     total_s: float
+    trace: TurnTrace = field(default_factory=TurnTrace)
 
 
 @dataclass
@@ -124,11 +146,96 @@ class ConvoRecord:
     expect_hints: list[str]
     fix_in: str
     turns: list[TurnRecord]
+    id: str = ""
+    errors: list[str] = field(default_factory=list)
+    checked: bool = False
+
+
+# --- Checks deterministas -----------------------------------------------------
+# Solo canal ruteado y tools llamadas: el contenido de la respuesta se lee a ojo
+# en el markdown. Un check que falla => exit 1.
+
+FINANCE_TOOLS = {"aggregate_expenses", "list_movements", "get_balance", "get_itinerary",
+                 "edit_movement", "delete_movements"}
+GUIDE_TOOLS = {"search_guides", "list_guides", "read_guide_doc"}
+TRIP_TOOLS = GUIDE_TOOLS | {"list_notes"}
+
+
+def _trip_only(channels: list[str | None], e: Errors) -> None:
+    e.want(all(c == "trip" for c in channels),
+           f"todos los turnos son del canal viaje, fueron {channels}")
+
+
+def _no_finance(ctx: CheckCtx, e: Errors) -> None:
+    used = ctx.tools_used() & FINANCE_TOOLS
+    e.want(not used, f"el canal viaje no puede tocar tools financieras: {sorted(used)}")
+
+
+def trip_check(*, channels: list[str] | None = None, needs: set[str] | None = None,
+               needs_per_turn: dict[int, set[str]] | None = None) -> Check:
+    """Check declarativo: canales esperados + tools que TIENEN que haberse usado.
+
+    `needs` es una intersección: alcanza con que se haya llamado alguna de esas
+    tools (el modelo puede llegar por search o por read)."""
+    async def _check(ctx: CheckCtx) -> list[str]:
+        e = Errors()
+        if channels is not None:
+            e.want(ctx.channels() == channels,
+                   f"canales esperados {channels}, fueron {ctx.channels()}")
+        else:
+            _trip_only(ctx.channels(), e)
+            _no_finance(ctx, e)
+        if needs:
+            e.want(bool(ctx.tools_used() & needs),
+                   f"esperaba alguna de {sorted(needs)}, se usaron {sorted(ctx.tools_used())}")
+        for i, want in (needs_per_turn or {}).items():
+            if e.want(i < len(ctx.traces), f"falta el turno {i + 1} para chequear tools"):
+                got = set(ctx.traces[i].tools)
+                e.want(bool(got & want),
+                       f"turno {i + 1}: esperaba alguna de {sorted(want)}, usó {sorted(got)}")
+        return e
+    return _check
+
+
+async def _chk_cambio_canal(ctx: CheckCtx) -> list[str]:
+    """El corte entre canales: notas primero, plata después, sin mezclar tools."""
+    e = Errors()
+    e.want(ctx.channels() == ["trip", "qa"],
+           f"guía → plata debe cambiar de canal, fue {ctx.channels()}")
+    if len(ctx.traces) == 2:
+        e.want(not (set(ctx.traces[0].tools) & FINANCE_TOOLS),
+               "el turno de notas no puede llamar tools financieras")
+        e.want(not (set(ctx.traces[1].tools) & TRIP_TOOLS),
+               "el turno de plata no puede llamar tools de guías")
+    return e
+
+
+async def _chk_grounding_negativo(ctx: CheckCtx) -> list[str]:
+    """Negar exige haber buscado: 'las guías no dicen nada' sin tools es inventar."""
+    e = Errors()
+    _trip_only(ctx.channels(), e)
+    _no_finance(ctx, e)
+    if e.want(bool(ctx.traces), "sin turnos que chequear"):
+        e.want(bool(set(ctx.traces[0].tools) & TRIP_TOOLS),
+               "una negativa grounded exige search/list en ESE turno")
+    return e
+
+
+async def _chk_bar_mleczny(ctx: CheckCtx) -> list[str]:
+    e = Errors()
+    e.want(ctx.channels() == ["trip", "trip", "qa"],
+           f"esperaba viaje→viaje→finanzas, fue {ctx.channels()}")
+    if len(ctx.traces) == 3:
+        e.want(not (set(ctx.traces[2].tools) & TRIP_TOOLS),
+               "la pregunta de saldo no puede usar tools de guías")
+    return e
 
 
 CONVERSATIONS: list[Conversation] = [
     Conversation(
         name="Viena deíctica + follow-up day-trip",
+        id="viena-deictico",
+        check=trip_check(needs=GUIDE_TOOLS),
         goal="Resolver 'acá/mañana' con parada de hoy=Viena; segunda vuelta pide desvío sin repetir el doc entero.",
         turns=[
             Turn(BRUNO_WA, "che, ¿qué hacemos mañana acá que valga la pena?",
@@ -146,6 +253,8 @@ CONVERSATIONS: list[Conversation] = [
     ),
     Conversation(
         name="Polonia: domingo + dziękuję (guía país + notas)",
+        id="polonia-domingo",
+        check=trip_check(needs=TRIP_TOOLS),
         goal="Pregunta de costumbres que exige search/read de polonia/costumbres y/o notas globales.",
         turns=[
             Turn(KATIA_WA,
@@ -165,6 +274,8 @@ CONVERSATIONS: list[Conversation] = [
     ),
     Conversation(
         name="Auschwitz: nota propia + precio de la guía",
+        id="auschwitz-nota",
+        check=trip_check(needs_per_turn={0: {"list_notes"}, 1: GUIDE_TOOLS}),
         goal="Mezclar list_notes (reserva dummy) con read_guide de actividades/day-trip Cracovia.",
         turns=[
             Turn(BRUNO_WA, "¿qué anotamos de Auschwitz?",
@@ -182,6 +293,8 @@ CONVERSATIONS: list[Conversation] = [
     ),
     Conversation(
         name="Praga comida → propina (cross-doc + nota)",
+        id="praga-propina",
+        check=trip_check(needs=TRIP_TOOLS),
         goal="Follow-up elíptico: gastronomía Praga y después propina checa vs polaca.",
         turns=[
             Turn(KATIA_WA, "en Praga qué tenemos que comer sí o sí?",
@@ -198,6 +311,8 @@ CONVERSATIONS: list[Conversation] = [
     ),
     Conversation(
         name="Cambio de canal: guía → plata",
+        id="cambio-canal",
+        check=_chk_cambio_canal,
         goal="Aislamiento: viaje grounded y después intent question con montos de DB.",
         turns=[
             Turn(BRUNO_WA, "algo urgente que tengamos anotado para Cracovia?",
@@ -214,6 +329,8 @@ CONVERSATIONS: list[Conversation] = [
     ),
     Conversation(
         name="Grounding negativo + Suiza caro",
+        id="grounding-negativo",
+        check=_chk_grounding_negativo,
         goal="Pregunta fuera de guías → 'no está'; después pregunta cubierta por nota Interlaken.",
         turns=[
             Turn(KATIA_WA,
@@ -232,6 +349,8 @@ CONVERSATIONS: list[Conversation] = [
     ),
     Conversation(
         name="Frases útiles Polonia (guía país)",
+        id="frases-polonia",
+        check=trip_check(needs=GUIDE_TOOLS),
         goal="Pedidos de idioma: read/search polonia/frases-utiles, no inventar vocabulario.",
         turns=[
             Turn(BRUNO_WA,
@@ -251,6 +370,8 @@ CONVERSATIONS: list[Conversation] = [
     ),
     Conversation(
         name="Budapest: nota baños + guía termales",
+        id="budapest-banos",
+        check=trip_check(needs_per_turn={0: {"list_notes"}, 1: GUIDE_TOOLS}),
         goal="Nota propia de Budapest y después detalle de la guía (Széchenyi/Gellért).",
         turns=[
             Turn(KATIA_WA, "qué anotamos de los baños en Budapest?",
@@ -269,6 +390,8 @@ CONVERSATIONS: list[Conversation] = [
     ),
     Conversation(
         name="Próxima parada → transporte Praga",
+        id="proxima-praga",
+        check=trip_check(needs=GUIDE_TOOLS),
         goal="Deíctico de itinerario (próxima=Praga) y después movilidad en esa ciudad.",
         turns=[
             Turn(BRUNO_WA, "después de acá, ¿a dónde vamos y cuándo llegamos?",
@@ -287,6 +410,8 @@ CONVERSATIONS: list[Conversation] = [
     ),
     Conversation(
         name="Bar mleczny + efectivo PLN (3 turnos)",
+        id="bar-mleczny",
+        check=_chk_bar_mleczny,
         goal="Cadena: costumbre milk bar → follow-up efectivo → pregunta plata (cambio de canal).",
         turns=[
             Turn(KATIA_WA,
@@ -535,17 +660,25 @@ async def run_turn(session: AsyncSession, turn: Turn) -> TurnRecord:
     due_s = time.perf_counter() - t1
 
     t2 = time.perf_counter()
-    reply = await dispatch(session, turn.wa_id, "text", turn.text, None, TODAY)
+    # Traza del turno (canal, intent, tools): base de los checks deterministas.
+    trace.start()
+    try:
+        reply = await dispatch(session, turn.wa_id, "text", turn.text, None, TODAY)
+        tr = TurnTrace.capture()
+    finally:
+        trace.clear()
     dispatch_s = time.perf_counter() - t2
     total_s = stops_s + due_s + dispatch_s
 
     reply_s = _fmt_reply(reply)
     print(f"  ⏱  dispatch {dispatch_s:.1f}s · total {total_s:.1f}s")
+    print(f"  🔍 {tr.summary()}")
     print(f"  ← bot:\n{_indent(reply_s, 4)}")
 
     return TurnRecord(
         who=who, inbound=turn.text, note=turn.note, reply_text=reply_s,
         stops_s=stops_s, due_s=due_s, dispatch_s=dispatch_s, total_s=total_s,
+        trace=tr,
     )
 
 
@@ -561,10 +694,25 @@ async def run_convo(session: AsyncSession, idx: int, conv: Conversation) -> Conv
         turns.append(await run_turn(session, turn))
         if i < len(conv.turns) - 1:
             await asyncio.sleep(PAUSE_BETWEEN_TURNS_S)
-    return ConvoRecord(
-        index=idx, name=conv.name, goal=conv.goal,
+    rec = ConvoRecord(
+        index=idx, id=conv.id, name=conv.name, goal=conv.goal,
         expect_hints=conv.expect_hints, fix_in=conv.fix_in, turns=turns,
     )
+    if conv.check is not None:
+        rec.checked = True
+        ctx = CheckCtx(session=session, traces=[t.trace for t in turns],
+                       replies=[t.reply_text for t in turns])
+        try:
+            rec.errors = list(await conv.check(ctx))
+        except Exception as exc:  # un check roto no es un pase
+            rec.errors = [f"el check explotó: {type(exc).__name__}: {exc}"]
+        if rec.errors:
+            print(f"\n  ❌ CHECKS [{rec.id}]:")
+            for err in rec.errors:
+                print(f"     - {err}")
+        else:
+            print(f"\n  ✅ CHECKS [{rec.id}] ok")
+    return rec
 
 
 def render_md(records: list[ConvoRecord], *, seed_info: dict, suite_label: str) -> str:
@@ -582,10 +730,21 @@ def render_md(records: list[ConvoRecord], *, seed_info: dict, suite_label: str) 
         "",
     ]
     for rec in records:
-        lines.append(f"## {rec.index}. {rec.name}")
+        badge = "❌" if rec.errors else ("✅" if rec.checked else "·")
+        lines.append(f"## {rec.index}. {rec.name} {badge}")
+        lines.append("")
+        lines.append(f"**Id:** `{rec.id}` — reproducir con `--only {rec.id or rec.index}`")
         lines.append("")
         lines.append(f"**Goal:** {rec.goal}")
         lines.append("")
+        if rec.checked:
+            if rec.errors:
+                lines.append("**Checks deterministas: ❌ FALLAN**")
+                for err in rec.errors:
+                    lines.append(f"- {err}")
+            else:
+                lines.append("**Checks deterministas: ✅ pasan**")
+            lines.append("")
         if rec.expect_hints:
             lines.append("**Mirar:**")
             for h in rec.expect_hints:
@@ -604,6 +763,8 @@ def render_md(records: list[ConvoRecord], *, seed_info: dict, suite_label: str) 
             lines.append(
                 f"⏱ dispatch `{t.dispatch_s:.1f}s` · total `{t.total_s:.1f}s`"
             )
+            lines.append("")
+            lines.append(f"🔍 {t.trace.summary()}")
             lines.append("")
             lines.append("```")
             lines.append(t.reply_text)
@@ -634,7 +795,10 @@ def render_md(records: list[ConvoRecord], *, seed_info: dict, suite_label: str) 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Escenarios LLM del canal viaje (guías/notas).")
-    p.add_argument("--only", type=str, default=None, help="índices 1-based, ej. 1,3,5")
+    p.add_argument("--only", type=str, default=None,
+                   help="índices 1-based o ids estables, ej. 1,3,5 o auschwitz-nota")
+    p.add_argument("--provider", type=str, default=None, choices=["openai", "anthropic"],
+                   help="proveedor del LLM (default: LLM_PROVIDER del .env)")
     p.add_argument("--pause-turn", type=float, default=PAUSE_BETWEEN_TURNS_S)
     p.add_argument("--pause-convo", type=float, default=PAUSE_BETWEEN_CONVOS_S)
     return p.parse_args(argv)
@@ -647,15 +811,28 @@ async def main(argv: list[str] | None = None) -> int:
     PAUSE_BETWEEN_CONVOS_S = args.pause_convo
 
     s = get_settings()
-    if not s.openai_api_key and not s.anthropic_api_key:
-        print("ERROR: falta OPENAI_API_KEY (o Anthropic) en spitwise/.env")
+    if PROVIDER == "anthropic" and not s.anthropic_api_key:
+        print("ERROR: falta ANTHROPIC_API_KEY en spitwise/.env (--provider anthropic)")
+        return 1
+    if PROVIDER == "openai" and not s.openai_api_key:
+        print("ERROR: falta OPENAI_API_KEY en spitwise/.env")
         return 1
     if not ANDIAMO_CONTENT.is_dir():
         print(f"ERROR: no está el content de Andiamo en {ANDIAMO_CONTENT}")
         return 1
 
     if args.only:
-        idxs = [int(x.strip()) for x in args.only.split(",") if x.strip()]
+        by_id = {c.id: i for i, c in enumerate(CONVERSATIONS, start=1)}
+        idxs = []
+        for raw in (x.strip() for x in args.only.split(",")):
+            if not raw:
+                continue
+            if raw in by_id:
+                idxs.append(by_id[raw])
+            elif raw.isdigit():
+                idxs.append(int(raw))
+            else:
+                raise SystemExit(f"id de escenario desconocido: {raw!r}; válidos: {sorted(by_id)}")
         label = f"custom ({len(idxs)})"
     else:
         idxs = list(range(1, len(CONVERSATIONS) + 1))
@@ -691,6 +868,17 @@ async def main(argv: list[str] | None = None) -> int:
     OUT_MD.write_text(md, encoding="utf-8")
     print(f"\n📝 Escrito {OUT_MD.relative_to(ROOT)}")
     await engine.dispose()
+
+    failed = [r for r in records if r.errors]
+    checked = sum(1 for r in records if r.checked)
+    if failed:
+        print(f"❌ CHECKS: {len(failed)} de {checked} escenarios con fallas deterministas")
+        for r in failed:
+            print(f"   · {r.index} [{r.id}] {r.name}")
+            for err in r.errors:
+                print(f"       - {err}")
+        return 1
+    print(f"✅ CHECKS: {checked}/{len(records)} escenarios verificados sin fallas")
     return 0
 
 

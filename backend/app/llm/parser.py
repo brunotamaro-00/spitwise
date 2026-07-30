@@ -1,6 +1,11 @@
+import logging
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
+
+from app import trace
+
+logger = logging.getLogger(__name__)
 
 # Símbolos/nombres comunes → ISO.
 _CURRENCY_ALIASES = {
@@ -81,6 +86,10 @@ class ParsedMessage:
     # UN gasto pagado en etapas: amount lleva el total y acá van las partes.
     # Vacío => pago único.
     installments: list[Installment] = field(default_factory=list)
+    # Falla TÉCNICA del parseo (refusal del proveedor, structured output vacío),
+    # no un 'unknown' semántico: el intent queda en 'unknown' pero el caller
+    # puede reintentar o degradar distinto. None = el parseo funcionó.
+    parse_failure: str | None = None
 
     @property
     def is_settlement(self) -> bool:
@@ -257,6 +266,12 @@ async def parse_message(
 
     parsed = _normalize_expense(raw, category_names, usernames, sender)
     parsed.intent = intent
+    # Un payload sin nada adentro también es parseo fallido, no "no entendí".
+    parsed.parse_failure = raw.get("parse_failure") or (None if raw else "empty_parse")
+    if parsed.parse_failure:
+        logger.info("parse_failed reason=%s", parsed.parse_failure)
+        trace.set_fields(parse_failure=parsed.parse_failure)
+    trace.set_fields(intent=parsed.intent)
     parsed.ref_last = bool(raw.get("ref_last"))
     parsed.ref_text = raw.get("ref_text") or None
     parsed.ref_date = _to_date(raw.get("ref_date"))

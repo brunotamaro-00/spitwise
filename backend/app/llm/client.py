@@ -5,6 +5,11 @@ from pydantic import BaseModel
 
 from app.config import get_settings
 
+# Payload sintético cuando el proveedor no devuelve estructura (refusal,
+# max_tokens): el parser lo convierte en ParsedMessage.parse_failure, distinto
+# de un intent 'unknown' genuino. Fase 5 lo usa para reintentar SOLO acá.
+PARSE_FAILURE_PAYLOAD = {"intent": "unknown", "parse_failure": "empty_parse"}
+
 _SYSTEM = (
     "Sos el intérprete de mensajes del bot de gastos de un viaje de una pareja "
     "({users}). Clasificá la intención del mensaje y extraé campos.\n\n"
@@ -300,8 +305,10 @@ class AnthropicLLM:
             output_format=ParsedMessageSchema,
         )
         parsed = resp.parsed_output
-        # parsed_output es None solo ante refusal/max_tokens; {} cae en "no entendí".
-        return parsed.model_dump() if parsed is not None else {}
+        # parsed_output es None solo ante refusal/max_tokens: eso NO es "no
+        # entendí" sino una falla técnica, y se marca como tal (parse_failure)
+        # para no confundirla con un 'unknown' semántico.
+        return parsed.model_dump() if parsed is not None else dict(PARSE_FAILURE_PAYLOAD)
 
 
 class OpenAILLM:
@@ -337,5 +344,5 @@ class OpenAILLM:
             response_format=ParsedMessageSchema,
         )
         parsed = resp.choices[0].message.parsed
-        # parsed es None solo ante refusal; {} cae en "no entendí".
-        return parsed.model_dump() if parsed is not None else {}
+        # parsed es None solo ante refusal: falla técnica, no 'unknown' semántico.
+        return parsed.model_dump() if parsed is not None else dict(PARSE_FAILURE_PAYLOAD)

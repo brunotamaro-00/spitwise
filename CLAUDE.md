@@ -111,10 +111,17 @@ script espeja `webhook.process_message` (stops → due → **dispatch**) con LLM
 corta, delete, settlement, batch+borrar, Pititas owner, moneda). Cada escenario
 lleva checklist **Mirar** (qué falla / qué DB esperar) + **Dónde tocar**.
 
+**Verificador, no solo transcript:** cada escenario declara **checks
+deterministas** (estado de la DB, intent ruteado, tools llamadas — nunca
+wording) y el runner sale con **exit code 1** si alguno falla. La traza sale de
+`app/trace.py` (contextvar que solo encienden los runners). Cada conversación
+corre con **DB e historial propios**: compartir sesión hacía que un escenario
+contaminara el contexto reciente del siguiente.
+
 **Contrato del `.md`:** cada corrida **borra y reescribe** `bot_scenarios.md`.
 No acumula historial. Por mensaje publica latencia `stops_s` / `due_s` /
-`dispatch_s` / `total_s` + tabla resumen al final. El catálogo editable es el
-Python, no el markdown.
+`dispatch_s` / `total_s`, la traza del turno y el resultado de los checks. El
+catálogo editable es el Python, no el markdown.
 
 ```bash
 cd backend
@@ -124,14 +131,23 @@ cd backend
 # Crítica + 7 extras (17)
 .venv/bin/python scripts/bot_scenario_runner.py --all
 
-# Subconjunto
+# Subconjunto: por índice o por id estable (los ids sobreviven al reordenamiento)
 .venv/bin/python scripts/bot_scenario_runner.py --only 1,4,6
+.venv/bin/python scripts/bot_scenario_runner.py --only cuotas-total,pititas-owner
 .venv/bin/python scripts/bot_scenario_runner.py --from 11 --to 14
+
+# Proveedor: default el de .env (= producción); forzable
+.venv/bin/python scripts/bot_scenario_runner.py --provider anthropic
 ```
 
-Requiere `OPENAI_API_KEY` (y `LLM_PROVIDER=openai` si también hay Anthropic).
-Hoy ficticio fijo mid-trip (`2026-08-20`, Lisboa). Seed incluye Pititas
-(`is_local`, `owner_username=katia`).
+Requiere la API key del proveedor elegido. Hoy ficticio fijo mid-trip
+(`2026-08-20`, Lisboa). Seed incluye Pititas (`is_local`,
+`owner_username=katia`).
+
+**Gate prompt→escenario:** `tests/test_prompt_coverage.py` hashea los tres
+`_SYSTEM` (parser, Q&A financiero, Q&A de viaje) contra
+`tests/prompt_manifest.json`. Tocar un prompt sin declarar los escenarios que
+lo cubren (y el comando `--only` para reproducirlos) rompe el test.
 
 ### Canal viaje (guías + notas)
 
@@ -141,7 +157,12 @@ Script aparte, no mezclado con la suite financiera:
 cd backend
 .venv/bin/python scripts/bot_trip_scenario_runner.py
 .venv/bin/python scripts/bot_trip_scenario_runner.py --only 2,3,6
+.venv/bin/python scripts/bot_trip_scenario_runner.py --only auschwitz-nota,cambio-canal
+.venv/bin/python scripts/bot_trip_scenario_runner.py --provider anthropic
 ```
+
+Mismos checks deterministas y exit code que el runner financiero (acá miran
+canal ruteado y tools: ningún escenario de viaje puede tocar `qa/tools.py`).
 
 Carga markdown real desde `../andiamo/content/guides` + notas alineadas al
 Itinerary. Hoy fijo `2026-09-25` (Viena). **10 escenarios**. Transcript →

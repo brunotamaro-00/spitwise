@@ -8,11 +8,13 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy import func, select
 
+from app import trace
 from app.bot.active_stop import get_state_payload, update_state_payload
 from app.bot.qa import _fresh_history
 from app.bot.render import BotReply, text_reply
 from app.config import get_settings
 from app.db.models import GuideDoc, Stop, StopGuide, TripNote, User
+from app.llm.chat import FALLBACK, as_result
 from app.qa.trip_tools import build_trip_tools
 
 _SYSTEM = (
@@ -172,14 +174,17 @@ async def handle_trip_question(session, user: User, wa_id: str, text: str, today
         from app.llm.chat import make_chat_llm
         chat_client = make_chat_llm()
 
+    trace.set_fields(channel="trip")
     snapshot = await _trip_context_snapshot(session, today)
-    answer = await chat_client.run(
+    result = as_result(await chat_client.run(
         system=_render_system(user.username, users, today),
         history=[{"role": e["role"], "content": e["content"]} for e in history],
         user_text=f"{snapshot}\n\nMensaje de {user.username}: {text}",
         tools=build_trip_tools(session),
         max_iterations=s.qa_max_iterations,
-    )
+        channel="trip",
+    ))
+    answer = result.text or FALLBACK
     reply = text_reply(answer)
 
     now = datetime.now(timezone.utc).isoformat()

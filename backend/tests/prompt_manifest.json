@@ -1,0 +1,41 @@
+{
+  "app.llm.client._SYSTEM": {
+    "sha256": "e5fefd2a6dd7bdfc6a90509a6440f8700c5e10e859bd80d7f3937622a4f996af",
+    "que_cubre": "Clasificación de intent + extracción de campos (gastos, cuotas, edits, canal viaje).",
+    "scenarios": [
+      "cuotas-total",
+      "batch-split-fix",
+      "correccion-corta",
+      "delete-por-texto",
+      "settlement-cruzado",
+      "moneda-explicita",
+      "multi-hostel",
+      "mixta-guia-plata"
+    ],
+    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only cuotas-total,batch-split-fix,correccion-corta,delete-por-texto,settlement-cruzado,moneda-explicita,multi-hostel,mixta-guia-plata"
+  },
+  "app.bot.qa._SYSTEM": {
+    "sha256": "d414dac786e6eef18ac8dca4a11bc8043dce54a426d53e3523c9dc4e9e50b2c6",
+    "que_cubre": "Agente financiero: semántica share/paid/total, snapshot vs tools, formato.",
+    "scenarios": [
+      "qa-followup",
+      "daytrip-payer",
+      "pending-a-hoy",
+      "settlement-cruzado",
+      "general-sin-ciudad"
+    ],
+    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only qa-followup,daytrip-payer,pending-a-hoy,settlement-cruzado,general-sin-ciudad"
+  },
+  "app.bot.trip_qa._SYSTEM": {
+    "sha256": "6ccbeb9e076758fd4cc49cc27483e65555febc82bca3eab13db6dd6eefd5a06b",
+    "que_cubre": "Agente de viaje: grounding en guías/notas, negativas verificadas, follow-ups.",
+    "scenarios": [
+      "viena-deictico",
+      "auschwitz-nota",
+      "grounding-negativo",
+      "cambio-canal",
+      "bar-mleczny"
+    ],
+    "command": ".venv/bin/python scripts/bot_trip_scenario_runner.py --only viena-deictico,auschwitz-nota,grounding-negativo,cambio-canal,bar-mleczny"
+  }
+}

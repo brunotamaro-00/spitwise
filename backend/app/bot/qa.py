@@ -6,12 +6,14 @@ memoria corta por wa_id (WhatsAppSessionState) para follow-ups.
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
+from app import trace
 from app.bot.active_stop import get_state_payload, resolve_trip_timezone, update_state_payload
 from app.bot.capture import all_users
 from app.bot.render import BotReply, text_reply
 from app.balance import UNSETTLED
 from app.config import get_settings
 from app.db.models import User
+from app.llm.chat import FALLBACK, as_result
 from app.qa.tools import ActionContext, build_tools
 
 _SYSTEM = (
@@ -245,16 +247,19 @@ async def handle_question(session, user: User, wa_id: str, text: str, today: dat
 
     ctx = ActionContext()
     tz_name = await resolve_trip_timezone(session, user.username)
+    trace.set_fields(channel="qa")
     # Snapshot de la DB junto al mensaje: lo simple se contesta sin herramientas
     # (menos round-trips = menos latencia). El historial guarda el texto pelado.
     snapshot = await _context_snapshot(session, users, today, tz_name)
-    answer = await chat_client.run(
+    result = as_result(await chat_client.run(
         system=_render_system(user.username, users, today),
         history=[{"role": e["role"], "content": e["content"]} for e in history],
         user_text=f"{snapshot}\n\nMensaje de {user.username}: {text}",
         tools=build_tools(session, users, asker=user, today=today, ctx=ctx, tz_name=tz_name),
         max_iterations=s.qa_max_iterations,
-    )
+        channel="qa",
+    ))
+    answer = result.text or FALLBACK
 
     # Si una acción preparó una respuesta interactiva (botones), esa manda.
     reply = ctx.reply if ctx.reply is not None else text_reply(answer)

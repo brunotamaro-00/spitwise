@@ -123,7 +123,7 @@ async def test_anthropic_loop_executes_tools():
     chat._client = SimpleNamespace(messages=SimpleNamespace(create=create))
     chat._model = "claude-test"
     out = await chat.run(system="sys", history=[], user_text="cuánto?", tools=[_tool(handler)])
-    assert out == "Son USD 90."
+    assert (out.text, out.outcome, out.tool_calls) == ("Son USD 90.", "ok", ["sumar"])
     # El segundo request lleva el tool_result con el JSON del handler.
     second = captured[1]["messages"]
     result_msg = second[-1]
@@ -155,7 +155,7 @@ async def test_openai_loop_executes_tools():
     chat._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     chat._model = "gpt-test"
     out = await chat.run(system="sys", history=[], user_text="cuánto?", tools=[_tool(handler)])
-    assert out == "Son USD 90."
+    assert (out.text, out.outcome, out.tool_calls) == ("Son USD 90.", "ok", ["sumar"])
     second = captured[1]["messages"]
     assert second[-1]["role"] == "tool"
     assert json.loads(second[-1]["content"]) == {"total": "90.00"}
@@ -183,7 +183,9 @@ async def test_loop_tool_error_returns_is_error_to_model():
     chat._client = SimpleNamespace(messages=SimpleNamespace(create=create))
     chat._model = "claude-test"
     out = await chat.run(system="sys", history=[], user_text="x", tools=[_tool(handler)])
-    assert out == "No encontré a esa persona."
+    # La tool falló pero el modelo se recuperó: outcome ok con el error trazado.
+    assert (out.text, out.outcome, out.tool_errors) == (
+        "No encontré a esa persona.", "ok", ["sumar"])
     assert captured[1]["messages"][-1]["content"][0]["is_error"] is True
 
 
@@ -201,7 +203,8 @@ async def test_loop_iteration_cap_falls_back():
     chat._model = "claude-test"
     out = await chat.run(system="s", history=[], user_text="x", tools=[_tool(handler)],
                          max_iterations=2)
-    assert "enredé" in out
+    # Sin texto usable: el outcome dice por qué y el canal decide la copy.
+    assert out.text == "" and out.outcome == "iteration_cap"
 
 
 class ToolCallingFakeChat:
