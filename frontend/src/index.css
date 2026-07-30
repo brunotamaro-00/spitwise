@@ -178,6 +178,15 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Columna flex de altura completa: el DemoBanner es un hermano de las rutas, así
+ * que una página con `min-h-dvh` propio se pasaba de la pantalla justo por la
+ * altura del banner. Con esto la página pide `flex-1` y ocupa lo que queda. */
+#root {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+}
+
 @layer utilities {
   .soft-card { box-shadow: var(--shadow-sm); }
   .soft-pop { box-shadow: var(--shadow-md); }

@@ -64,30 +64,37 @@ export default function Login() {
   }
 
   return (
-    <div className="relative min-h-dvh overflow-hidden">
+    // overflow-x-hidden y no overflow-hidden: si el viewport es más bajo que el
+    // contenido (barra del navegador, tipografía agrandada), preferimos scroll
+    // antes que recortar los chips de persona.
+    <div className="relative flex flex-1 flex-col overflow-x-hidden">
       <div className="spit-dots-ink pointer-events-none absolute inset-0" aria-hidden="true" />
 
-      <div className="relative mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-5 p-6">
-        <header className="animate-rise-in espresso-panel relative overflow-hidden rounded-2xl px-6 py-7 soft-hero">
+      <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-3.5 px-5 py-4">
+        {/* El hero es decoración: con tres bloques en la pantalla se queda con
+            lo justo (marca, qué es, viaje) para que todo entre sin scroll. */}
+        <header className="animate-rise-in espresso-panel relative overflow-hidden rounded-2xl px-5 py-5 soft-hero">
           <div className="spit-dots pointer-events-none absolute inset-0" aria-hidden="true" />
           <div className="hero-sheen pointer-events-none absolute inset-0" aria-hidden="true" />
           <div className="relative flex flex-col items-start">
-            <img
-              src="/brand/mark-tile.png"
-              alt=""
-              width={72}
-              height={72}
-              className="mb-4 h-[72px] w-[72px] drop-shadow-[0_6px_16px_rgba(0,0,0,0.35)]"
-            />
-            <h1>
-              <Wordmark tone="dark" className="text-[3.25rem]" />
+            <div className="flex w-full items-center justify-between gap-3">
+              <img
+                src="/brand/mark-tile.png"
+                alt=""
+                width={56}
+                height={56}
+                className="h-14 w-14 drop-shadow-[0_6px_16px_rgba(0,0,0,0.35)]"
+              />
+              <span className="inline-flex items-center rounded-full border border-espresso-border bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-espresso-ink">
+                Europa 2026
+              </span>
+            </div>
+            <h1 className="mt-3">
+              <Wordmark tone="dark" className="text-[2.5rem]" />
             </h1>
-            <p className="mt-2 text-[15px] text-espresso-ink-2">
+            <p className="mt-1 text-sm text-espresso-ink-2">
               Los gastos del viaje, divididos sin drama.
             </p>
-            <span className="mt-4 inline-flex items-center rounded-full border border-espresso-border bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-espresso-ink">
-              Europa 2026
-            </span>
           </div>
         </header>
 
@@ -95,18 +102,18 @@ export default function Login() {
             demo es la acción primaria y la contraseña la excepción. En el propio
             deploy de demo este bloque sobra. */}
         {!isDemo && (
-          <Card className="animate-rise-in stagger-2 p-6">
-            <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-3">
+          <Card className="animate-rise-in stagger-2 p-5">
+            <p className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-3">
               ¿Venís desde mi CV o LinkedIn?
             </p>
-            <p className="text-sm leading-relaxed text-ink-2">
-              Spitwise es el ledger real del viaje: por eso pide contraseña. La demo pública es
-              exactamente la misma app, con datos de ejemplo.
+            <p className="text-sm leading-snug text-ink-2">
+              Este es el ledger real del viaje: por eso pide contraseña. La demo pública es la
+              misma app, con datos de ejemplo.
             </p>
             <a
               href={demoUrl}
               rel="noopener"
-              className="focus-ring mt-4 flex min-h-[48px] items-center justify-center gap-2 rounded-lg bg-brick px-4 text-[15px] font-semibold text-white transition-[background-color,transform] hover:bg-brick-hover active:scale-[0.98] active:bg-brick-press"
+              className="focus-ring mt-3.5 flex min-h-[46px] items-center justify-center gap-2 rounded-lg bg-brick px-4 text-[15px] font-semibold text-white transition-[background-color,transform] hover:bg-brick-hover active:scale-[0.98] active:bg-brick-press"
             >
               Entrar a la demo
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -124,9 +131,9 @@ export default function Login() {
           </div>
         )}
 
-        <Card className="animate-rise-in stagger-4 p-6">
+        <Card className="animate-rise-in stagger-4 p-5">
           <form
-            className="flex flex-col gap-4"
+            className="flex flex-col gap-3.5"
             onSubmit={(e) => {
               // El submit lo disparan los chips (cada uno manda su persona);
               // este handler solo cubre el Enter del campo de contraseña.
@@ -150,10 +157,10 @@ export default function Login() {
             )}
 
             <fieldset>
-              <legend className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-3">
+              <legend className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-3">
                 ¿Quién sos?
               </legend>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 {people.map(({ username, label }) => (
                   <button
                     key={username}
@@ -163,7 +170,7 @@ export default function Login() {
                       e.preventDefault();
                       void choose(username);
                     }}
-                    className="flex min-h-[64px] items-center justify-center rounded-xl border-2 border-border bg-surface-2 text-sm font-extrabold uppercase tracking-[0.08em] text-ink transition-all duration-150 hover:border-brick hover:bg-brick-bg hover:text-brick-ink active:translate-y-px disabled:opacity-50 focus-ring"
+                    className="flex min-h-[56px] items-center justify-center rounded-xl border-2 border-border bg-surface-2 text-sm font-extrabold uppercase tracking-[0.08em] text-ink transition-all duration-150 hover:border-brick hover:bg-brick-bg hover:text-brick-ink active:translate-y-px disabled:opacity-50 focus-ring"
                   >
                     {busy === username ? "Entrando…" : label}
                   </button>
