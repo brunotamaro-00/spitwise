@@ -1,6 +1,6 @@
 {
   "app.llm.client._SYSTEM": {
-    "sha256": "e5fefd2a6dd7bdfc6a90509a6440f8700c5e10e859bd80d7f3937622a4f996af",
+    "sha256": "e4e901c4f478afc3124781f679947f36ea19947aa3cb1d437da17f4142239483",
     "que_cubre": "Clasificación de intent + extracción de campos (gastos, cuotas, edits, canal viaje).",
     "scenarios": [
       "cuotas-total",
@@ -10,9 +10,12 @@
       "settlement-cruzado",
       "moneda-explicita",
       "multi-hostel",
-      "mixta-guia-plata"
+      "mixta-guia-plata",
+      "settlement-corregido",
+      "cuando-llegamos",
+      "cuotas-invalidas"
     ],
-    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only cuotas-total,batch-split-fix,correccion-corta,delete-por-texto,settlement-cruzado,moneda-explicita,multi-hostel,mixta-guia-plata"
+    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only cuotas-total,batch-split-fix,correccion-corta,delete-por-texto,settlement-cruzado,moneda-explicita,multi-hostel,mixta-guia-plata,settlement-corregido,cuando-llegamos,cuotas-invalidas"
   },
   "app.bot.qa._SYSTEM": {
     "sha256": "d414dac786e6eef18ac8dca4a11bc8043dce54a426d53e3523c9dc4e9e50b2c6",

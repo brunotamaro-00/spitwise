@@ -140,6 +140,7 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
     # elíptica de un chat edite lo que el otro acaba de cargar.
     recent = await recent_movement(
         session, ttl_minutes=get_settings().edit_recent_ttl_minutes, created_by=user.id,
+        include_settlements=True,
     )
     parsed = await parse_message(
         stripped, today=today, categories=await load_categories(session),
@@ -158,14 +159,26 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
     if parsed.intent == "trip_question":
         from app.bot.trip_qa import handle_trip_question
         return await handle_trip_question(session, user, wa_id, stripped, today, chat_client=chat_client)
+    if parsed.parse_failure:
+        # Falla TÉCNICA (refusal, structured output vacío, proveedor caído), ya
+        # reintentada una vez en el parser. No es "no te entendí": rutearla a un
+        # agente por historial fresco sería adivinar sobre un mensaje que nadie
+        # leyó. Se dice que se trabó, que es lo que pasó.
+        return text_reply(copy.SOMETHING_FAILED)
     if parsed.intent == "unknown":
         # Follow-up corto de una conversación en curso ('sí', 'el segundo') → el
         # agente que la tenía sigue; el enlatado queda para mensajes sueltos.
-        # Con dos canales (finanzas/viaje) gana el de actividad más reciente.
+        # Con dos canales (finanzas/viaje) gana el de actividad más reciente,
+        # salvo que el mensaje traiga señales inequívocas de plata: preguntar
+        # "¿y el saldo?" después de hablar de guías tiene que ir al contador,
+        # no al agente de guías que no tiene con qué responderlo.
         from app.bot.active_stop import get_state_payload
         from app.bot.qa import handle_question
         from app.bot.trip_qa import handle_trip_question, latest_fresh_channel
         s = get_settings()
+        if quick.ledger_signal(stripped):
+            return await handle_question(session, user, wa_id, stripped, today,
+                                         chat_client=chat_client)
         channel = latest_fresh_channel(
             await get_state_payload(session, wa_id),
             max_turns=s.qa_history_max_turns, ttl_minutes=s.qa_history_ttl_minutes,
@@ -178,13 +191,11 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
     # Red de seguridad: un "gasto" sin monto justo después de cargar uno casi
     # nunca es un gasto nuevo — es una corrección que el parser no pescó. En vez
     # del dead-end "no le pesqué el monto", guiá hacia editar el último.
-    if parsed.intent == "expense" and parsed.amount is None and not parsed.batch and recent is not None:
-        return text_reply(
-            f"{copy.H_HUH} ¿Querías corregir *{recent.description or 'el último gasto'}* "
-            f"({await describe_recent(session, recent)})?\n"
-            "Decime qué cambiar: _solo katia_ · _fueron 45_ · _en Paris_ · "
-            "_pagó bruno_ · _es transporte_."
-        )
+    if (parsed.intent == "expense" and parsed.amount is None and not parsed.batch
+            and recent is not None and recent.type == "expense"):
+        return text_reply(copy.correction_hint(
+            recent.description, await describe_recent(session, recent),
+        ))
     return await handle_capture(session, user, wa_id, text, today, parsed=parsed)
 
 

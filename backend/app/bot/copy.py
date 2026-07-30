@@ -99,6 +99,17 @@ TRIP_NO_EVIDENCE = (
 )
 
 
+def correction_hint(description: str | None, summary: str) -> str:
+    """Guía única para corregir el último gasto cargado. La usan el dispatcher
+    (gasto sin monto justo después de cargar) y el editor (edit sin cambios):
+    dos dead-ends distintos que llevaban al mismo lugar, con textos distintos."""
+    return (
+        f"{H_HUH} ¿Querías corregir *{description or 'el último gasto'}* ({summary})?\n"
+        "Decime qué cambiar: _solo katia_ · _fueron 45_ · _en Paris_ · "
+        "_pagó bruno_ · _es transporte_."
+    )
+
+
 def action_done(performed: list[str]) -> str:
     """Confirmación determinística de acciones YA aplicadas cuando el modelo no
     llegó a redactar: el cambio está en la DB, no se puede responder 'me enredé'."""

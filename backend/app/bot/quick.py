@@ -2,6 +2,7 @@
 pregunta en viaje ('saldo', 'total'). Mismos números que la app y el
 agente Q&A porque reusan compute_balance / user_share / días de itinerario.
 """
+import re
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -33,6 +34,28 @@ def route(text: str) -> str | None:
     if t in _TOTAL:
         return "total"
     return None
+
+
+# Palabras que solo aparecen hablando del ledger (ya foldeadas: sin tildes).
+# Deliberadamente conservadoras: 'cuánto' suelto NO entra ('¿cuánto sale la
+# entrada?' es pregunta de guías) ni los nombres de ciudad. Si ninguna matchea,
+# manda el canal con actividad más reciente.
+_LEDGER_WORDS = frozenset("""
+saldo saldos balance deuda deudas debe debo debemos debes gasto gastos gastamos gaste
+gastaste gastado pagamos pague pagaste pagado pendiente pendientes cuota cuotas
+presupuesto plata reembolso euros euro usd dolares dolar libras libra francos franco
+zlotys coronas forintos pesos
+""".split())
+
+
+def ledger_signal(text: str) -> bool:
+    """¿El mensaje habla inequívocamente de plata del viaje?
+
+    Se usa para rutear un `unknown` sin intent claro: sin esto, "¿y cuánto
+    llevamos gastado?" después de una charla de guías caía en el agente de
+    guías, que no tiene tools para responderlo y termina redirigiendo."""
+    words = {w for w in re.split(r"[^0-9a-z]+", _fold(text)) if w}
+    return bool(_LEDGER_WORDS & words)
 
 
 async def handle_balance(session: AsyncSession, user: User) -> BotReply:

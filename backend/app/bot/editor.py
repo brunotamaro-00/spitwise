@@ -14,6 +14,7 @@ from app.bot.render import (
     movement_summary, split_label, text_reply,
 )
 from app.cashback import net_amount, normalize_cashback
+from app.config import get_settings
 from app.db.models import Category, Movement, User
 from app.due import next_status_for_date
 from app.fx import fx_reference_date, reprice_movement
@@ -23,7 +24,8 @@ _SEARCH_LIMIT = 50  # movimientos recientes donde buscar referencias
 
 
 async def recent_movement(session: AsyncSession, *, ttl_minutes: int,
-                          created_by: int | None = None) -> Movement | None:
+                          created_by: int | None = None,
+                          include_settlements: bool = False) -> Movement | None:
     """El último gasto cargado POR ESE remitente, si es lo bastante fresco como
     para esperar una corrección. Sirve de contexto al parser: apenas guardado, un
     mensaje que ajusta monto/ciudad/categoría/división/pagador casi seguro lo
@@ -35,10 +37,15 @@ async def recent_movement(session: AsyncSession, *, ttl_minutes: int,
     explícitas ('el taxi') siguen alcanzando los movimientos de los dos —
     `find_candidates` no filtra.
 
-    Solo gastos (los settlements no tienen las 5 dimensiones corregibles). El corte
-    es por created_at UTC-naive, igual criterio que find_candidates."""
+    `include_settlements` suma los pagos de saldo: "le pasé 80" seguido de "no,
+    eran 50" no tenía contexto y el parser lo leía como un gasto NUEVO de 50.
+    Un settlement solo se corrige en monto/pagador, pero eso es justo lo que se
+    equivoca al tipearlo.
+
+    El corte es por created_at UTC-naive, igual criterio que find_candidates."""
     cutoff = datetime.utcnow() - timedelta(minutes=ttl_minutes)
-    q = select(Movement).where(Movement.type == "expense", Movement.created_at >= cutoff)
+    types = ("expense", "settlement") if include_settlements else ("expense",)
+    q = select(Movement).where(Movement.type.in_(types), Movement.created_at >= cutoff)
     if created_by is not None:
         q = q.where(Movement.created_by == created_by)
     return (await session.execute(
@@ -47,11 +54,14 @@ async def recent_movement(session: AsyncSession, *, ttl_minutes: int,
 
 
 async def describe_recent(session: AsyncSession, mv: Movement) -> str:
-    """Resumen compacto del último gasto para el prompt del parser (una línea)."""
+    """Resumen compacto del último movimiento para el prompt del parser (una línea)."""
     payer = (await _payer_name(session, mv)).capitalize()
     other = await other_user(session, (await session.execute(
         select(User).where(User.id == mv.paid_by))).scalar_one())
     other_name = other.username.capitalize() if other else "el otro"
+    if mv.type == "settlement":
+        return (f"pago de saldo {payer}→{other_name} · "
+                f"{mv.currency} {ar_number(mv.amount)}")
     parts = [
         mv.description or "gasto",
         f"{mv.currency} {ar_number(mv.amount)}",
@@ -272,6 +282,26 @@ async def _pick_buttons(session, candidates, action: str, payload: dict, owner: 
 async def handle_edit(session, user: User, wa_id: str, parsed, today: date,
                       text: str | None = None) -> BotReply:
     if not parsed.changes:
+        # Se descartó algo por inválido (categoría inventada, un pagador que no
+        # es ninguno de los dos): decir QUÉ, en vez del genérico "no sé qué
+        # cambiar", que dejaba al usuario reescribiendo lo mismo.
+        if parsed.rejected:
+            cats = ", ".join((await session.execute(
+                select(Category.name).order_by(Category.sort_order)
+            )).scalars().all())
+            return text_reply(
+                f"{copy.H_HUH} No pude usar {' ni '.join(parsed.rejected)}.\n"
+                f"Categorías válidas: _{cats}_."
+            )
+        # Sin cambios pero con un gasto fresco a la vista: la misma guía
+        # contextual del dispatcher, con el gasto concreto y ejemplos.
+        recent = await recent_movement(
+            session, ttl_minutes=get_settings().edit_recent_ttl_minutes, created_by=user.id,
+        )
+        if recent is not None:
+            return text_reply(copy.correction_hint(
+                recent.description, await describe_recent(session, recent),
+            ))
         return text_reply(
             f"{copy.H_HUH} Entendí que querés *editar*, pero no qué cambiar. "
             "Ej: _la cena de ayer fue 25_."

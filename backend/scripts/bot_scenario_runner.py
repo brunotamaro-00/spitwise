@@ -443,6 +443,43 @@ async def _chk_ciudad_a_pititas(ctx: CheckCtx) -> list[str]:
            "Pititas tiene dueña: el gasto no puede quedar 50/50 sin que lo pidan")
     return e
 
+
+async def _chk_settlement_corregido(ctx: CheckCtx) -> list[str]:
+    """Corregir el monto de un pago de saldo recién cargado NO crea un gasto."""
+    e = Errors()
+    movs = await load_movements(ctx.session)
+    setts = [m for m in movs if m.type == "settlement"]
+    nuevos = [m for m in movs if m.type == "expense" and m.id > SEED_MOVEMENTS]
+    if not e.want(len(setts) == 1, f"esperaba 1 settlement, hay {len(setts)}"):
+        return e
+    e.want(Decimal(setts[0].amount) == Decimal("50"),
+           f"'no, eran 50' corrige el pago: quedó en {setts[0].amount}")
+    e.want(not nuevos, f"no puede nacer un gasto nuevo: {[m.description for m in nuevos]}")
+    return e
+
+
+async def _chk_calendario(ctx: CheckCtx) -> list[str]:
+    """Decisión fijada: el calendario del itinerario lo contesta el canal
+    financiero (tiene get_itinerary). Si algún día se mueve a viaje, este check
+    es el que hay que cambiar a propósito."""
+    e = Errors()
+    movs = await load_movements(ctx.session)
+    e.want(len(movs) == SEED_MOVEMENTS, "una pregunta de fechas no crea movimientos")
+    e.want(ctx.channels()[0] == "qa",
+           f"'¿cuándo llegamos?' está definido como financiero, fue a {ctx.channels()[0]}")
+    return e
+
+
+async def _chk_eliptica_plata(ctx: CheckCtx) -> list[str]:
+    """Un follow-up elíptico con señal de plata sale del canal viaje."""
+    e = Errors()
+    e.want(ctx.channels() == ["trip", "qa"],
+           f"esperaba viaje→finanzas, fue {ctx.channels()}")
+    if len(ctx.traces) == 2:
+        e.want(not (set(ctx.traces[1].tools) & TRIP_TOOLS),
+               "la pregunta de plata no puede usar tools de guías")
+    return e
+
 FINANCE_TOOLS = {"aggregate_expenses", "list_movements", "get_balance", "get_itinerary",
                  "edit_movement", "delete_movements"}
 TRIP_TOOLS = {"search_guides", "list_guides", "read_guide_doc", "list_notes"}
@@ -822,12 +859,58 @@ CONVERSATIONS_EXTRA += [
         ],
         fix_in="bot/editor.py (apply_changes + owner_split) · bot/capture.py (owner_split)",
     ),
+    Conversation(
+        name="Settlement corregido",
+        id="settlement-corregido",
+        check=_chk_settlement_corregido,
+        goal="Corregir el monto de un pago de saldo recién cargado, sin crear un gasto.",
+        turns=[
+            Turn(BRUNO_WA, "le pasé 80 usd a katia", note="settlement"),
+            Turn(BRUNO_WA, "no, eran 50", note="corrección del pago"),
+        ],
+        expect_hints=[
+            "Turno 2: intent edit sobre el settlement (ref_last) → queda en 50",
+            "FAIL histórico: el 'último movimiento' solo miraba gastos, así que "
+            "'no, eran 50' entraba como un GASTO nuevo de 50",
+        ],
+        fix_in="bot/editor.py (recent_movement include_settlements) · llm/client.py (regla del pago de saldo)",
+    ),
+    Conversation(
+        name="Cuándo llegamos (calendario)",
+        id="cuando-llegamos",
+        check=_chk_calendario,
+        goal="Fijar en qué canal vive el calendario del itinerario (hoy: financiero).",
+        turns=[
+            Turn(KATIA_WA, "¿cuándo llegamos a Interlaken?", note="itinerario"),
+        ],
+        expect_hints=[
+            "Debe contestar 2026-09-01 (arrival del seed) desde get_itinerary, no de memoria",
+            "Decisión de producto: vive en el canal financiero porque ahí está la tool. "
+            "Si se mueve a viaje, hay que cambiar el check a propósito",
+        ],
+        fix_in="llm/client.py (intent question vs trip_question) · qa/tools.py get_itinerary",
+    ),
+    Conversation(
+        name="Elíptica de plata tras hablar de guías",
+        id="eliptica-plata",
+        check=_chk_eliptica_plata,
+        goal="Un follow-up corto con señal de plata sale del canal viaje aunque el hilo esté fresco.",
+        turns=[
+            Turn(BRUNO_WA, "¿qué podemos hacer mañana acá?", note="canal viaje"),
+            Turn(BRUNO_WA, "¿y cuánto llevamos gastado?", note="elíptica de plata"),
+        ],
+        expect_hints=[
+            "Turno 2: aunque el hilo fresco sea de guías, 'gastado' manda a finanzas",
+            "FAIL: el agente de guías intenta responderlo y redirige (turno perdido)",
+        ],
+        fix_in="bot/dispatcher.py (unknown → ledger_signal) · bot/quick.py",
+    ),
 ]
 
-# Catálogo unificado: índices 1..10 = crítica, 11..21 = extra.
+# Catálogo unificado: índices 1..10 = crítica, 11..24 = extra.
 CONVERSATIONS: list[Conversation] = SUITE_CRITICAL + CONVERSATIONS_EXTRA
 assert len(SUITE_CRITICAL) == N_CRITICAL
-assert len(CONVERSATIONS_EXTRA) == 11
+assert len(CONVERSATIONS_EXTRA) == 14
 assert len(CONVERSATIONS) == N_CRITICAL + len(CONVERSATIONS_EXTRA)
 # Ids únicos: `--only <id>` tiene que ser inequívoco.
 assert len({c.id for c in CONVERSATIONS}) == len(CONVERSATIONS)

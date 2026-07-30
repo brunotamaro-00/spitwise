@@ -90,6 +90,10 @@ class ParsedMessage:
     # no un 'unknown' semántico: el intent queda en 'unknown' pero el caller
     # puede reintentar o degradar distinto. None = el parseo funcionó.
     parse_failure: str | None = None
+    # Campos que el LLM mandó pero no existen (categoría inventada, pagador que
+    # no es ninguno de los dos). Se descartan igual, pero el bot puede decir por
+    # qué en vez de contestar "no entendí qué cambiar".
+    rejected: list[str] = field(default_factory=list)
 
     @property
     def is_settlement(self) -> bool:
@@ -140,12 +144,22 @@ def _to_date(v) -> date | None:
         return None
 
 
-def normalize_changes(raw: dict, category_names, usernames) -> dict:
+def normalize_changes(raw: dict, category_names, usernames,
+                      rejected: list[str] | None = None) -> dict:
     """new_* → dict campo→valor normalizado (descarta inválidos).
 
     Lo usan el parser (intent edit) y la herramienta edit_movement del agente Q&A.
+
+    `rejected` (opcional) junta lo que se descartó por inválido. Sin eso, "ponelo
+    en Bebidas" (categoría inexistente) terminaba en un edit sin cambios y el bot
+    contestaba "no entendí qué cambiar", escondiendo el motivo real.
     """
     changes: dict = {}
+
+    def reject(msg: str) -> None:
+        if rejected is not None:
+            rejected.append(msg)
+
     if (v := _to_decimal(raw.get("new_amount"))) is not None:
         changes["amount"] = v
     if (v := _norm_currency(raw.get("new_currency"))) is not None:
@@ -156,6 +170,8 @@ def normalize_changes(raw: dict, category_names, usernames) -> dict:
         changes["city"] = str(raw["new_city"]).strip()
     if raw.get("new_category") in category_names:
         changes["category"] = raw["new_category"]
+    elif raw.get("new_category"):
+        reject(f"categoría «{raw['new_category']}»")
     if raw.get("new_description"):
         changes["description"] = str(raw["new_description"]).strip()
     # only_user = de quién pasa a ser el gasto ('shared' | username). El split
@@ -167,6 +183,8 @@ def normalize_changes(raw: dict, category_names, usernames) -> dict:
         changes["split"] = raw["new_split"]
     if (v := str(raw.get("new_paid_by") or "").strip().lower()) in usernames:
         changes["paid_by"] = v
+    elif v:
+        reject(f"pagador «{raw['new_paid_by']}»")
     # Cashback: 'new_cashback_kind'='none' lo saca; kind+value válidos lo setean.
     if str(raw.get("new_cashback_kind") or "").strip().lower() == "none":
         changes["cashback"] = (None, None)
@@ -254,10 +272,28 @@ async def parse_message(
     if client is None:
         from app.llm.client import make_llm
         client = make_llm()
-    raw = await client.parse(
-        text, today=today, category_names=category_names, usernames=usernames,
-        sender=sender, categories=categories, city_names=city_names, last_expense=last_expense,
-    )
+
+    # Un solo reintento, y SOLO ante falla técnica (refusal, structured output
+    # vacío, error del proveedor). Un 'unknown' genuino no se reintenta: el
+    # modelo ya entendió y la respuesta sería la misma, con el doble de latencia.
+    raw: dict = {}
+    failure: str | None = None
+    for attempt in (1, 2):
+        try:
+            raw = await client.parse(
+                text, today=today, category_names=category_names, usernames=usernames,
+                sender=sender, categories=categories, city_names=city_names,
+                last_expense=last_expense,
+            )
+        except Exception as exc:
+            logger.warning("parse_provider_error attempt=%d err=%s", attempt, type(exc).__name__)
+            raw, failure = {}, "provider_error"
+        else:
+            failure = raw.get("parse_failure") or (None if raw else "empty_parse")
+        if failure is None:
+            break
+        if attempt == 1:
+            logger.info("parse_retry reason=%s", failure)
 
     intent = raw.get("intent")
     if intent not in _VALID_INTENTS:
@@ -267,7 +303,7 @@ async def parse_message(
     parsed = _normalize_expense(raw, category_names, usernames, sender)
     parsed.intent = intent
     # Un payload sin nada adentro también es parseo fallido, no "no entendí".
-    parsed.parse_failure = raw.get("parse_failure") or (None if raw else "empty_parse")
+    parsed.parse_failure = failure
     if parsed.parse_failure:
         logger.info("parse_failed reason=%s", parsed.parse_failure)
         trace.set_fields(parse_failure=parsed.parse_failure)
@@ -275,7 +311,11 @@ async def parse_message(
     parsed.ref_last = bool(raw.get("ref_last"))
     parsed.ref_text = raw.get("ref_text") or None
     parsed.ref_date = _to_date(raw.get("ref_date"))
-    parsed.changes = normalize_changes(raw, category_names, usernames)
+    rejected: list[str] = []
+    parsed.changes = normalize_changes(raw, category_names, usernames, rejected)
+    parsed.rejected = rejected
+    if rejected:
+        logger.info("parse_rejected_fields n=%d", len(rejected))
 
     # Multi-gasto: 2+ ítems válidos (con monto) => batch; con 1 alcanza el flat
     # (el prompt pide flat = primer ítem), y otros intents lo ignoran.

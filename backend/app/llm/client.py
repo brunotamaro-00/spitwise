@@ -121,7 +121,8 @@ _SYSTEM = (
     "`installments` van DENTRO de ese ítem ('34 usd hostel X hoy, el resto "
     "134 gbp al ingresar' es UN ítem con dos etapas, no dos ítems). Sin "
     "etapas, `installments` queda VACÍO.\n\n"
-    "CORRECCIÓN DE UN GASTO RECIÉN CARGADO: si abajo se te da un 'Último gasto', "
+    "CORRECCIÓN DE UN GASTO RECIÉN CARGADO: si abajo se te da un 'Último "
+    "movimiento', "
     "{sender} acaba de cargarlo y este mensaje puede ser una corrección. Si el "
     "mensaje NO carga un gasto nuevo (no trae un monto propio junto a algo "
     "comprado) y en cambio ajusta uno de sus campos —monto, moneda, ciudad, "
@@ -137,7 +138,11 @@ _SYSTEM = (
     "edit. Y si el mensaje nombra OTRO gasto distinto del último ('el taxi era "
     "compartido' cuando el último es el helado), es edit con ref_last=false y "
     "ref_text con esas palabras ('taxi'), no una corrección del último. "
-    "Sin 'Último gasto' abajo, no apliques esta regla.\n\n"
+    "Sin 'Último movimiento' abajo, no apliques esta regla.\n"
+    "Si el último movimiento es un PAGO DE SALDO ('pago de saldo Bruno→Katia · "
+    "USD 80'), vale lo mismo: 'no, eran 50' es intent='edit' con ref_last=true y "
+    "new_amount='50' — NUNCA un gasto nuevo de 50. Un pago de saldo solo se "
+    "corrige en monto, moneda o quién puso la plata.\n\n"
     "Para edit/delete extraé la referencia al movimiento:\n"
     "- ref_last: true SOLO si se refiere al último movimiento ('el último', "
     "'eso') o si no da ninguna referencia. Si nombra un movimiento concreto "
@@ -250,10 +255,11 @@ def _render_cities(city_names) -> str:
 
 
 def _render_last_expense(last_expense) -> str:
-    """El gasto recién cargado (si sigue fresco). Habilita la regla de corrección."""
+    """El movimiento recién cargado por ESE remitente (si sigue fresco): gasto o
+    pago de saldo. Habilita la regla de corrección."""
     if not last_expense:
         return ""
-    return f"Último gasto cargado (puede que este mensaje lo corrija): {last_expense}.\n"
+    return f"Último movimiento cargado (puede que este mensaje lo corrija): {last_expense}.\n"
 
 
 def _render_user(text: str, today: date, category_names: list[str], usernames: list[str],
