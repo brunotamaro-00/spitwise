@@ -300,7 +300,6 @@ export default function Movements() {
               incluye {totals.unsettledCount}{" "}
               {totals.unsettledCount === 1 ? "gasto todavía no confirmado" : "gastos todavía no confirmados"} ·{" "}
               <span className="font-tabular font-semibold">{formatUsd(String(totals.unsettled))}</span>
-              {" — fuera del balance"}
             </span>
           )}
         </div>

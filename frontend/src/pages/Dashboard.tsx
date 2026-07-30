@@ -124,7 +124,7 @@ export default function Dashboard() {
               {unsettled.count > 0 && (
                 <p className="mt-3 text-xs text-white/70">
                   Incluye {unsettled.count} {unsettled.count === 1 ? "gasto" : "gastos"} por confirmar ·{" "}
-                  <span className="font-tabular font-semibold">{formatUsd(String(unsettled.usd))}</span> — fuera del balance
+                  <span className="font-tabular font-semibold">{formatUsd(String(unsettled.usd))}</span>
                 </p>
               )}
             </div>
