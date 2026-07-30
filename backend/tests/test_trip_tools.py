@@ -43,12 +43,15 @@ async def test_search_guides_multiterm_accent_insensitive(db_session):
     out = await search_guides(db_session, {}, query="tren sintra")
     assert [h["doc_slug"] for h in out["hits"]] == ["transporte"]
     assert "Sintra" in out["hits"][0]["snippet"]
+    assert out["match_mode"] == "all"
     # Sin tildes también matchea ('tivoli' vs 'Tívoli').
     out = await search_guides(db_session, {}, query="tivoli")
     assert any(h["doc_slug"] == "tivoli" for h in out["hits"])
-    # Todas las palabras tienen que estar.
+    # Sin un doc que tenga TODO, se devuelve cobertura parcial declarada: el AND
+    # duro dejaba al agente sin nada que leer y contestando "no dice nada".
     out = await search_guides(db_session, {}, query="coliseo sintra")
-    assert out["hits"] == []
+    assert out["match_mode"] == "partial"
+    assert out["hits"] and all(h["missing_terms"] for h in out["hits"])
 
 
 async def test_search_guides_ranks_by_relevance_not_alphabet(db_session):

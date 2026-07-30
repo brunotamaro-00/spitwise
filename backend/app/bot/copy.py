@@ -79,11 +79,21 @@ def chat_degraded(channel: str, outcome: str) -> str:
     return table["budget"]
 
 
+# El canal viaje no puede contestar de memoria: si el turno no consultó nada,
+# esto reemplaza a la respuesta (ver trip_qa._unverified_claims).
+TRIP_NO_EVIDENCE = (
+    f"{H_HUH} No lo encontré en las guías ni en las notas, y de memoria no te lo "
+    "invento. Preguntámelo con el lugar o el doc (ej: _actividades de Viena_ · "
+    "_transporte en Praga_) y busco de nuevo."
+)
+
+
 def action_done(performed: list[str]) -> str:
     """Confirmación determinística de acciones YA aplicadas cuando el modelo no
     llegó a redactar: el cambio está en la DB, no se puede responder 'me enredé'."""
     detalle = "\n".join(f"· {p}" for p in performed)
     return f"{H_EDIT}\n{detalle}\n_(no llegué a redactarte el resto, pero el cambio quedó)_"
+
 
 # --- Canal documentos (adjuntos → Andiamo) ---
 H_DOC = "📎 *Documento*"

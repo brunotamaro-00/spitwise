@@ -4,7 +4,9 @@ Responde con las guías y notas de Andiamo (cacheadas en guide_docs/trip_notes).
 Canal totalmente aislado del Q&A financiero (qa.py): prompt, tools e historial
 propios (payload key 'trip_qa_history', nunca 'qa_history').
 """
-from datetime import date, datetime, timezone
+import logging
+import re
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
@@ -17,6 +19,8 @@ from app.config import get_settings
 from app.db.models import GuideDoc, Stop, StopGuide, TripNote, User
 from app.llm.chat import as_result
 from app.qa.trip_tools import build_trip_tools
+
+logger = logging.getLogger(__name__)
 
 _SYSTEM = (
     "Sos Spitwise, el asistente de viaje de {users} en su vuelta por Europa.\n"
@@ -48,6 +52,16 @@ _SYSTEM = (
     "para resolver 'acá', 'mañana', 'la próxima ciudad' sin preguntar.\n"
     "- Flujo típico: search_guides con palabras clave → read_guide_doc del mejor "
     "hit. Para '¿qué anotamos...?' o datos de reservas propias, list_notes.\n"
+    "- La búsqueda te dice cuánto matcheó: 'match_mode' all/partial/none y, por "
+    "hit, 'matched_terms'/'missing_terms'. Con 'none' NO cierres con 'no está': "
+    "mirá 'docs_available' y reintentá UNA vez con el término que la guía SÍ "
+    "usaría (una saga → el lugar concreto; una marca → el tipo de comercio; un "
+    "apodo → el nombre real). Recién ahí negá, diciendo qué buscaste.\n"
+    "- Si la pregunta abarca DOS lugares ('Lisboa o Porto'), pasá los dos en "
+    "guide_slugs y respondé por los dos: si uno no tiene nada, decilo explícito "
+    "en vez de contestar solo por el que sí.\n"
+    "- Docs largos: pasale 'focus' a read_guide_doc con lo que buscás (precios, "
+    "horarios) — el recorte se centra ahí en vez de cortar el final.\n"
     "- Preguntas amplias ('qué hacemos en Roma') → read_guide_doc del doc "
     "'actividades' de esa guía directo.\n"
     "- Si falta UN dato para responder, preguntá solo eso, en una línea.\n\n"
@@ -89,20 +103,42 @@ def _render_system(sender: str, users: list[User], today: date) -> str:
     )
 
 
+_STALE_AFTER = timedelta(hours=24)
+
+
+async def _freshness(session, model) -> tuple[int, bool]:
+    """(cuántas filas hay, si el cache está viejo). Guías y notas se sincronizan
+    por caminos distintos: una puede estar fresca y la otra no."""
+    count = (await session.execute(select(func.count()).select_from(model))).scalar_one()
+    if not count:
+        return 0, False
+    last = (await session.execute(select(func.max(model.synced_at)))).scalar_one_or_none()
+    if last is None:
+        return count, True
+    last_naive = last.replace(tzinfo=None) if last.tzinfo else last
+    return count, (datetime.utcnow() - last_naive) > _STALE_AFTER
+
+
 async def _trip_context_snapshot(session, today: date) -> str:
     """Bloque 'Contexto del viaje': parada de hoy + próximas, sus guías y cuántas
     notas hay. Resuelve deícticos ('acá', 'mañana') sin round-trips extra."""
     from app.bot.active_stop import place_for_date
 
-    docs_count = (await session.execute(
-        select(func.count()).select_from(GuideDoc)
-    )).scalar_one()
+    docs_count, docs_stale = await _freshness(session, GuideDoc)
     lines = ["Contexto del viaje:"]
     if not docs_count:
         lines.append(
             "- ATENCIÓN: el cache de guías está VACÍO (sync pendiente). No hay "
             "contenido para leer: avisá que todavía no tenés las guías cargadas y "
             "que pruebe en un rato. No inventes nada."
+        )
+    elif docs_stale:
+        # Stale no bloquea (el sync es lazy y en background), pero el agente
+        # tiene que poder aclararlo si algo no cuadra.
+        lines.append(
+            "- OJO: las guías cacheadas están desactualizadas (hace más de un día "
+            "que no sincronizan). Respondé igual con lo que hay, pero si te "
+            "preguntan por algo recién cargado, aclaralo."
         )
 
     stop = await place_for_date(session, today, None)
@@ -133,11 +169,26 @@ async def _trip_context_snapshot(session, today: date) -> str:
     else:
         lines.append("- Hoy no cae dentro de ninguna parada del itinerario")
 
-    notes_count = (await session.execute(
-        select(func.count()).select_from(TripNote)
-    )).scalar_one()
-    lines.append(f"- Notas cargadas en Andiamo: {notes_count}")
+    notes_count, notes_stale = await _freshness(session, TripNote)
+    lines.append(
+        f"- Notas cargadas en Andiamo: {notes_count}"
+        + (" (cache desactualizado)" if notes_stale else "")
+    )
     return "\n".join(lines)
+
+
+# Datos concretos que exigen evidencia: números (precios, horarios, líneas) y
+# símbolos de moneda. Una respuesta con eso y CERO tools en el turno solo puede
+# venir del conocimiento general del modelo — justo lo que este canal prohíbe.
+_CONCRETE = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def _unverified_claims(answer: str, snapshot: str) -> bool:
+    """¿La respuesta afirma números que no salen del snapshot del turno?
+
+    Conservador a propósito: si el número aparece en el snapshot (fechas del
+    itinerario, cantidad de notas) no cuenta como afirmación nueva."""
+    return any(n not in snapshot for n in _CONCRETE.findall(answer))
 
 
 def latest_fresh_channel(payload: dict, *, max_turns: int, ttl_minutes: int) -> str | None:
@@ -189,6 +240,18 @@ async def handle_trip_question(session, user: User, wa_id: str, text: str, today
         # Sin respuesta usable: copy del canal viaje según la causa, sin
         # persistirla — el próximo follow-up sigue colgado del último turno útil.
         return text_reply(copy.chat_degraded("trip", result.outcome))
+
+    # Guarda ESTRUCTURAL de grounding: el prompt ya prohíbe contestar de cultura
+    # general, pero prohibir no es garantizar. Si el turno no llamó ninguna
+    # herramienta (ni hubo hilo previo del que colgarse) y aun así larga datos
+    # concretos que no están en el snapshot, la respuesta no se manda: se
+    # devuelve una negativa grounded. Preferimos un "no lo tengo" a un precio
+    # inventado con cara de guía.
+    if (not result.tool_calls and not history
+            and _unverified_claims(result.text, snapshot)):
+        logger.info("trip_grounding_blocked channel=trip outcome=%s", result.outcome)
+        return text_reply(copy.TRIP_NO_EVIDENCE)
+
     answer = result.text
     reply = text_reply(answer)
 
