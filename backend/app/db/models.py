@@ -121,6 +121,32 @@ class Stop(Base):
     synced_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
 
+class StopBudget(Base):
+    """Target de gasto diario de "vivir" de una parada, en USD **por persona**.
+
+    "Vivir" = todo menos alojamiento y generales (ver `app/budget.py`). Es un
+    objetivo cargado a mano en la web, no un límite ni un dato de Andiamo.
+
+    Tabla propia y no una columna en `Stop` porque `Stop` es un snapshot puro
+    del itinerario: la reconciliación del sync (`andiamo.py`) borra la fila de
+    una parada que desapareció de Andiamo y no tiene movimientos, y el target
+    es dato autoral que no tiene por qué morir con eso. Por lo mismo `stop_slug`
+    no lleva FK.
+
+    Un target por parada, compartido por los dos: el número ya es por persona,
+    y los tramos donde difieren son paradas distintas (Portugal vs Pititas).
+    """
+
+    __tablename__ = "stop_budgets"
+
+    stop_slug: Mapped[str] = mapped_column(String(80), primary_key=True)
+    daily_usd: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(200))
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+
 class GuideDoc(Base):
     """Snapshot local de un doc de guía de Andiamo (content/guides).
 
