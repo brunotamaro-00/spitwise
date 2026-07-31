@@ -68,6 +68,13 @@ lo actualizan solos.
    curl -X POST https://spitwise.lat/api/v1/andiamo/sync -H "Authorization: Bearer <jwt>"
    # => {"synced": <n paradas, con timezone>}
    ```
+6. Targets de presupuesto (**después** del sync: los slugs se validan contra las paradas ya
+   sincronizadas). Es idempotente por inserción — nunca pisa lo editado desde la web:
+   ```bash
+   cd backend
+   DATABASE_URL="postgresql+asyncpg://..." .venv/bin/python scripts/seed_stop_budgets.py --dry-run
+   DATABASE_URL="postgresql+asyncpg://..." .venv/bin/python scripts/seed_stop_budgets.py
+   ```
 
 ## Checklist end-to-end (con los números reales)
 
@@ -81,11 +88,14 @@ lo actualizan solos.
 - [ ] Andiamo `/stops/<ciudad-activa>` → chip "Gastado: USD X".
 - [ ] Corregir `fx_rate` en la web → recalcula USD (`fx_source=manual`); editar después la descripción NO pisa la tasa.
 - [ ] Si el bot falla en background, el usuario recibe un mensaje "Se me trabó…" (no silencio).
+- [ ] `/presupuesto`: la ciudad en curso muestra el $/día que queda hasta el check-out con su badge de delta, y la línea de cobertura dice cuántas noches tienen target.
+- [ ] "¿vamos bien de guita en <ciudad>?" por WhatsApp responde contra el target de esa parada, no con el promedio del viaje; una parada sin target lo dice en vez de estimarlo.
 
 ## Runbook
 
 - **Logs:** `railway logs` (o el panel del servicio). Errores del bot salen como `dispatch_error` / `webhook_background_error` con traceback.
 - **Resync del itinerario:** `POST /api/v1/andiamo/sync` con JWT (o esperar el refresh perezoso de 6h que dispara cualquier mensaje de WhatsApp).
+- **Paradas nuevas sin target:** `/presupuesto` muestra la cobertura y nombra los slugs que faltan. Se cargan desde la web (tap en la ciudad → modal) o re-corriendo `scripts/seed_stop_budgets.py`, que solo inserta los faltantes. Si el país de la parada nueva no está mapeado, el script la lista como *SIN MAPEO* en vez de saltearla en silencio.
 - **Rotar `TRIP_SHARED_API_KEY`:** generar valor nuevo → actualizarlo en **ambos** servicios (Spitwise y Andiamo) → redeploy de los dos. Hasta que coincidan, el sync devuelve 0 (usa snapshot) y el chip de Andiamo desaparece — nada se rompe.
 - **Rotar token de WhatsApp:** Meta → System User token nuevo → actualizar `WHATSAPP_ACCESS_TOKEN` → redeploy. El webhook sigue validando con `WHATSAPP_APP_SECRET` (no cambia).
 - **Cold starts / sleep:** si el plan gratuito duerme el servicio, pasar a Hobby (~USD 5/mes) — el webhook de Meta no tolera bien arranques fríos.
@@ -210,6 +220,8 @@ ANDIAMO_URL=https://demo.andiamo.lat PITITAS_OWNER= ENVIRONMENT=prod \
 DEMO_MODE=true DEMO_TODAY=2026-09-25 \
 .venv/bin/python scripts/seed_demo_money.py
 ```
+
+`seed_demo_money.py` también siembra los targets de presupuesto (destructivo y determinista, derivados de `scripts/seed_stop_budgets.py` para que la demo muestre los mismos números que produciría producción) y **aborta si la cobertura no da 100%**, listando los slugs sin target: la demo pública no puede abrir `/presupuesto` a medio llenar. Cae antes del commit, así que un fallo deja la demo de ayer en pie.
 
 `seed_demo_money.py` no define paradas propias a propósito: duplicar el itinerario garantizaba que los slugs divergieran de Andiamo y que el primer arranque archivara paradas con gastos. Si el sync falla o vuelve vacío, aborta sin sembrar. El ritmo de gasto por región y los helpers de `Movement` viven en `scripts/demo_common.py`, compartidos con el seed de la demo local (`seed_demo_data.py`).
 
