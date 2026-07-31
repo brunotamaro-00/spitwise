@@ -32,9 +32,15 @@ from sqlalchemy import delete, select
 from app.categories.seed import seed_categories
 from app.config import get_settings
 from app.db.engine import async_session_factory, make_engine
-from app.db.models import Base, Category, Movement, Stop, User
+from app.db.models import Base, Category, Movement, Stop, StopBudget, User
 from app.users import seed_users_from_env
-from demo_common import REGION_BY_SLUG, _add_mov, _created, _seed_day  # noqa: F401
+from demo_common import (  # noqa: F401
+    REGION_BY_SLUG,
+    _add_mov,
+    _created,
+    _seed_day,
+    budget_target_for,
+)
 
 TODAY = date.today()
 # HOY = día 40 (la llegada a la 1.ª parada es el día 1). Alineado a Andiamo /
@@ -112,6 +118,7 @@ async def main() -> None:
         cats = {c.name: c for c in (await s.execute(select(Category))).scalars().all()}
 
         await s.execute(delete(Movement))
+        await s.execute(delete(StopBudget))
         await s.execute(delete(Stop))
 
         # --- Stops del itinerario + alojamiento ---
@@ -124,12 +131,19 @@ async def main() -> None:
             stop_dates[slug] = (arrival, departure)
             owner = "bruno" if slug in ("lisboa", "porto") else None
             is_flex = slug == "margen-flex"
-            s.add(Stop(
+            stop = Stop(
                 slug=slug, order=order, name=name, country=country, country_flag=flag,
                 arrival_date=arrival, departure_date=departure, currency_code=cur,
                 timezone="Europe/London", is_transit=slug.endswith("-2"),
                 is_flex_margin=is_flex, owner_username=owner,
-            ))
+            )
+            s.add(stop)
+            # El margen flex queda SIN target a propósito: es el único hueco de
+            # cobertura de la demo local, y sin un hueco el estado "cobertura
+            # parcial" de /presupuesto no se ve nunca al desarrollar.
+            target = None if is_flex else budget_target_for(stop)
+            if target is not None:
+                s.add(StopBudget(stop_slug=slug, daily_usd=target))
 
             past_or_current = arrival <= TODAY
             payer = bruno
@@ -148,12 +162,14 @@ async def main() -> None:
         lis_arr, _ = stop_dates["lisboa"]
         _, por_dep = stop_dates["porto"]
         pititas_order = next(i for i, row in enumerate(ITINERARY) if row[0] == "lisboa")
-        s.add(Stop(
+        pititas = Stop(
             slug="pititas", order=pititas_order, name="Pititas", country=None,
             country_flag="👭", arrival_date=lis_arr, departure_date=por_dep,
             currency_code="EUR", timezone="Europe/Paris", is_local=True,
             owner_username="katia",
-        ))
+        )
+        s.add(pititas)
+        s.add(StopBudget(stop_slug="pititas", daily_usd=budget_target_for(pititas)))
         if lis_arr <= TODAY:
             _add_mov(s, cats["Alojamiento"], "EUR", 611.00,
                      lis_arr - timedelta(days=30), "pititas", "Pititas", katia,
@@ -196,6 +212,12 @@ async def main() -> None:
                  bruno, "payer_only", "Seguro Pax Assistance")
         _add_mov(s, cats["Salud"], "USD", 320.00, pre + timedelta(days=2), None, None,
                  katia, "payer_only", "Seguro Pax Assistance")
+        # eSIM: general SIN ciudad, como los vuelos y los seguros. No es "vivir"
+        # (no se consume en una parada), así que no entra al presupuesto diario.
+        _add_mov(s, cats["Otros"], "USD", 120.00, pre + timedelta(days=3), None, None,
+                 bruno, "payer_only", "eSIM datos 3,5 meses")
+        _add_mov(s, cats["Otros"], "USD", 120.00, pre + timedelta(days=3), None, None,
+                 katia, "payer_only", "eSIM datos 3,5 meses")
         # Eurail + Eurostar + tramos.
         _add_mov(s, cats["Transporte"], "USD", 740.00, pre + timedelta(days=5), None, None,
                  bruno, "shared", "Eurail Pass ×2")
@@ -274,6 +296,7 @@ async def main() -> None:
 
         await s.commit()
         movs = (await s.execute(select(Movement))).scalars().all()
+        budgets = (await s.execute(select(StopBudget))).scalars().all()
         by_cat: dict[str, Decimal] = {}
         total = Decimal("0")
         for m in movs:
@@ -287,6 +310,8 @@ async def main() -> None:
             f"{len(movs)} movimientos\n"
             f"HOY={TODAY} · inicio={START} · fin={START + timedelta(days=TOTAL_NIGHTS)} "
             f"(día {TODAY_TRIP_DAY}/{TOTAL_NIGHTS})\n"
+            f"targets: {len(budgets)}/{len(ITINERARY) + 1} paradas "
+            f"(margen-flex queda sin target a propósito)\n"
             f"TOTAL USD {total.quantize(Decimal('0.1'))}"
         )
         for name, amt in sorted(by_cat.items(), key=lambda x: -x[1]):

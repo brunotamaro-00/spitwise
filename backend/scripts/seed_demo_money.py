@@ -37,9 +37,16 @@ from app.andiamo import sync_stops
 from app.categories.seed import seed_categories
 from app.config import get_settings
 from app.db.engine import async_session_factory, make_engine
-from app.db.models import Category, Movement, Stop, User
+from app.db.models import Category, Movement, Stop, StopBudget, User
 from app.users import seed_users_from_env
-from demo_common import REGION_DAILY, _add_mov, _created, _seed_day, region_for
+from demo_common import (
+    REGION_DAILY,
+    _add_mov,
+    _created,
+    _seed_day,
+    budget_target_for,
+    region_for,
+)
 
 # Lo fija main() con _frozen_today(); a nivel módulo no, para que importar este
 # script (tests, tooling) no reviente por una env var faltante.
@@ -61,6 +68,32 @@ def _frozen_today() -> date:
             "tiene que coincidir con NEXT_PUBLIC_DEMO_TODAY de Andiamo."
         )
     return date.fromisoformat(raw)
+
+
+def _budgetable(stop: Stop) -> bool:
+    """Paradas que cuentan en la cobertura de /presupuesto.
+
+    Espeja `app.budget._eligible` sobre las filas crudas de Stop. Ojo: NO es
+    `_usable` — el margen flex no recibe gastos pero sí tiene noches en el
+    itinerario, así que sin target baja la cobertura y la demo abriría con la
+    proyección en modo "parcial".
+    """
+    return (
+        not stop.is_candidate
+        and not stop.is_archived
+        and stop.arrival_date is not None
+        and stop.departure_date is not None
+        and stop.departure_date > stop.arrival_date
+    )
+
+
+def _seed_budgets(s, stops) -> None:
+    for stop in stops:
+        if not _budgetable(stop):
+            continue
+        target = budget_target_for(stop)
+        if target is not None:
+            s.add(StopBudget(stop_slug=stop.slug, daily_usd=target))
 
 
 def _usable(stop: Stop) -> bool:
@@ -113,6 +146,8 @@ async def main() -> None:
         cats = {c.name: c for c in (await s.execute(select(Category))).scalars().all()}
 
         await s.execute(delete(Movement))
+        await s.execute(delete(StopBudget))
+        _seed_budgets(s, (await s.execute(select(Stop))).scalars().all())
 
         stops = [
             st for st in (await s.execute(select(Stop).order_by(Stop.order))).scalars().all()
@@ -183,6 +218,12 @@ def _seed_prepaid(s, cats, bruno, katia, stops) -> None:
              katia, "payer_only", "Seguro Pax Assistance")
     _add_mov(s, cats["Transporte"], "USD", 740.00, pre + timedelta(days=5), None, None,
              bruno, "shared", "Eurail Pass ×2")
+    # eSIM: general SIN ciudad. No es "vivir" (no se consume en una parada), así
+    # que queda en general_usd y fuera del presupuesto diario.
+    _add_mov(s, cats["Otros"], "USD", 120.00, pre + timedelta(days=3), None, None,
+             bruno, "payer_only", "eSIM datos 3,5 meses")
+    _add_mov(s, cats["Otros"], "USD", 120.00, pre + timedelta(days=3), None, None,
+             katia, "payer_only", "eSIM datos 3,5 meses")
     _add_mov(s, cats["Compras"], "USD", 118.00, pre + timedelta(days=10), None, None,
              bruno, "payer_only", "Compras Amazon (equipaje)")
     _add_mov(s, cats["Transporte"], "USD", 945.00, TODAY, None, None, bruno,
@@ -285,6 +326,20 @@ async def _report(s, cats, stops, first, last, days) -> None:
         )
     print(f"\n✓ 1 gasto por confirmar: {to_confirm[0].description} "
           f"(vence {to_confirm[0].payment_date})")
+
+    # La demo pública no puede abrir /presupuesto a medio llenar: una parada sin
+    # target baja la cobertura y la proyección sale en modo "parcial", que se
+    # lee como feature rota. Cae antes del commit, así que un fallo deja la
+    # demo de ayer en pie.
+    all_stops = (await s.execute(select(Stop))).scalars().all()
+    seeded = {b.stop_slug for b in (await s.execute(select(StopBudget))).scalars()}
+    uncovered = sorted(st.slug for st in all_stops if _budgetable(st) and st.slug not in seeded)
+    if uncovered:
+        raise SystemExit(
+            f"Paradas sin target de presupuesto: {', '.join(uncovered)}. Mapealas "
+            "en scripts/seed_stop_budgets.py (BLOQUE_POR_PAIS / BLOQUE_POR_SLUG)."
+        )
+    print(f"✓ presupuesto: {len(seeded)} paradas con target (cobertura 100%)")
 
 
 if __name__ == "__main__":
