@@ -197,6 +197,142 @@ class TripPaceOut(BaseModel):
     cities: list[CityPaceOut]
 
 
+# ---------------------------------------------------------------------------
+# Presupuesto de "vivir" (ver app/budget.py). Todo monto es str, como el resto
+# del dashboard; solo los porcentajes son float.
+# ---------------------------------------------------------------------------
+
+
+class StopBudgetIn(BaseModel):
+    # le=1000 es una cota anti-typo: nadie vive con USD 1.000/día en este viaje,
+    # así que un "500" con un cero de más muere en 422 en vez de arruinar el
+    # veredicto de la ciudad en silencio.
+    daily_usd: Decimal = Field(gt=0, le=1000)
+    note: str | None = Field(default=None, max_length=200)
+
+
+class StopBudgetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    stop_slug: str
+    daily_usd: Decimal
+    note: str | None
+    updated_at: datetime
+
+    @field_serializer("daily_usd")
+    def _ser_daily(self, v: Decimal) -> str:
+        return f"{v:.2f}"
+
+    @field_serializer("updated_at")
+    def _ser_updated(self, v: datetime) -> str:
+        aware = v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        return aware.isoformat().replace("+00:00", "Z")
+
+
+class CityBudgetOut(BaseModel):
+    stop_slug: str
+    city_name: str
+    country_flag: str | None
+    order: int
+    status: StopPaceStatus
+    is_archived: bool
+    # False = parada del otro (Pititas): la fila existe porque el usuario gastó
+    # ahí, pero sus noches no cuentan en el presupuesto del viaje.
+    in_itinerary: bool
+    nights: int
+    elapsed_nights: int
+    movement_count: int
+    target_daily_usd: str | None
+    note: str | None
+    living_usd: str
+    living_per_day_usd: str | None
+    budget_accrued_usd: str | None
+    variance_usd: str | None
+    # None sin target, sin noches, o en futuras (solo tienen prepago imputado).
+    delta_pct: float | None
+
+
+class CurrentCityBudgetOut(BaseModel):
+    """La parada en curso: cuánto queda por día hasta el check-out."""
+
+    stop_slug: str
+    city_name: str
+    country_flag: str | None
+    arrival_date: date | None
+    departure_date: date | None
+    lived_nights: int
+    total_nights: int
+    remaining_days: int
+    target_daily_usd: str | None
+    living_usd: str
+    living_per_day_usd: str | None
+    budget_to_date_usd: str | None
+    variance_usd: str | None
+    remaining_budget_usd: str | None
+    # Puede ser negativo: ya se pasaron. La página cambia el copy, no el signo.
+    remaining_daily_usd: str | None
+    delta_pct: float | None
+
+
+class NextStopBudgetOut(BaseModel):
+    stop_slug: str
+    city_name: str
+    country_flag: str | None
+    arrival_date: date | None
+    nights: int
+    target_daily_usd: str | None
+
+
+class TripPlanOut(BaseModel):
+    """El plan de vivir del viaje: lo que se ve antes de arrancar."""
+
+    budget_nights: int
+    covered_nights: int
+    coverage_pct: float | None
+    uncovered_slugs: list[str]
+    living_budget_usd: str | None
+    avg_target_daily_usd: str | None
+    next_stop: NextStopBudgetOut | None
+
+
+class BudgetProjectionOut(BaseModel):
+    """Presupuesto contra proyección del ritmo real.
+
+    `coverage_pct` y `uncovered_slugs` viajan acá a propósito, junto a
+    `variance_usd`: con cobertura parcial el presupuesto es parcial, y mostrar
+    la varianza sin decirlo al lado es mentir.
+    """
+
+    budget_nights: int
+    covered_nights: int
+    coverage_pct: float | None
+    uncovered_slugs: list[str]
+    living_budget_usd: str | None
+    living_to_date_usd: str
+    living_run_rate_usd: str | None
+    projected_living_usd: str | None
+    variance_usd: str | None
+
+
+class FixedBlockOut(BaseModel):
+    """Alojamiento + generales: informativo, sin veredicto."""
+
+    lodging_usd: str
+    general_usd: str
+    total_usd: str
+    per_night_usd: str | None
+
+
+class BudgetOut(BaseModel):
+    as_of: date
+    trip_status: TripStatus
+    current: CurrentCityBudgetOut | None
+    plan: TripPlanOut
+    cities: list[CityBudgetOut]
+    projection: BudgetProjectionOut
+    fixed: FixedBlockOut
+
+
 class CitySpendPublicOut(BaseModel):
     slug: str | None
     name: str | None

@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends
@@ -34,6 +35,34 @@ def _money_opt(v) -> str | None:
 
 async def _expenses(session: AsyncSession) -> list[Movement]:
     return list((await session.execute(select(Movement).where(_EXPENSE))).scalars().all())
+
+
+async def load_trip_pace(session: AsyncSession, user: User) -> tuple[dict, date]:
+    """Ritmo del viaje para el usuario logueado, más el `hoy` con que se calculó.
+
+    Público porque `app/api/budget.py` lo consume: el presupuesto se lee sobre
+    exactamente las mismas filas de ciudad que `/dashboard/pace`, y duplicar
+    acá el lookup de la categoría Alojamiento o la resolución del `hoy` del
+    viaje sería la forma de que las dos páginas empiecen a discrepar.
+    """
+    stops = list((await session.execute(select(Stop))).scalars().all())
+    movements = await _expenses(session)
+    lodging_id = (
+        await session.execute(select(Category.id).where(Category.name == "Alojamiento"))
+    ).scalar_one_or_none()
+    today = today_in_tz(await resolve_trip_timezone(session, user.username))
+
+    return (
+        build_trip_pace(
+            stops,
+            movements,
+            lodging_category_id=lodging_id,
+            user_id=user.id,
+            username=user.username,
+            today=today,
+        ),
+        today,
+    )
 
 
 # Todos los endpoints del dashboard son personales: reflejan el consumo del
@@ -84,21 +113,7 @@ async def pace(
 ) -> TripPaceOut:
     """Ritmo del viaje: $/día global y por ciudad con alojamiento prorrateado
     por noches y generales prorrateados en todo el viaje. Ver app/analytics.py."""
-    stops = list((await session.execute(select(Stop))).scalars().all())
-    movements = await _expenses(session)
-    lodging_id = (
-        await session.execute(select(Category.id).where(Category.name == "Alojamiento"))
-    ).scalar_one_or_none()
-    today = today_in_tz(await resolve_trip_timezone(session, user.username))
-
-    data = build_trip_pace(
-        stops,
-        movements,
-        lodging_category_id=lodging_id,
-        user_id=user.id,
-        username=user.username,
-        today=today,
-    )
+    data, today = await load_trip_pace(session, user)
     t = data["trip"]
     return TripPaceOut(
         as_of=today,
