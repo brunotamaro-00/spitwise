@@ -163,6 +163,8 @@ def test_candidate_excluded_archived_accrues():
     # Archivada: fila al final, past, fuera de N, devenga todo.
     assert slugs[-1] == "vieja"
     assert _city(data, "vieja")["status"] == "past"
+    assert _city(data, "vieja")["in_itinerary"] is False  # archivada: fuera de N
+    assert _city(data, "roma")["in_itinerary"] is True
     assert data["trip"]["total_nights"] == 10
     assert data["trip"]["accrued_usd"] == Decimal("30")
 
@@ -198,6 +200,11 @@ def test_other_owned_stop_visible_only_with_spend():
     )
     assert {c["stop_slug"] for c in with_spend["cities"]} == {"portugal", "pititas"}
     assert with_spend["trip"]["total_nights"] == 8  # sigue sin duplicar días
+    # `in_itinerary` marca la frontera de total_nights: la fila de Pititas existe
+    # (bruno gastó ahí) pero sus 8 noches no son suyas. app/budget.py depende de
+    # esto para no inventarle 8 noches de presupuesto.
+    assert _city(with_spend, "portugal")["in_itinerary"] is True
+    assert _city(with_spend, "pititas")["in_itinerary"] is False
     # Para katia, pititas es propia: mismas 8 noches (overlap dedup).
     katia = _pace(
         stops, [_mov("pititas", "40")], today=date(2026, 9, 6),

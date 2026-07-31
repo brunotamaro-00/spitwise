@@ -111,6 +111,11 @@ def build_trip_pace(
 
     # Itinerario del usuario: base del promedio y del devengado global.
     itinerary = [s for s in visible if not s.is_candidate and not s.is_archived]
+    # Qué paradas cuentan en `total_nights`. Se expone por fila (`in_itinerary`)
+    # porque `app/budget.py` consume estas filas y necesita la misma frontera:
+    # Pititas le aparece a Bruno si gastó ahí, pero sus noches no son suyas, y
+    # sumarlas al presupuesto del viaje le inventaría 8 noches que no viaja.
+    itin_slugs = {s.slug for s in itinerary}
     trip_days = itinerary_dates(itinerary)
     total_nights = len(trip_days)
     elapsed_nights = sum(1 for d in trip_days if d <= today)
@@ -182,6 +187,7 @@ def build_trip_pace(
                 "status": status,
                 "is_archived": s.is_archived,
                 "is_transit": s.is_transit,
+                "in_itinerary": s.slug in itin_slugs,
                 "arrival_date": s.arrival_date,
                 "departure_date": s.departure_date,
                 "nights": nights,
