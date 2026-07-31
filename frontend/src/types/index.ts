@@ -63,6 +63,109 @@ export type CityPace = {
 
 export type TripPace = { as_of: string; trip: TripBlock; cities: CityPace[] };
 
+/* --- Presupuesto de "vivir" (backend: app/budget.py) --------------------
+ * "Vivir" = todo menos alojamiento y generales. Es el mismo `other_usd` que
+ * /ciudades muestra como "Vivir /día": el presupuesto solo agrega el target
+ * contra el cual compararlo. Todos los montos son string (decimal). */
+
+export type StopBudget = {
+  stop_slug: string;
+  daily_usd: string;
+  note: string | null;
+  updated_at: string;
+};
+
+export type CityBudget = {
+  stop_slug: string;
+  city_name: string;
+  country_flag: string | null;
+  order: number;
+  status: StopPaceStatus;
+  is_archived: boolean;
+  /** false = parada del otro (Pititas): la fila existe porque hay gasto propio,
+   *  pero sus noches no cuentan en el presupuesto del viaje. */
+  in_itinerary: boolean;
+  nights: number;
+  elapsed_nights: number;
+  movement_count: number;
+  target_daily_usd: string | null;
+  note: string | null;
+  living_usd: string;
+  living_per_day_usd: string | null;
+  budget_accrued_usd: string | null;
+  variance_usd: string | null;
+  /** null sin target, sin noches, o en futuras (solo tienen prepago). */
+  delta_pct: number | null;
+};
+
+export type CurrentCityBudget = {
+  stop_slug: string;
+  city_name: string;
+  country_flag: string | null;
+  arrival_date: string | null;
+  departure_date: string | null;
+  lived_nights: number;
+  total_nights: number;
+  remaining_days: number;
+  target_daily_usd: string | null;
+  living_usd: string;
+  living_per_day_usd: string | null;
+  budget_to_date_usd: string | null;
+  variance_usd: string | null;
+  remaining_budget_usd: string | null;
+  /** Puede ser negativo: ya se pasaron. Cambia el copy, no el signo. */
+  remaining_daily_usd: string | null;
+  delta_pct: number | null;
+};
+
+export type NextStopBudget = {
+  stop_slug: string;
+  city_name: string;
+  country_flag: string | null;
+  arrival_date: string | null;
+  nights: number;
+  target_daily_usd: string | null;
+};
+
+export type TripPlan = {
+  budget_nights: number;
+  covered_nights: number;
+  coverage_pct: number | null;
+  uncovered_slugs: string[];
+  living_budget_usd: string | null;
+  avg_target_daily_usd: string | null;
+  next_stop: NextStopBudget | null;
+};
+
+export type BudgetProjection = {
+  budget_nights: number;
+  covered_nights: number;
+  coverage_pct: number | null;
+  uncovered_slugs: string[];
+  living_budget_usd: string | null;
+  living_to_date_usd: string;
+  living_run_rate_usd: string | null;
+  projected_living_usd: string | null;
+  variance_usd: string | null;
+};
+
+export type FixedBlock = {
+  lodging_usd: string;
+  general_usd: string;
+  total_usd: string;
+  per_night_usd: string | null;
+};
+
+export type BudgetAnalysis = {
+  as_of: string;
+  trip_status: TripStatus;
+  current: CurrentCityBudget | null;
+  plan: TripPlan;
+  cities: CityBudget[];
+  projection: BudgetProjection;
+  fixed: FixedBlock;
+};
+
 export type Category = { id: number; name: string; icon: string | null; sort_order: number };
 export type User = { id: number; username: string };
 export type Stop = {

@@ -5,12 +5,12 @@ import DemoBanner from "@/components/DemoBanner";
 import DemoIntro from "@/components/DemoIntro";
 import Layout from "@/components/Layout";
 import { ToastProvider } from "@/components/ui/Toast";
+import Budget from "@/pages/Budget";
 import Cities from "@/pages/Cities";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import Movements from "@/pages/Movements";
 import NotFound from "@/pages/NotFound";
-import Trip from "@/pages/Trip";
 
 function Guard({ children }: { children: React.ReactNode }) {
   return isAuthenticated() ? <>{children}</> : <Navigate to="/login" replace />;
@@ -25,7 +25,10 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route element={<Guard><Layout /></Guard>}>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/viaje" element={<Trip />} />
+          <Route path="/presupuesto" element={<Budget />} />
+          {/* /viaje se reemplazó por /presupuesto; la PWA instalada puede
+              tener la ruta vieja en un marcador o en el manifest. */}
+          <Route path="/viaje" element={<Navigate to="/presupuesto" replace />} />
           <Route path="/ciudades" element={<Cities />} />
           <Route path="/movimientos" element={<Movements />} />
           <Route path="*" element={<NotFound />} />

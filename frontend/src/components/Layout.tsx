@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { CloudOff, Compass, LayoutDashboard, ListOrdered, LogOut, Map, Plus, RefreshCw } from "lucide-react";
+import { CloudOff, LayoutDashboard, ListOrdered, LogOut, Map, Plus, RefreshCw, Target } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
@@ -18,7 +18,7 @@ import { usePullToRefresh } from "@/lib/usePullToRefresh";
 
 const TABS = [
   { to: "/", label: "Dashboard", Icon: LayoutDashboard },
-  { to: "/viaje", label: "Viaje", Icon: Compass },
+  { to: "/presupuesto", label: "Presupuesto", Icon: Target },
   { to: "/ciudades", label: "Ciudades", Icon: Map },
   { to: "/movimientos", label: "Movimientos", Icon: ListOrdered },
 ];
