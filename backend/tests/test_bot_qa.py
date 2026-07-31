@@ -64,7 +64,7 @@ async def test_dispatch_routes_question_to_chat(db_session):
     call = chat.calls[0]
     assert {t.name for t in call["tools"]} == {
         "aggregate_expenses", "list_movements", "get_balance", "get_itinerary",
-        "edit_movement", "delete_movements"}
+        "budget_status", "edit_movement", "delete_movements"}
     assert "bruno" in call["system"] and "share" in call["system"]
 
 

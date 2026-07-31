@@ -194,6 +194,13 @@ def link_city(slug: str | None) -> str | None:
     return f"{base}/ciudades?{urlencode({'c': slug})}"
 
 
+def link_budget() -> str | None:
+    """Deep-link a /presupuesto. Es donde se cargan y editan los targets: el
+    bot los lee pero no los escribe."""
+    base = _base_url()
+    return f"{base}/presupuesto" if base else None
+
+
 def link_home() -> str | None:
     base = _base_url()
     return f"{base}/" if base else None

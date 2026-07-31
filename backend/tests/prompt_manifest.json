@@ -1,7 +1,7 @@
 {
   "app.llm.client._SYSTEM": {
-    "sha256": "e4e901c4f478afc3124781f679947f36ea19947aa3cb1d437da17f4142239483",
-    "que_cubre": "Clasificación de intent + extracción de campos (gastos, cuotas, edits, canal viaje).",
+    "sha256": "906fb5c056a25862f322084cda43b0fbedc569a07272c8a88a589406777b37ae",
+    "que_cubre": "Clasificación de intent + extracción de campos (gastos, cuotas, edits, canal viaje). Borde plata/contenido: las preguntas de presupuesto ('¿vamos bien?', '¿cuánto podemos gastar por día?') son 'question', no 'trip_question'.",
     "scenarios": [
       "cuotas-total",
       "batch-split-fix",
@@ -13,13 +13,14 @@
       "mixta-guia-plata",
       "settlement-corregido",
       "cuando-llegamos",
-      "cuotas-invalidas"
+      "cuotas-invalidas",
+      "presupuesto-ciudad"
     ],
-    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only cuotas-total,batch-split-fix,correccion-corta,delete-por-texto,settlement-cruzado,moneda-explicita,multi-hostel,mixta-guia-plata,settlement-corregido,cuando-llegamos,cuotas-invalidas"
+    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only cuotas-total,batch-split-fix,correccion-corta,delete-por-texto,settlement-cruzado,moneda-explicita,multi-hostel,mixta-guia-plata,settlement-corregido,cuando-llegamos,cuotas-invalidas,presupuesto-ciudad"
   },
   "app.bot.qa._SYSTEM": {
-    "sha256": "64ab3eaa87db60791fe38ff2aac121e9a01efd1335d8f12e263585120be620be",
-    "que_cubre": "Agente financiero: semántica share/paid/total, snapshot vs tools, formato.",
+    "sha256": "79029d151233a5876914f59dd2f2bb1664d57f51cc486799a4092eb9d44e2ffd",
+    "que_cubre": "Agente financiero: semántica share/paid/total, snapshot vs tools, formato. Presupuesto: budget_status contra el target de la parada, y una parada sin target se dice.",
     "scenarios": [
       "qa-followup",
       "daytrip-payer",
@@ -29,9 +30,10 @@
       "qa-multitool",
       "pendientes-query",
       "promedio-dia",
-      "cuando-llegamos"
+      "cuando-llegamos",
+      "presupuesto-ciudad"
     ],
-    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only qa-followup,daytrip-payer,pending-a-hoy,settlement-cruzado,general-sin-ciudad,qa-multitool,pendientes-query,promedio-dia,cuando-llegamos"
+    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only qa-followup,daytrip-payer,pending-a-hoy,settlement-cruzado,general-sin-ciudad,qa-multitool,pendientes-query,promedio-dia,cuando-llegamos,presupuesto-ciudad"
   },
   "app.bot.trip_qa._SYSTEM": {
     "sha256": "1ec1f6ee4a20548c19e6b867b3fbe01e869d8905c0b343893f15d347ecf063c7",

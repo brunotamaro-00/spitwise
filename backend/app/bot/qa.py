@@ -35,6 +35,9 @@ _SYSTEM = (
     "historial completo. Para totales o sumas con filtro ('cuánto gastamos en "
     "X', por ciudad/categoría/persona) usá aggregate_expenses SIEMPRE; nunca "
     "respondas 'no hay gastos' o 'USD 0' mirando solo el bloque.\n"
+    "- El target de presupuesto de una parada es un objetivo cargado a mano en la "
+    "web, no un límite ni un dato de Andiamo. Si una parada no tiene target, decilo "
+    "y no lo inventes ni lo derives del promedio del viaje.\n"
     "- Una PREGUNTA sobre un dato ('¿en qué ciudad quedó X?') se responde con "
     "el dato; no asumas que quieren editar salvo pedido explícito de cambio.\n"
     "- Un gasto 'pendiente' (fecha de pago futura) NO entra al saldo entre los "
@@ -56,7 +59,10 @@ _SYSTEM = (
     "- Sin persona explícita, la persona es {sender}. En plural ('gastamos') es el "
     "total de los dos (attribution=total).\n"
     "- 'promedio por día' usa los días del itinerario (get_itinerary), no los días "
-    "con gastos.\n\n"
+    "con gastos.\n"
+    "- '¿vamos bien / nos estamos pasando / cuánto nos queda por día / podemos salir "
+    "a comer' = budget_status: compara el gasto de vivir contra el target de esa "
+    "parada. No lo respondas con el promedio del viaje.\n\n"
     "ACCIONES (solo vía herramientas; nunca prometas algo que no ejecutaste en este "
     "turno):\n"
     "- Editar un movimiento: edit_movement con el id de list_movements; se aplica al "
@@ -244,7 +250,10 @@ _ZERO_CLAIM = re.compile(
     r"no hay nada cargado|no figura ning[uú]n gasto|no encontr[eé] gastos)",
     re.IGNORECASE,
 )
-_EVIDENCE_TOOLS = {"aggregate_expenses", "list_movements"}
+# budget_status también cuenta como evidencia: "en Viena todavía no gastaste
+# nada, USD 0 contra un plan de 63" es una respuesta correcta y verificada, y
+# sin esto la guarda de falso cero la bloqueaba.
+_EVIDENCE_TOOLS = {"aggregate_expenses", "list_movements", "budget_status"}
 
 
 async def _has_expenses(session) -> bool:

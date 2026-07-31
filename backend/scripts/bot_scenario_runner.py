@@ -91,7 +91,7 @@ from app.bot.render import BotReply  # noqa: E402
 from app.categories.seed import seed_categories  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.db.models import (  # noqa: E402
-    Base, Category, FxRate, GuideDoc, Movement, Stop, StopGuide, TripNote, User,
+    Base, Category, FxRate, GuideDoc, Movement, Stop, StopBudget, StopGuide, TripNote, User,
 )
 from app.due import ensure_due_settled  # noqa: E402
 from scripts.scenario_lib import (  # noqa: E402
@@ -503,8 +503,21 @@ async def _chk_promedio_dia(ctx: CheckCtx) -> list[str]:
            "no puede degradar a 'no quiero contestarte de memoria' con gastos cargados")
     return e
 
+async def _chk_presupuesto(ctx: CheckCtx) -> list[str]:
+    """'¿Vamos bien acá?' se contesta con el target de la parada, no con el
+    promedio del viaje. Y la tool es de solo lectura."""
+    e = Errors()
+    e.want(ctx.channels() == ["qa", "qa"], f"canal financiero en los dos turnos, fue {ctx.channels()}")
+    e.want("budget_status" in ctx.tools_used(),
+           f"la comparación contra el plan exige budget_status, se usaron {sorted(ctx.tools_used())}")
+    movs = await load_movements(ctx.session)
+    e.want(len(movs) == SEED_MOVEMENTS,
+           f"budget_status es solo lectura: quedaron {len(movs)} movimientos, esperaba {SEED_MOVEMENTS}")
+    return e
+
+
 FINANCE_TOOLS = {"aggregate_expenses", "list_movements", "get_balance", "get_itinerary",
-                 "edit_movement", "delete_movements"}
+                 "budget_status", "edit_movement", "delete_movements"}
 TRIP_TOOLS = {"search_guides", "list_guides", "read_guide_doc", "list_notes"}
 SEED_MOVEMENTS = 4  # movimientos que deja `seed()` antes de cada conversación
 
@@ -962,12 +975,39 @@ CONVERSATIONS_EXTRA += [
         ],
         fix_in="bot/qa.py (semántica del promedio) · qa/tools.py get_itinerary",
     ),
+    Conversation(
+        name="Presupuesto de la ciudad",
+        id="presupuesto-ciudad",
+        check=_chk_presupuesto,
+        goal="'¿Vamos bien acá?' se responde contra el target de la parada, no contra "
+             "el promedio del viaje; y una parada sin target se dice, no se estima.",
+        turns=[
+            Turn(BRUNO_WA, "¿vamos bien de guita en Lisboa?", note="target vs real"),
+            # Vocabulario de plata explícito a propósito. Dos formas que NO
+            # funcionan y no se arreglan acá: el elíptico "¿y en Interlaken?"
+            # (el parser lo manda a guías por el nombre de ciudad) y la palabra
+            # "presupuesto" sola (Andiamo tiene una guía `presupuesto.md`, así
+            # que es ambigua de verdad). En los dos casos el canal de viaje
+            # deriva bien al contador; arreglar el ruteo es tocar el prompt del
+            # parser, fuera del alcance de este escenario.
+            Turn(BRUNO_WA, "¿y en Interlaken cuánto podemos gastar por día?",
+                 note="parada sin target"),
+        ],
+        expect_hints=[
+            "Turno 1: debe llamar budget_status y comparar contra el target de Lisboa "
+            "(USD 40/día). FAIL: contesta con aggregate_expenses y el promedio del viaje",
+            "Turno 2: Interlaken NO tiene target cargado. Tiene que decirlo. "
+            "FAIL: inventa un target o lo deriva del promedio de las otras paradas",
+            "Ninguno de los dos turnos puede crear ni tocar movimientos",
+        ],
+        fix_in="qa/tools.py budget_status · bot/qa.py (prompt) · app/budget.py",
+    ),
 ]
 
 # Catálogo unificado: índices 1..10 = crítica, 11..26 = extra.
 CONVERSATIONS: list[Conversation] = SUITE_CRITICAL + CONVERSATIONS_EXTRA
 assert len(SUITE_CRITICAL) == N_CRITICAL
-assert len(CONVERSATIONS_EXTRA) == 16
+assert len(CONVERSATIONS_EXTRA) == 17
 assert len(CONVERSATIONS) == N_CRITICAL + len(CONVERSATIONS_EXTRA)
 # Ids únicos: `--only <id>` tiene que ser inequívoco.
 assert len({c.id for c in CONVERSATIONS}) == len(CONVERSATIONS)
@@ -996,6 +1036,15 @@ async def seed(session: AsyncSession) -> None:
              departure_date=date(2026, 9, 15), currency_code="GBP", timezone="Europe/London"),
         Stop(slug="portree", order=7, name="Portree", arrival_date=date(2026, 9, 15),
              departure_date=date(2026, 9, 18), currency_code="GBP", timezone="Europe/London"),
+    ])
+
+    # Targets de presupuesto. Interlaken queda SIN target a propósito: el
+    # escenario `presupuesto-ciudad` también verifica la negativa honesta
+    # ("esa parada no tiene target") en vez de un número inventado.
+    session.add_all([
+        StopBudget(stop_slug="lisboa", daily_usd=Decimal("40")),
+        StopBudget(stop_slug="paris", daily_usd=Decimal("55")),
+        StopBudget(stop_slug="roma", daily_usd=Decimal("50")),
     ])
 
     # Cache de guías/notas para los escenarios de trip_question. synced_at
@@ -1229,7 +1278,7 @@ def render_md(
         "",
         "> **Auto-generado** por `scripts/bot_scenario_runner.py`.",
         "> Cada corrida **borra y reemplaza** este archivo (no acumula historial).",
-        "> Catálogo: `SUITE_CRITICAL` (1–10) + `CONVERSATIONS_EXTRA` (11–17) en el script.",
+        "> Catálogo: `SUITE_CRITICAL` (1–10) + `CONVERSATIONS_EXTRA` (11–27) en el script.",
         "> Los **checks** son deterministas (DB / intent / tools): si fallan, el runner "
         "sale con exit 1. El texto se evalúa a ojo.",
         "",

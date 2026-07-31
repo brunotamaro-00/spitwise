@@ -193,3 +193,17 @@ async def test_no_pending_claim_is_not_a_false_zero(db_session):
     reply = await handle_question(db_session, u1, "549111", "hay algo pendiente?", TODAY,
                                   chat_client=Chat("No hay gastos pendientes 👌"))
     assert "pendientes" in reply.text
+
+
+async def test_zero_claim_with_budget_status_is_trusted(db_session):
+    """budget_status es evidencia: "en Viena no gastaste nada, USD 0 contra un
+    plan de 63" está verificado contra la DB y no puede caer en el falso cero."""
+    u1, _ = await _setup(db_session)
+    db_session.add(_mv(u1, description="Cena Roma", city_name="Roma"))
+    await db_session.commit()
+    reply = await handle_question(
+        db_session, u1, "549111", "vamos bien en Viena?", TODAY,
+        chat_client=Chat("En Viena todavía no hay gastos: USD 0 contra un plan de 63.",
+                         tool_calls=["budget_status"]),
+    )
+    assert reply.text.startswith("En Viena todavía no hay gastos")
