@@ -72,7 +72,8 @@ from app.bot.render import BotReply  # noqa: E402
 from app.categories.seed import seed_categories  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.db.models import (  # noqa: E402
-    Base, Category, FxRate, GuideDoc, Movement, Stop, StopGuide, TripNote, User,
+    Base, BotPendingAction, Category, FxRate, GuideDoc, Movement, Stop, StopGuide,
+    TripDocument, TripNote, User,
 )
 from app.due import ensure_due_settled  # noqa: E402
 from app import trace  # noqa: E402
@@ -158,7 +159,7 @@ class ConvoRecord:
 FINANCE_TOOLS = {"aggregate_expenses", "list_movements", "get_balance", "get_itinerary",
                  "edit_movement", "delete_movements"}
 GUIDE_TOOLS = {"search_guides", "list_guides", "read_guide_doc"}
-TRIP_TOOLS = GUIDE_TOOLS | {"list_notes"}
+TRIP_TOOLS = GUIDE_TOOLS | {"list_notes", "search_documents"}
 
 
 def _trip_only(channels: list[str | None], e: Errors) -> None:
@@ -229,6 +230,70 @@ async def _chk_bar_mleczny(ctx: CheckCtx) -> list[str]:
         e.want(not (set(ctx.traces[2].tools) & TRIP_TOOLS),
                "la pregunta de saldo no puede usar tools de guías")
     return e
+
+
+async def _chk_documento_encontrado(ctx: CheckCtx) -> list[str]:
+    """Buscar un archivo guardado es search_documents, no search_guides: son
+    fuentes distintas y confundirlas hacía que el bot leyera la guía del hostel
+    en vez de devolver el voucher."""
+    e = Errors()
+    _trip_only(ctx.channels(), e)
+    _no_finance(ctx, e)
+    e.want("search_documents" in ctx.tools_used(),
+           f"esperaba search_documents, se usaron {sorted(ctx.tools_used())}")
+    return e
+
+
+async def _chk_documento_inexistente(ctx: CheckCtx) -> list[str]:
+    """Negar que existe un documento exige haberlo buscado."""
+    e = Errors()
+    _trip_only(ctx.channels(), e)
+    if e.want(bool(ctx.traces), "sin turnos que chequear"):
+        e.want("search_documents" in set(ctx.traces[0].tools),
+               "negar que hay un documento exige search_documents en ESE turno")
+    return e
+
+
+def note_check(*, marker: str, stop_slug: str | None = ...) -> Check:
+    """Nota dictada: intent trip_note, su pending abierto, CERO movimientos.
+
+    Los escenarios comparten una sola DB (solo se resetean los historiales), así
+    que todo se filtra por `marker` — una palabra propia de ESTA nota. Un check
+    con conteos absolutos contaba lo sembrado y lo de las conversaciones previas.
+
+    Lo caro es el movimiento: una nota que menciona plata no puede terminar en
+    el ledger. `stop_slug=...` (default) no chequea la parada.
+    """
+    async def _check(ctx: CheckCtx) -> list[str]:
+        import json
+        from sqlalchemy import select
+        from scripts.scenario_lib import load_movements
+        e = Errors()
+        wanted = marker.casefold()
+
+        e.want(ctx.intents() == ["trip_note"] * len(ctx.traces),
+               f"esperaba trip_note en todos los turnos, fueron {ctx.intents()}")
+        e.want(not (ctx.tools_used() & FINANCE_TOOLS),
+               "dictar una nota no llama tools financieras")
+
+        movs = [m for m in await load_movements(ctx.session)
+                if wanted in (m.description or "").casefold()]
+        e.want(not movs,
+               f"una nota no puede crear movimientos, se creó {[m.description for m in movs]}")
+
+        # Sobre el JSON parseado, no sobre el string: json.dumps escapa los
+        # acentos ('depósito' → 'dep\\u00f3sito') y el match crudo no encontraba nada.
+        rows = [r for r in (await ctx.session.execute(
+            select(BotPendingAction).where(BotPendingAction.action_type == "note_create")
+        )).scalars().all()
+            if wanted in json.dumps(json.loads(r.payload_json), ensure_ascii=False).casefold()]
+        if e.want(len(rows) == 1, f"esperaba 1 pending note_create con {marker!r}, hay {len(rows)}"):
+            e.want(rows[0].cancelled_at is None, "el pending de la nota quedó cancelado")
+            if stop_slug is not ...:
+                got = json.loads(rows[0].payload_json).get("stop_slug")
+                e.want(got == stop_slug, f"parada de la nota: esperaba {stop_slug}, fue {got}")
+        return e
+    return _check
 
 
 CONVERSATIONS: list[Conversation] = [
@@ -458,6 +523,88 @@ CONVERSATIONS: list[Conversation] = [
         ],
         fix_in="qa/trip_tools.py (search escalonado, multi guide_slugs) · bot/trip_qa.py",
     ),
+    Conversation(
+        name="Dónde está el voucher del hostel",
+        id="voucher-buscar",
+        check=_chk_documento_encontrado,
+        goal=("Buscar un ARCHIVO guardado, no lo que dice una guía: tiene que ir a "
+              "search_documents y devolver el link del voucher."),
+        turns=[
+            Turn(BRUNO_WA, "¿dónde está el voucher del hostel de Viena?",
+                 note="documento, no guía"),
+            Turn(BRUNO_WA, "¿y la entrada de Auschwitz la tenemos?",
+                 note="follow-up sobre otro documento, otra parada"),
+        ],
+        expect_hints=[
+            "Turno 1: usa search_documents y pasa el link http://localhost:3000/api/documents/"
+            "d-viena-hostel. FAIL si lee la guía del hostel o inventa un link.",
+            "Turno 2: encuentra la entrada de Auschwitz (parada Cracovia) con su link. "
+            "FAIL si dice que no hay nada o mezcla con la nota de Auschwitz sin el archivo.",
+        ],
+        fix_in="qa/trip_tools.py (search_documents) · bot/trip_qa.py (prompt: archivo ≠ guía)",
+    ),
+    Conversation(
+        name="Documento que no existe",
+        id="doc-inexistente",
+        check=_chk_documento_inexistente,
+        goal="Negar un documento exige haberlo buscado, igual que negar una guía.",
+        turns=[
+            Turn(KATIA_WA, "¿tenemos guardado el pasaje de avión de vuelta?",
+                 note="no hay ningún documento de vuelo en el seed"),
+        ],
+        expect_hints=[
+            "Turno único: llama search_documents y dice que no está guardado. "
+            "FAIL si lo afirma sin buscar, o si inventa un vuelo. Puede ofrecer el dato de "
+            "qué SÍ hay guardado, pero sin inventar.",
+        ],
+        fix_in="qa/trip_tools.py (search_documents) · bot/trip_qa.py (grounding)",
+    ),
+    Conversation(
+        name="Dictar una nota con parada explícita",
+        id="nota-crear",
+        check=note_check(marker="depósito", stop_slug="praga"),
+        goal="Anotar algo por chat: preview + pending, sin tocar el ledger.",
+        turns=[
+            Turn(BRUNO_WA, "anotá que el hostel de Praga pide efectivo para el depósito",
+                 note="trip_note con ciudad explícita"),
+        ],
+        expect_hints=[
+            "Turno único: intent trip_note, card 📝 con el contenido y parada Praga, "
+            "botones Guardar/Cancelar. FAIL si lo toma como gasto o como pregunta.",
+        ],
+        fix_in="llm/client.py (intent trip_note) · bot/trip_notes.py · bot/dispatcher.py",
+    ),
+    Conversation(
+        name="Nota sin ciudad → parada de hoy",
+        id="nota-general",
+        check=note_check(marker="free tour", stop_slug="viena"),
+        goal="Sin ciudad, la nota cae en la parada de hoy (Viena), como un gasto.",
+        turns=[
+            Turn(KATIA_WA, "tomá nota: el free tour sale 11am de la plaza",
+                 note="sin ciudad → resolve_place con hoy"),
+        ],
+        expect_hints=[
+            "Turno único: trip_note imputado a Viena (parada de hoy). FAIL si lo manda a "
+            "General teniendo parada, o si pregunta en qué ciudad.",
+        ],
+        fix_in="bot/trip_notes.py (resolve_place) · llm/client.py (city en trip_note)",
+    ),
+    Conversation(
+        name="Nota que menciona plata",
+        id="nota-con-plata",
+        check=note_check(marker="zloty"),
+        goal=("El borde caro del prompt: un número adentro de una nota NO la "
+              "convierte en gasto."),
+        turns=[
+            Turn(BRUNO_WA, "anotá que el hostel de Cracovia cobra 20 zloty de depósito en efectivo",
+                 note="trip_note con monto y moneda — NO es expense"),
+        ],
+        expect_hints=[
+            "Turno único: trip_note, CERO movimientos en la DB. FAIL grave: cargar un gasto "
+            "de 20 PLN. FAIL menor: pedir aclaración en vez de anotar.",
+        ],
+        fix_in="llm/client.py (regla trip_note vs expense) · bot/dispatcher.py",
+    ),
 ]
 
 
@@ -619,6 +766,26 @@ async def seed(session: AsyncSession) -> dict:
         TripNote(id="n-budapest-banos", stop_slug="budapest", title="Baños Budapest", pinned=True,
                  body=("Széchenyi/Gellért: comprar entrada ONLINE (no reventa en la calle). "
                        "Efectivo HUF en OTP Bank.")),
+    ])
+
+    # Documentos: metadata como la exportaría /api/integration/documents.
+    session.add_all([
+        TripDocument(id="d-viena-hostel", stop_slug="viena", label="Voucher Wombats Viena",
+                     note="Check-in 15:00, código 8812", kind="voucher", source="upload",
+                     doc_date=date(2026, 9, 23), file_name="wombats.pdf",
+                     mime_type="application/pdf", created_at=datetime(2026, 8, 10, 12, 0)),
+        TripDocument(id="d-auschwitz", stop_slug="cracovia", label="Entrada Auschwitz",
+                     note="Slot 6-oct 09:00, educator", kind="ticket", source="upload",
+                     doc_date=date(2026, 10, 6), file_name="auschwitz.pdf",
+                     mime_type="application/pdf", created_at=datetime(2026, 8, 12, 12, 0)),
+        TripDocument(id="d-tren-praga", stop_slug="praga", label="Tren Viena-Praga",
+                     note="Regiojet, 09:39", kind="train", source="upload",
+                     doc_date=date(2026, 9, 29), file_name="regiojet.pdf",
+                     mime_type="application/pdf", created_at=datetime(2026, 8, 14, 12, 0)),
+        TripDocument(id="d-seguro", stop_slug=None, label="Seguro de viaje",
+                     note="Póliza 998877, cobertura Schengen", kind="insurance",
+                     source="link", doc_date=None, file_name=None, mime_type=None,
+                     created_at=datetime(2026, 7, 1, 12, 0)),
     ])
 
     for cur, rate in (("EUR", "1.10"), ("CHF", "1.15"), ("CZK", "0.043"),

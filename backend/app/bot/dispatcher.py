@@ -159,6 +159,9 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
     if parsed.intent == "trip_question":
         from app.bot.trip_qa import handle_trip_question
         return await handle_trip_question(session, user, wa_id, stripped, today, chat_client=chat_client)
+    if parsed.intent == "trip_note":
+        from app.bot.trip_notes import handle_note_capture
+        return await handle_note_capture(session, user, parsed, today)
     if parsed.parse_failure:
         # Falla TÉCNICA (refusal, structured output vacío, proveedor caído), ya
         # reintentada una vez en el parser. No es "no te entendí": rutearla a un

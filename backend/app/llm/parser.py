@@ -19,7 +19,8 @@ _CURRENCY_ALIASES = {
     "ars": "ARS", "peso": "ARS", "pesos": "ARS",
 }
 _VALID_SPLIT = {"shared", "payer_only", "other_only"}
-_VALID_INTENTS = {"expense", "settlement", "edit", "delete", "question", "trip_question", "unknown"}
+_VALID_INTENTS = {"expense", "settlement", "edit", "delete", "question", "trip_question",
+                  "trip_note", "unknown"}
 
 # Campos editables que el LLM devuelve como new_<campo>.
 EDIT_FIELDS = ("amount", "currency", "date", "city", "category", "description", "split", "paid_by")
@@ -86,6 +87,10 @@ class ParsedMessage:
     # UN gasto pagado en etapas: amount lleva el total y acá van las partes.
     # Vacío => pago único.
     installments: list[Installment] = field(default_factory=list)
+    # trip_note: contenido de la nota dictada. La parada sale de `city`, con las
+    # mismas reglas que un gasto (resolve_place).
+    note_title: str | None = None
+    note_body: str | None = None
     # Falla TÉCNICA del parseo (refusal del proveedor, structured output vacío),
     # no un 'unknown' semántico: el intent queda en 'unknown' pero el caller
     # puede reintentar o degradar distinto. None = el parseo funcionó.
@@ -308,6 +313,9 @@ async def parse_message(
         logger.info("parse_failed reason=%s", parsed.parse_failure)
         trace.set_fields(parse_failure=parsed.parse_failure)
     trace.set_fields(intent=parsed.intent)
+    if intent == "trip_note":
+        parsed.note_title = (raw.get("note_title") or "").strip() or None
+        parsed.note_body = (raw.get("note_body") or "").strip() or None
     parsed.ref_last = bool(raw.get("ref_last"))
     parsed.ref_text = raw.get("ref_text") or None
     parsed.ref_date = _to_date(raw.get("ref_date"))

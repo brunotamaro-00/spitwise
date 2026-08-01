@@ -117,4 +117,12 @@ async def _handle_interactive(session: AsyncSession, user: User, wa_id: str, int
         from app.bot.documents.pipeline import cancel_doc_upload
         return await cancel_doc_upload(session, user, interactive_id[len("doc_cancel:"):])
 
+    if interactive_id.startswith("note_save:"):
+        from app.bot.trip_notes import confirm_note
+        return await confirm_note(session, user, interactive_id[len("note_save:"):])
+
+    if interactive_id.startswith("note_cancel:"):
+        from app.bot.trip_notes import cancel_note
+        return await cancel_note(session, user, interactive_id[len("note_cancel:"):])
+
     return text_reply("⚠️ Botón desconocido.")

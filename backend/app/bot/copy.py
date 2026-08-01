@@ -145,6 +145,23 @@ DOC_UPLOAD_FAILED = (
 )
 DOC_NOT_TRAVEL_HINT = "_No parece un documento de viaje; fijate antes de guardar._"
 DOC_PREVIEW_HINT = "_¿Algo mal? Corregime por texto: 'es en York' · 'fecha 15-ago' · 'es un voucher'._"
+
+# --- Canal notas (dictado → Andiamo) ---
+H_NOTE = "📝 *Nota*"
+H_NOTE_SAVED = "📝 *Nota guardada en Andiamo*"
+NOTE_NO_ANDIAMO = (
+    f"{H_WARN} No tengo conectado Andiamo, así que no puedo guardar notas por ahora."
+)
+NOTE_EMPTY = (
+    f"{H_HUH} No le pesqué qué querés anotar. Decímelo de nuevo con el contenido, "
+    'por ejemplo: "anotá que el hostel de Roma pide efectivo".'
+)
+NOTE_SAVE_FAILED = (
+    f"{H_WARN} No pude guardarla en Andiamo. Tocá *Guardar* de nuevo para reintentar."
+)
+NOTE_CANCELLED = "Listo, no la guardo."
+NOTE_PREVIEW_HINT = "_¿Guardo esto?_"
+
 MEDIA_NOT_SUPPORTED = (
     f"{H_WARN} Audio, video o stickers no puedo procesar. "
     "Mandame texto, o un PDF/imagen si es un documento del viaje."

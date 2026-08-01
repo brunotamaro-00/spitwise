@@ -341,3 +341,26 @@ def document_saved_card(kind: str, label: str, note: str | None, stop_name: str 
     if link:
         lines.append(f"📲 {link}")
     return "\n".join(lines)
+
+
+def _note_lines(title: str | None, body: str, stop_name: str | None) -> list[str]:
+    lines = []
+    if title:
+        lines.append(f"*{title}*")
+    lines.append(body)
+    lines.append(f"📍 {stop_name or 'General'}")
+    return lines
+
+
+def note_preview_card(title: str | None, body: str, stop_name: str | None) -> str:
+    return "\n".join(
+        [copy.H_NOTE, ""] + _note_lines(title, body, stop_name) + ["", copy.NOTE_PREVIEW_HINT]
+    )
+
+
+def note_saved_card(title: str | None, body: str, stop_name: str | None,
+                    link: str | None) -> str:
+    lines = [copy.H_NOTE_SAVED, ""] + _note_lines(title, body, stop_name)
+    if link:
+        lines.append(f"📲 {link}")
+    return "\n".join(lines)

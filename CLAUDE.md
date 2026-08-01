@@ -49,11 +49,11 @@ spitwise/
 │   │   ├── bot/              # dispatcher, capture, editor, QA, render, copy
 │   │   ├── llm/              # parser + chat tool-use
 │   │   ├── qa/tools.py       # tools del agente Q&A financiero
-│   │   ├── qa/trip_tools.py  # tools del agente Q&A de viaje (guías/notas)
+│   │   ├── qa/trip_tools.py  # tools del agente Q&A de viaje (guías/notas/documentos)
 │   │   ├── whatsapp/         # Meta client, dedupe, signature
 │   │   ├── categories/       # catálogo fijo de 11 categorías
 │   │   ├── andiamo.py        # sync de stops
-│   │   ├── andiamo_content.py # sync de guías + notas (Q&A de viaje)
+│   │   ├── andiamo_content.py # sync de guías + notas + documentos (Q&A de viaje)
 │   │   ├── balance.py        # neto puro (sin I/O)
 │   │   ├── budget.py         # rango de vivir vs gasto real (puro)
 │   │   ├── spend.py          # user_share para analytics
@@ -152,7 +152,7 @@ Requiere la API key del proveedor elegido. Hoy ficticio fijo mid-trip
 `tests/prompt_manifest.json`. Tocar un prompt sin declarar los escenarios que
 lo cubren (y el comando `--only` para reproducirlos) rompe el test.
 
-### Canal viaje (guías + notas)
+### Canal viaje (guías + notas + documentos)
 
 Script aparte, no mezclado con la suite financiera:
 
@@ -167,9 +167,13 @@ cd backend
 Mismos checks deterministas y exit code que el runner financiero (acá miran
 canal ruteado y tools: ningún escenario de viaje puede tocar `qa/tools.py`).
 
-Carga markdown real desde `../andiamo/content/guides` + notas alineadas al
-Itinerary. Hoy fijo `2026-09-25` (Viena). **11 escenarios**. Transcript →
-`scripts/bot_trip_scenarios.md`.
+Carga markdown real desde `../andiamo/content/guides` + notas y documentos
+alineados al Itinerary. Hoy fijo `2026-09-25` (Viena). **16 escenarios**.
+Transcript → `scripts/bot_trip_scenarios.md`.
+
+Los escenarios comparten **una sola DB** (solo se resetean los historiales): un
+check con conteos absolutos cuenta lo sembrado y lo de las conversaciones
+previas. Scopealo por un marcador propio del escenario (ver `note_check`).
 
 ## Demo local (datos dummy, mid-trip)
 
@@ -215,7 +219,7 @@ Definido en `backend/app/db/models.py`. Tipos API en `api/schemas.py`; mirror TS
 | **Movement** | `expense` \| `settlement`; `split`: `shared` \| `payer_only` \| `other_only`; FX + ciudad. Eje temporal de lista/agrupación: `created_at` (fecha de carga). `payment_date` opcional (fecha en que se paga/pagó) + `status`: `confirmed` \| `pending` (futuro con TC proxy). `cashback_kind`/`cashback_value` opcionales: cashback de tarjeta (ver invariante 10) |
 | **Stop** | Parada de itinerario cacheada desde Andiamo (+ locales: ver `is_local`) |
 | **StopBudget** | Plan de gasto diario de "vivir" por parada: un **rango** `daily_min_usd`–`daily_max_usd` (USD/día **por persona**). Dato autoral, no viene de Andiamo — tabla propia sin FK porque el sync borra la fila de `Stop` de una parada sin movimientos (ver invariante 11) |
-| **GuideDoc / StopGuide / TripNote / SyncMeta** | Cache del contenido de viaje de Andiamo (guías markdown, mapeo stop→guía, notas, version del export) para el Q&A de viaje del bot — sync en `app/andiamo_content.py` |
+| **GuideDoc / StopGuide / TripNote / TripDocument / SyncMeta** | Cache del contenido de viaje de Andiamo (guías markdown, mapeo stop→guía, notas, **metadata** de documentos, version del export) para el Q&A de viaje del bot — sync en `app/andiamo_content.py`. `TripDocument` no guarda el archivo: el binario vive en R2 y lo sirve Andiamo en `/api/documents/<id>` |
 | **FxRate** | Cache diario de tasas |
 | **BotPendingAction** | Flujos multi-step (categoría ambigua, confirm delete) |
 | **WhatsAppSessionState** | Historial Q&A por wa_id (`qa_history` finanzas / `trip_qa_history` viaje — nunca mezclar) |
@@ -261,7 +265,7 @@ Auth JWT Bearer salvo lo indicado.
 | Budget | `GET /budget` (análisis completo: ciudad en curso, colchón, filas por ciudad, proyección, fijos), `PUT /budget/{slug}` (upsert de la banda `daily_min_usd`/`daily_max_usd`; 422 si el slug no es una parada real o si el máximo es menor que el mínimo), `DELETE /budget/{slug}` |
 | Stops | `GET /stops` (excluye candidatas y archivadas) |
 | Config | `GET /config` (JWT) — `andiamo_url` para deep links del frontend; `GET /public-config` (sin auth) — agrega `demo`, que el frontend necesita en `/login` donde todavía no hay JWT |
-| Integration | `GET /cities/spend`, `GET /cities/spend-detail?slug=`, `GET /trip/spend`, `POST /andiamo/sync-hook` (todos `X-Api-Key`; body opcional `{event}`: `stops.changed` default, `notes.changed`, `guides.changed`), `POST /andiamo/sync` (JWT) |
+| Integration | `GET /cities/spend`, `GET /cities/spend-detail?slug=`, `GET /trip/spend`, `POST /andiamo/sync-hook` (todos `X-Api-Key`; body opcional `{event}`: `stops.changed` default, `notes.changed`, `documents.changed`, `guides.changed`), `POST /andiamo/sync` (JWT) |
 | Webhook | `GET/POST /webhooks/whatsapp` |
 | Health | `GET /health` |
 
@@ -300,7 +304,9 @@ Reglas del bot:
 - Números en es-AR (`1.234,5`) — mismo criterio en backend `render.ar_number` y frontend `lib/format.ts`.
 - Q&A: tools en `qa/tools.py`; **delete nunca es directo** — crea pending + botones de confirmación.
 - **Presupuesto por chat** (`qa/tools.budget_status`): solo lectura. Responde "¿vamos bien en X?" contra el **rango** planeado de la parada, nunca contra el promedio del viaje, y una parada sin plan lo dice en vez de estimarlo. Devuelve `band` (`under`/`in`/`over`) más el colchón del viaje; el `note` de la tool explica que el techo es el límite y el centro el objetivo. Los planes se cargan en `/presupuesto` (deep link vía `copy.link_budget`). Está en `_EVIDENCE_TOOLS` de `bot/qa.py`: sin eso, un "USD 0" correcto apoyado en la tool caía en la guarda de falso cero.
-- **Q&A de viaje** (`bot/trip_qa.py` + `qa/trip_tools.py`): canal AISLADO del financiero — prompt, tools (search/list/read de guías + notas) e historial propios. Grounded: solo responde con lo que hay en `guide_docs`/`trip_notes`; si no está, lo dice. Respuestas cortas + deep-link `{andiamo_url}/guias/<guide>/<doc>`. Preguntas de plata las deriva al canal financiero. No mezclar tools/prompt entre los dos agentes.
+- **Q&A de viaje** (`bot/trip_qa.py` + `qa/trip_tools.py`): canal AISLADO del financiero — prompt, tools (search/list/read de guías + notas + `search_documents`) e historial propios. Grounded: solo responde con lo que hay en `guide_docs`/`trip_notes`/`trip_documents`; si no está, lo dice. Respuestas cortas + deep-link `{andiamo_url}/guias/<guide>/<doc>`. Preguntas de plata las deriva al canal financiero. No mezclar tools/prompt entre los dos agentes.
+  - **Documento ≠ guía**: "¿dónde está el voucher del hostel?" pide un ARCHIVO (`search_documents` → `{andiamo_url}/api/documents/<id>` + la parada), no lo que dice la guía. El link pide sesión abierta en Andiamo (no es signed URL): es el caso normal en el celu. Por eso el parser manda a `trip_question` las preguntas por un documento aunque digan "entrada" o "pasaje" — palabras que si no leen como gasto.
+- **Notas dictadas** (`bot/trip_notes.py` + `andiamo_notes.py`): intent `trip_note` del parser → preview + botones `note_save:`/`note_cancel:` (pending `note_create`) → `POST {ANDIAMO_URL}/api/integration/notes`. La parada sale de `capture.resolve_place` (mismas reglas que un gasto). Un reintento inmediato; si falla dos veces el pending queda ABIERTO para re-tocar Guardar. Spitwise **nunca** escribe `trip_notes`: esa tabla es cache del sync, la fuente de verdad es Andiamo. Borde caro: una nota con un monto adentro ("anotá que cobra 20 de depósito") NO es un gasto — escenario `nota-con-plata`.
 - Escritura: nada entra a medias en silencio. Cuotas declaradas que no cierran no
   se guardan (se pide la aclaración), montos <= 0 se rechazan igual que en la API,
   y todo descarte (tope de 10 gastos, cashback fijo en cuotas, batch multi-moneda
@@ -356,7 +362,8 @@ Producción / features (ver `config.py` y `DEPLOY.md`):
 | Bot router | `backend/app/bot/dispatcher.py` |
 | Parser LLM | `backend/app/llm/parser.py` |
 | Q&A tools | `backend/app/qa/tools.py` |
-| Q&A de viaje (guías/notas) | `backend/app/bot/trip_qa.py` + `backend/app/qa/trip_tools.py` |
+| Q&A de viaje (guías/notas/documentos) | `backend/app/bot/trip_qa.py` + `backend/app/qa/trip_tools.py` |
+| Notas dictadas por chat | `backend/app/bot/trip_notes.py` + `backend/app/andiamo_notes.py` |
 | Sync contenido Andiamo | `backend/app/andiamo_content.py` |
 | Frontend routes | `frontend/src/App.tsx` |
 | Design tokens | `frontend/src/index.css` |
@@ -371,7 +378,7 @@ Producción / features (ver `config.py` y `DEPLOY.md`):
 - `living_by_category` (por ciudad y del viaje) también sale de `build_trip_pace`, del mismo loop que parte alojamiento vs resto: **la suma del dict tiene que dar `other_usd`**. Calcularlo aparte en `budget.py` sería la forma de que el desglose de "En qué se te va" no cierre con el total de la ciudad. Canario: `test_living_by_category_sums_to_other`.
 - Multi-worker / horarios de process → rompe locks y pending del bot **y** las guardas del sync de Andiamo (`_refresh_running`/`_dirty` en `andiamo.py` **y** en `andiamo_content.py`) **y** el throttle de la liquidación lazy (`_last_check` en `due.py`).
 - Sync de stops: Andiamo pushea `POST /andiamo/sync-hook` en cada alta/edición/borrado (patrón pull-on-ping); el TTL 6h queda como fallback. La reconciliación **archiva** (`Stop.is_archived`) los stops borrados en Andiamo que tienen movimientos y borra los que no; payload vacío o parcial nunca toca el snapshot.
-- Sync de contenido (guías/notas, `andiamo_content.py`): **NUNCA** colgarlo del path caliente del webhook — solo lifespan, sync-hook y lazy dentro de `handle_trip_question` (dispara task, no bloquea). Andiamo lo alimenta con `GET /api/guides/export` (bulk con `version`; no-op si no cambió) y `GET /api/notes`; las server actions de notas de Andiamo pingean `notes.changed`. Payload inválido nunca arrasa el snapshot.
+- Sync de contenido (guías/notas/documentos, `andiamo_content.py`): **NUNCA** colgarlo del path caliente del webhook — solo lifespan, sync-hook y lazy dentro de `handle_trip_question` (dispara task, no bloquea). Andiamo lo alimenta con `GET /api/guides/export` (bulk con `version`; no-op si no cambió), `GET /api/notes` y `GET /api/integration/documents`; sus mutaciones pingean `notes.changed` / `documents.changed`. Payload inválido nunca arrasa el snapshot. **`notes_only=True` significa "saltear las guías"**, no "solo notas": sincroniza notas *y* documentos, que son metadata chica y no justifican un tercer flag de dirty. Notas y documentos comparten la asimetría con las guías: lista vacía **sí** vacía la tabla (borrar el último es legítimo).
 - Catálogo de categorías (`categories/catalog.py`): el orden es `sort_order` y `Otros` va último. Todo lo demás es derivado (seed, prompt del parser vía `load_categories`, emojis del bot, API) — sumar una categoría son **3 lugares**: la tupla acá, una entrada en `CATEGORY_META` (`frontend/src/lib/chartTheme.ts`: ícono + color + fondo, más su token `--color-accent-*` en `index.css`) y el `MAP` de `andiamo/src/lib/categoryIcons.ts`. Los tres frontends degradan solos (ícono Tag + gris), así que olvidarse no rompe: se ve feo.
   - La **descripción es el clasificador**, no documentación: se inyecta en el prompt del parser. Si dos se pisan (p. ej. "supermercado" viviendo en Comida y en Supermercado), el LLM elige mal. Mantenerlas mutuamente excluyentes y marcar el borde explícito.
   - Color nuevo: correr `scripts/validate_palette.js` de la skill dataviz sobre los 11 hex antes de commitear. La paleta está validada a **pares adyacentes** (no all-pairs, que no pasa ni con los 6 originales); el peor caso CVD está en la banda 6–8, legal porque el color siempre viene con ícono + label.

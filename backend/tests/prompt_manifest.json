@@ -1,7 +1,7 @@
 {
   "app.llm.client._SYSTEM": {
-    "sha256": "906fb5c056a25862f322084cda43b0fbedc569a07272c8a88a589406777b37ae",
-    "que_cubre": "Clasificación de intent + extracción de campos (gastos, cuotas, edits, canal viaje). Borde plata/contenido: las preguntas de presupuesto ('¿vamos bien?', '¿cuánto podemos gastar por día?') son 'question', no 'trip_question'.",
+    "sha256": "d50bbde307b40e0c22e896b8e7bda37f798741eb6d1f55e57a8dc33f667a6edc",
+    "que_cubre": "Clasificación de intent + extracción de campos (gastos, cuotas, edits, canal viaje, notas dictadas). Dos bordes: las preguntas de presupuesto ('¿vamos bien?') son 'question', no 'trip_question'; y 'anotá que...' es 'trip_note' aunque mencione plata, nunca un gasto. Y preguntar por un documento guardado ('¿tenemos la entrada?') es 'trip_question', no 'question': 'entrada'/'pasaje' ahí nombran un archivo, no un gasto.",
     "scenarios": [
       "cuotas-total",
       "batch-split-fix",
@@ -14,9 +14,13 @@
       "settlement-corregido",
       "cuando-llegamos",
       "cuotas-invalidas",
-      "presupuesto-ciudad"
+      "presupuesto-ciudad",
+      "nota-crear",
+      "nota-general",
+      "nota-con-plata",
+      "voucher-buscar"
     ],
-    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only cuotas-total,batch-split-fix,correccion-corta,delete-por-texto,settlement-cruzado,moneda-explicita,multi-hostel,mixta-guia-plata,settlement-corregido,cuando-llegamos,cuotas-invalidas,presupuesto-ciudad"
+    "command": ".venv/bin/python scripts/bot_scenario_runner.py --only cuotas-total,batch-split-fix,correccion-corta,delete-por-texto,settlement-cruzado,moneda-explicita,multi-hostel,mixta-guia-plata,settlement-corregido,cuando-llegamos,cuotas-invalidas,presupuesto-ciudad && .venv/bin/python scripts/bot_trip_scenario_runner.py --only nota-crear,nota-general,nota-con-plata,voucher-buscar"
   },
   "app.bot.qa._SYSTEM": {
     "sha256": "79029d151233a5876914f59dd2f2bb1664d57f51cc486799a4092eb9d44e2ffd",
@@ -36,16 +40,18 @@
     "command": ".venv/bin/python scripts/bot_scenario_runner.py --only qa-followup,daytrip-payer,pending-a-hoy,settlement-cruzado,general-sin-ciudad,qa-multitool,pendientes-query,promedio-dia,cuando-llegamos,presupuesto-ciudad"
   },
   "app.bot.trip_qa._SYSTEM": {
-    "sha256": "1ec1f6ee4a20548c19e6b867b3fbe01e869d8905c0b343893f15d347ecf063c7",
-    "que_cubre": "Agente de viaje: grounding en guías/notas, negativas verificadas, follow-ups.",
+    "sha256": "b3b0b9b9a00a016d4dcb455ab956155e0d0c2b0233e1c9142efb97aef99ba3a2",
+    "que_cubre": "Agente de viaje: grounding en guías/notas/documentos, negativas verificadas, follow-ups. Un archivo guardado se busca con search_documents, no leyendo la guía.",
     "scenarios": [
       "viena-deictico",
       "auschwitz-nota",
       "grounding-negativo",
       "cambio-canal",
       "bar-mleczny",
-      "harry-potter"
+      "harry-potter",
+      "voucher-buscar",
+      "doc-inexistente"
     ],
-    "command": ".venv/bin/python scripts/bot_trip_scenario_runner.py --only viena-deictico,auschwitz-nota,grounding-negativo,cambio-canal,bar-mleczny,harry-potter"
+    "command": ".venv/bin/python scripts/bot_trip_scenario_runner.py --only viena-deictico,auschwitz-nota,grounding-negativo,cambio-canal,bar-mleczny,harry-potter,voucher-buscar,doc-inexistente"
   }
 }

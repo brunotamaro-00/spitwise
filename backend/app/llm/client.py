@@ -33,11 +33,22 @@ _SYSTEM = (
     "guías o sus anotaciones: qué hacer/visitar/comer en un lugar, cómo llegar o "
     "moverse, recomendaciones, historia, clima, reservas o entradas "
     "('¿qué hacemos mañana en Roma?', '¿cómo llegamos a Sintra?', '¿qué anotamos "
-    "del hostel de Praga?', '¿hay que reservar el Coliseo?'). REGLA: si la "
+    "del hostel de Praga?', '¿hay que reservar el Coliseo?'). También preguntar "
+    "por un DOCUMENTO guardado ('¿dónde está el voucher del hostel?', '¿tenemos "
+    "la entrada de Auschwitz?', '¿guardamos el pasaje?'): preguntan por un "
+    "archivo, no por plata, aunque digan 'entrada' o 'pasaje'. REGLA: si la "
     "pregunta es de PLATA, del registro de gastos (cuánto gastamos/pagó/debe) o "
     "de si el gasto va bien contra lo presupuestado (vamos bien, nos pasamos, "
     "cuánto podemos gastar por día, cuánto nos queda), es 'question' aunque "
     "nombre una ciudad; si carga un gasto, es 'expense'.\n"
+    "- 'trip_note': el usuario DICTA algo para anotar del viaje ('anotá que el "
+    "hostel de Roma pide efectivo', 'tomá nota: el free tour sale 11am de la "
+    "plaza', 'acordate que el tren a Sintra sale del andén 4'). Es una nota, "
+    "NUNCA un gasto: aunque mencione plata ('anotá que el hostel cobra 20 en "
+    "efectivo') no carga ningún movimiento. REGLA: si PIDE anotar/guardar/"
+    "recordar algo, es 'trip_note'; si PREGUNTA por lo anotado ('¿qué anotamos "
+    "del hostel?'), es 'trip_question'; si REGISTRA algo ya pagado ('pagué 20 "
+    "en el hostel'), es 'expense'.\n"
     "- 'unknown': nada de lo anterior.\n\n"
     "Para expense/settlement extraé:\n"
     "- amount: string decimal, o null si no hay monto.\n"
@@ -164,6 +175,14 @@ _SYSTEM = (
     "- new_amount_is_total: true SOLO si el monto nuevo es el TOTAL de un gasto "
     "que entró en varias partes o cuotas ('no, el total era 480', 'en total "
     "fueron 500'); para corregir el monto de un gasto puntual, false.\n\n"
+    "Para trip_note extraé:\n"
+    "- note_body: el contenido de la nota, con las palabras del usuario y sin el "
+    "verbo del pedido ('anotá que el hostel pide efectivo' → 'El hostel pide "
+    "efectivo'). No resumas ni agregues nada que no haya dicho.\n"
+    "- note_title: título corto (2-5 palabras) que diga de qué es "
+    "('Hostel: efectivo'), o null si el cuerpo ya es una sola línea corta.\n"
+    "- city: la parada de la nota SOLO si el mensaje la nombra ('el hostel de "
+    "Roma' → 'Roma'); si no, null — valen las mismas reglas de ciudad de arriba.\n\n"
     "No inventes categorías fuera de la lista. Hablan castellano rioplatense."
 )
 
@@ -211,6 +230,9 @@ class ParsedMessageSchema(BaseModel):
     candidates: list[str]
     cashback_kind: str | None  # 'pct' | 'amount' | null
     cashback_value: str | None  # el número (% o monto fijo en la moneda del gasto)
+    # Solo para trip_note; la parada viaja en `city`, como en los gastos.
+    note_title: str | None
+    note_body: str | None
     ref_last: bool
     ref_text: str | None
     ref_date: str | None

@@ -49,13 +49,21 @@ Secretos **solo** acá: nunca en el repo (`.env` está gitignoreado).
 
 Redeploy de Andiamo después de agregarlas (habilita `GET /api/stops` y el chip "Gastado").
 
-**Q&A de viaje del bot (guías/notas):** usa los endpoints `GET /api/guides/export` y
-`GET /api/notes` de Andiamo (misma `TRIP_SHARED_API_KEY`, sin variables nuevas).
+**Q&A de viaje del bot (guías/notas/documentos):** usa los endpoints
+`GET /api/guides/export`, `GET /api/notes` y `GET /api/integration/documents` de
+Andiamo (misma `TRIP_SHARED_API_KEY`, sin variables nuevas). El bot también
+**escribe** notas dictadas por chat en `POST /api/integration/notes`, con la
+misma key.
 Orden de deploy cuando cambian ambos repos: **Andiamo primero** (expone la API),
 Spitwise después (la migración corre en el arranque y el lifespan hace el primer
 sync de contenido). Si Andiamo está caído, el bot sigue con el último snapshot
-(`guide_docs`/`trip_notes`); el sync lazy (TTL 6h) y el ping `notes.changed`
-lo actualizan solos.
+(`guide_docs`/`trip_notes`/`trip_documents`); el sync lazy (TTL 6h) y los pings
+`notes.changed` / `documents.changed` lo actualizan solos. Dictar una nota con
+Andiamo caído no rompe: el pending queda abierto y re-tocar *Guardar* reintenta.
+
+Los links de documento que devuelve el bot (`{ANDIAMO_URL}/api/documents/<id>`)
+están detrás de la **cookie de sesión de Andiamo**, no son signed URLs: se abren
+si el celular ya está logueado, que es el caso normal.
 
 ## Alta inicial (una vez)
 
