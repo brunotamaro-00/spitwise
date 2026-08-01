@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { errorDetail } from "@/api/client";
 import { createMovement } from "@/api/movements";
@@ -9,6 +9,7 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue } from "@/lib/format";
+import { invalidateLedger } from "@/lib/queryClient";
 import type { Balance } from "@/types";
 
 /** Registra un settlement: quién paga le transfiere USD X al otro.
@@ -23,19 +24,29 @@ export default function SettleDialog({ balance, onClose }: {
   const [paidBy, setPaidBy] = useState<string>(balance?.debtor_id ? String(balance.debtor_id) : "");
   const [err, setErr] = useState<string | null>(null);
 
+  // Sin deuda (`debtor_id` null, el estado normal después de saldar) `paidBy`
+  // arrancaba vacío. El <select> no tiene opción vacía, así que el browser
+  // pintaba a la primera persona mientras el estado de React seguía en "": el
+  // submit dependía de `users[0]` y, con `users` todavía sin resolver, mandaba
+  // `paid_by: NaN` → null en JSON y un 422 que no explica nada. El default se
+  // deriva una vez, cuando hay de dónde (mismo patrón que AddMovementDialog).
+  useEffect(() => {
+    if (!paidBy && users.length > 0) {
+      setPaidBy(String(balance?.debtor_id ?? users[0].id));
+    }
+  }, [paidBy, users, balance?.debtor_id]);
+
   const save = useMutation({
     mutationFn: () =>
       createMovement({
         type: "settlement",
         amount: normalizeAmountInput(amount),
         currency: "USD",
-        paid_by: Number(paidBy || users[0]?.id),
+        paid_by: Number(paidBy),
         description: "saldo",
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["balance"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["movements"] });
+      invalidateLedger(qc);
       toast("success", "Pago registrado");
       onClose();
     },
@@ -48,6 +59,10 @@ export default function SettleDialog({ balance, onClose }: {
     const normalized = normalizeAmountInput(amount);
     if (!normalized || Number.isNaN(Number(normalized)) || Number(normalized) <= 0) {
       setErr("Ingresá un monto válido en USD.");
+      return;
+    }
+    if (!paidBy) {
+      setErr("Elegí quién paga.");
       return;
     }
     save.mutate();
