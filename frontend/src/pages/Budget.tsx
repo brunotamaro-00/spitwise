@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { BedDouble, Plane, Plus, Target, TrendingUp } from "lucide-react";
+import { BedDouble, PiggyBank, Plane, Plus, Target, TrendingUp } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { getBudget } from "@/api/budget";
+import BandBadge from "@/components/BandBadge";
+import BudgetBandBar from "@/components/BudgetBandBar";
+import BudgetCategoryMix from "@/components/BudgetCategoryMix";
 import BudgetTargetDialog from "@/components/BudgetTargetDialog";
-import DeltaBadge from "@/components/DeltaBadge";
 import Flag from "@/components/Flag";
 import AnimatedUsd from "@/components/ui/AnimatedUsd";
 import { PageTitle } from "@/components/ui/Brand";
@@ -12,9 +14,29 @@ import Card from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
 import Skeleton from "@/components/ui/Skeleton";
 import SkeletonReveal from "@/components/ui/SkeletonReveal";
-import { coverageLine, currentVerdict, stayProgress } from "@/lib/budget";
-import { formatShortDate, formatUsd, isZeroMoney, parseMoney } from "@/lib/format";
-import type { BudgetAnalysis, CityBudget, CurrentCityBudget, TripPlan } from "@/types";
+import {
+  coverageLine,
+  currentVerdict,
+  cushionRead,
+  projectionRead,
+  stayProgress,
+} from "@/lib/budget";
+import { formatAmount, formatShortDate, formatUsd, isZeroMoney } from "@/lib/format";
+import type {
+  BudgetAnalysis,
+  CityBudget,
+  CurrentCityBudget,
+  TripPlan,
+} from "@/types";
+
+/** "USD 48 – 63" — el plan siempre se dice como el rango que es.
+ *  La moneda va una sola vez: "USD 48 – USD 63" ocupa el doble y no aclara nada. */
+function bandText(min: string | null, max: string | null): string | null {
+  if (min == null || max == null) return null;
+  return min === max
+    ? formatUsd(min, "whole")
+    : `${formatUsd(min, "whole")} – ${formatAmount(max, "whole")}`;
+}
 
 /* ------------------------------------------------------------------ focal */
 
@@ -22,9 +44,11 @@ import type { BudgetAnalysis, CityBudget, CurrentCityBudget, TripPlan } from "@/
  *
  *  El número grande no es "cuánto gastaste" (mirar para atrás) sino **cuánto
  *  queda por día hasta el check-out**: si vinieron ahorrando, sube. Es la
- *  respuesta a "¿salimos a comer hoy?". */
+ *  respuesta a "¿salimos a comer hoy?". Debajo, la banda ubica el ritmo real
+ *  dentro del plan, que es lo que dice si hace falta ajustar o no. */
 function CurrentHero({ c }: { c: CurrentCityBudget }) {
   const verdict = currentVerdict(c);
+  const plan = bandText(c.target_min_usd, c.target_max_usd);
 
   return (
     <Card className="relative overflow-hidden p-6 text-white hero-gradient soft-hero lg:p-7">
@@ -42,7 +66,7 @@ function CurrentHero({ c }: { c: CurrentCityBudget }) {
               <AnimatedUsd value={c.living_usd} />
             </p>
             <p className="mt-3 text-sm text-white/85">
-              Sin presupuesto para esta parada — cargalo abajo y vas a ver si alcanza.
+              Sin plan para esta parada — cargalo abajo y vas a ver si alcanza.
             </p>
           </>
         ) : (
@@ -60,31 +84,38 @@ function CurrentHero({ c }: { c: CurrentCityBudget }) {
                   por delante
                 </>
               ) : (
-                <>te pasaste del presupuesto de {c.city_name}</>
+                <>te pasaste del plan de {c.city_name}</>
               )}
             </p>
           </>
         )}
 
-        {c.target_daily_usd && (
-          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/20 pt-4 text-sm text-white/85">
-            <span>
-              Plan{" "}
-              <span className="font-tabular font-semibold text-white">
-                {formatUsd(c.target_daily_usd, "whole")}
-              </span>
-              /día
-            </span>
-            {c.living_per_day_usd && (
+        {plan && c.target_min_usd && c.target_max_usd && (
+          <div className="mt-5 border-t border-white/20 pt-4">
+            <div className="flex items-baseline justify-between gap-3 text-sm text-white/85">
               <span>
                 Llevás{" "}
                 <span className="font-tabular font-semibold text-white">
-                  {formatUsd(c.living_per_day_usd, "whole")}
+                  {formatUsd(c.living_per_day_usd ?? "0", "whole")}
                 </span>
                 /día
               </span>
-            )}
-            <DeltaBadge pct={c.delta_pct} compact />
+              <BandBadge position={c.band_position} edgeDeltaPct={c.edge_delta_pct} />
+            </div>
+            <div className="mt-2.5">
+              <BudgetBandBar
+                min={c.target_min_usd}
+                max={c.target_max_usd}
+                value={c.living_per_day_usd}
+                position={c.band_position}
+                size="lg"
+                variant="hero"
+                label={c.city_name}
+              />
+            </div>
+            <p className="mt-2 text-[11px] font-medium text-white/70">
+              Plan <span className="font-tabular">{plan}</span> por día · la marca es el objetivo
+            </p>
           </div>
         )}
       </div>
@@ -93,10 +124,11 @@ function CurrentHero({ c }: { c: CurrentCityBudget }) {
 }
 
 /** Antes de arrancar (o terminado el viaje) no hay ciudad en curso: el foco
- *  pasa a ser el plan. Es también el único momento en que revisar los targets
- *  cargados sirve de verdad, porque todavía se pueden ajustar. */
+ *  pasa a ser el plan. Es también el único momento en que revisar las bandas
+ *  cargadas sirve de verdad, porque todavía se pueden ajustar. */
 function PlanHero({ plan, finished }: { plan: TripPlan; finished: boolean }) {
   const cov = coverageLine(plan.covered_nights, plan.budget_nights, []);
+  const total = bandText(plan.living_budget_min_usd, plan.living_budget_max_usd);
 
   return (
     <Card className="relative overflow-hidden p-6 text-white hero-gradient soft-hero lg:p-7">
@@ -106,10 +138,10 @@ function PlanHero({ plan, finished }: { plan: TripPlan; finished: boolean }) {
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
           {finished ? "El plan · viaje terminado" : "El plan"}
         </p>
-        {plan.living_budget_usd ? (
+        {total ? (
           <>
-            <p className="mt-2 font-display text-6xl leading-none tracking-[-0.02em] font-tabular lg:text-7xl">
-              <AnimatedUsd value={plan.living_budget_usd} />
+            <p className="mt-2 font-display text-4xl leading-none tracking-[-0.02em] font-tabular lg:text-5xl">
+              {total}
             </p>
             <p className="mt-3 text-sm text-white/85">
               vivir · {plan.budget_nights} noches ·{" "}
@@ -122,10 +154,10 @@ function PlanHero({ plan, finished }: { plan: TripPlan; finished: boolean }) {
         ) : (
           <>
             <p className="mt-2 font-display text-4xl leading-none tracking-[-0.02em]">
-              Sin presupuesto
+              Sin plan
             </p>
             <p className="mt-3 text-sm text-white/85">
-              Cargá un objetivo por día en cada ciudad y esta pantalla te dice si van bien.
+              Cargá un rango por día en cada ciudad y esta pantalla te dice si van bien.
             </p>
           </>
         )}
@@ -140,11 +172,11 @@ function PlanHero({ plan, finished }: { plan: TripPlan; finished: boolean }) {
             {plan.next_stop.arrival_date && (
               <span>· {formatShortDate(plan.next_stop.arrival_date)}</span>
             )}
-            {plan.next_stop.target_daily_usd && (
+            {bandText(plan.next_stop.target_min_usd, plan.next_stop.target_max_usd) && (
               <span>
                 ·{" "}
                 <span className="font-tabular font-semibold text-white">
-                  {formatUsd(plan.next_stop.target_daily_usd, "whole")}
+                  {bandText(plan.next_stop.target_min_usd, plan.next_stop.target_max_usd)}
                 </span>
                 /día
               </span>
@@ -160,64 +192,138 @@ function PlanHero({ plan, finished }: { plan: TripPlan; finished: boolean }) {
   );
 }
 
+/* ------------------------------------------------------- colchón + ritmo */
+
+/** La palanca de control: cuánto llevan ahorrado y a cuánto por día pueden ir
+ *  en lo que queda. Es la respuesta a "en la próxima ciudad nos ajustamos".
+ *
+ *  Solo con el viaje en curso. Antes de arrancar el colchón es cero por
+ *  construcción (no se vivió ninguna noche) y el ritmo necesario ya descuenta
+ *  todo lo prepago contra el plan entero, así que la card mostraría un número
+ *  bajo y alarmante que no significa nada: el plan lo cuenta el hero. */
+function CushionCard({ b }: { b: BudgetAnalysis }) {
+  const read = cushionRead(b.cushion);
+  if (b.trip_status !== "in_progress" || read.kind === "none") return null;
+
+  const ahead = read.kind === "ahead";
+  const needed = read.neededUsd;
+  const avg = b.cushion.avg_target_daily_usd;
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start gap-3">
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+            ahead ? "bg-accent-teal-bg text-accent-teal" : "bg-accent-amber-bg text-accent-amber"
+          }`}
+        >
+          <PiggyBank size={18} strokeWidth={2} aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-3">
+            {ahead ? "Colchón del viaje" : "Arriba del plan"}
+          </p>
+          <p
+            className={`mt-0.5 font-display text-3xl leading-none tracking-[-0.02em] font-tabular ${
+              ahead ? "text-accent-teal-ink" : "text-accent-amber-ink"
+            }`}
+          >
+            {ahead ? "+" : "−"}
+            <AnimatedUsd value={read.amountUsd} />
+          </p>
+          <p className="mt-1.5 text-sm font-medium text-ink-2">
+            {ahead
+              ? "de lo que el plan ya había separado para estos días."
+              : "de más contra lo que el plan preveía hasta hoy."}
+          </p>
+        </div>
+      </div>
+
+      {needed && read.remainingNights > 0 && (
+        <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-border pt-3">
+          <span className="text-sm font-medium text-ink-2">
+            {ahead ? "Podés gastar" : "Para cerrar en plan"}
+          </span>
+          <span className="text-right">
+            <span className="font-tabular text-lg font-bold text-ink">
+              {formatUsd(needed, "whole")}
+              <span className="font-sans text-[11px] font-medium text-ink-3">/día</span>
+            </span>
+            <span className="block text-[11px] font-medium text-ink-3">
+              en las {read.remainingNights} noches que quedan
+              {avg && <> · plan {formatUsd(avg, "whole")}</>}
+            </span>
+          </span>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /* ------------------------------------------------------------- por ciudad */
 
 function CityRow({ c, onEdit }: { c: CityBudget; onEdit: () => void }) {
   const future = c.status === "future";
-  const hasTarget = c.target_daily_usd != null;
+  const hasPlan = c.target_min_usd != null && c.target_max_usd != null;
   // En una futura el "valor" es el plan: todavía no hay ritmo que mostrar.
-  const value = future ? c.target_daily_usd : c.living_per_day_usd;
+  const value = future ? null : c.living_per_day_usd;
+  const plan = bandText(c.target_min_usd, c.target_max_usd);
 
   return (
     <button
       type="button"
       onClick={onEdit}
-      aria-label={`Editar presupuesto de ${c.city_name}`}
-      className="focus-ring-inset flex w-full min-h-[56px] cursor-pointer items-center gap-3 border-b border-border py-3 text-left transition-colors last:border-0 hover:bg-surface-2/60"
+      aria-label={`Editar el plan de ${c.city_name}`}
+      className="focus-ring-inset flex w-full min-h-[56px] cursor-pointer flex-col gap-1.5 border-b border-border py-3 text-left transition-colors last:border-0 hover:bg-surface-2/60"
     >
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-1.5 text-sm font-bold text-ink">
-          {c.country_flag && <Flag flag={c.country_flag} className="shrink-0 text-sm leading-none" />}
-          <span className="min-w-0 truncate">{c.city_name}</span>
-          {c.status === "current" && (
-            <span className="shrink-0 rounded-full bg-brick-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brick-ink">
-              hoy
+      <div className="flex w-full items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-sm font-bold text-ink">
+            {c.country_flag && <Flag flag={c.country_flag} className="shrink-0 text-sm leading-none" />}
+            <span className="min-w-0 truncate">{c.city_name}</span>
+            {c.status === "current" && (
+              <span className="shrink-0 rounded-full bg-brick-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brick-ink">
+                hoy
+              </span>
+            )}
+          </p>
+          <p className="mt-0.5 text-[11px] font-medium text-ink-3">
+            {c.nights} noche{c.nights === 1 ? "" : "s"}
+            {plan ? <> · plan <span className="font-tabular">{plan}</span></> : <> · sin plan</>}
+            {c.note && <> · {c.note}</>}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {!hasPlan ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-brick-bg px-2 py-1 text-[11px] font-bold text-brick-ink">
+              <Plus size={11} strokeWidth={2.5} aria-hidden="true" />
+              definir
+            </span>
+          ) : value && !isZeroMoney(value) ? (
+            <span className="font-tabular text-sm font-bold text-ink">
+              {formatUsd(value, "whole")}
+              <span className="font-sans text-[11px] font-medium text-ink-3">/día</span>
+            </span>
+          ) : (
+            <span className="text-[11px] font-medium text-ink-faint">
+              {future ? "por venir" : "—"}
             </span>
           )}
-        </p>
-        <p className="mt-0.5 text-[11px] font-medium text-ink-3">
-          {c.nights} noche{c.nights === 1 ? "" : "s"}
-          {/* En una futura el número de la derecha YA es el plan: repetirlo acá
-              era decir dos veces lo mismo en la misma fila. */}
-          {!hasTarget ? (
-            <> · sin presupuesto</>
-          ) : future ? (
-            <> · por venir</>
-          ) : (
-            <> · plan <span className="font-tabular">{formatUsd(c.target_daily_usd!, "whole")}</span>/día</>
-          )}
-          {c.note && <> · {c.note}</>}
-        </p>
+          <BandBadge position={c.band_position} edgeDeltaPct={c.edge_delta_pct} />
+        </div>
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        {hasTarget && value && !isZeroMoney(value) ? (
-          <span
-            className={`font-tabular text-sm font-bold ${future ? "text-ink-3" : "text-ink"}`}
-          >
-            {formatUsd(value, "whole")}
-            <span className="font-sans text-[11px] font-medium text-ink-3">/día</span>
-          </span>
-        ) : !hasTarget ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-brick-bg px-2 py-1 text-[11px] font-bold text-brick-ink">
-            <Plus size={11} strokeWidth={2.5} aria-hidden="true" />
-            definir
-          </span>
-        ) : (
-          <span className="text-sm font-medium text-ink-faint">—</span>
-        )}
-        <DeltaBadge pct={c.delta_pct} compact />
-      </div>
+      {/* La barra es lo que se escanea: con 27 filas, nadie lee 27 números. */}
+      {hasPlan && (
+        <BudgetBandBar
+          min={c.target_min_usd!}
+          max={c.target_max_usd!}
+          value={value}
+          position={c.band_position}
+          label={c.city_name}
+        />
+      )}
     </button>
   );
 }
@@ -231,8 +337,8 @@ function ProjectionCard({ b }: { b: BudgetAnalysis }) {
     return p.uncovered_slugs.map((s) => bySlug.get(s) ?? s);
   }, [b.cities, p.uncovered_slugs]);
   const cov = coverageLine(p.covered_nights, p.budget_nights, names);
-
-  const variance = p.variance_usd == null ? null : parseMoney(p.variance_usd);
+  const total = bandText(p.living_budget_min_usd, p.living_budget_max_usd);
+  const read = projectionRead(p);
 
   return (
     <Card className="p-5">
@@ -243,44 +349,51 @@ function ProjectionCard({ b }: { b: BudgetAnalysis }) {
         Proyección del viaje
       </h2>
 
-      {p.living_budget_usd && p.projected_living_usd ? (
+      {total && p.projected_living_usd ? (
         <>
           <dl className="mt-4 grid grid-cols-2 gap-3">
             <div>
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
-                Presupuesto
+                Plan
               </dt>
-              <dd className="font-display text-2xl leading-none text-ink font-tabular">
-                {formatUsd(p.living_budget_usd, "whole")}
+              <dd className="font-display text-xl leading-none text-ink font-tabular">
+                {total}
               </dd>
             </div>
             <div>
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
                 Proyectado
               </dt>
-              <dd className="font-display text-2xl leading-none text-ink font-tabular">
+              <dd className="font-display text-xl leading-none text-ink font-tabular">
                 {formatUsd(p.projected_living_usd, "whole")}
               </dd>
             </div>
           </dl>
-          {variance != null && (
-            <p className="mt-3 text-sm font-semibold text-ink-2">
-              Al ritmo de lo que ya cerraron, terminan{" "}
-              <span
-                className={`font-tabular ${variance > 0 ? "text-accent-amber-ink" : "text-accent-teal-ink"}`}
-              >
-                {formatUsd(String(Math.abs(variance)), "whole")}{" "}
-                {variance > 0 ? "arriba" : "abajo"}
-              </span>{" "}
-              del plan.
-            </p>
-          )}
+          <p className="mt-3 text-sm font-semibold text-ink-2">
+            Al ritmo de lo que ya cerraron,{" "}
+            {read.kind === "inside" ? (
+              <span className="text-accent-teal-ink">terminan dentro del plan.</span>
+            ) : read.kind === "none" ? null : (
+              <>
+                terminan{" "}
+                <span
+                  className={`font-tabular ${
+                    read.kind === "over" ? "text-accent-amber-ink" : "text-accent-teal-ink"
+                  }`}
+                >
+                  {formatUsd(read.amountUsd, "whole")}{" "}
+                  {read.kind === "over" ? "arriba del techo" : "abajo del piso"}
+                </span>
+                .
+              </>
+            )}
+          </p>
         </>
       ) : (
         <p className="mt-3 text-sm font-medium text-ink-2">
-          {p.living_budget_usd
+          {total
             ? "Todavía no hay ninguna ciudad cerrada: la proyección aparece cuando terminen la primera parada."
-            : "Cargá presupuestos por ciudad para poder proyectar el viaje."}
+            : "Cargá planes por ciudad para poder proyectar el viaje."}
         </p>
       )}
 
@@ -310,7 +423,7 @@ function FixedCard({ b }: { b: BudgetAnalysis }) {
     <Card className="p-5">
       <h2 className="text-sm font-bold text-ink">Fijos</h2>
       <p className="mt-0.5 text-[11px] font-medium text-ink-3">
-        Fuera del presupuesto de vivir: ya están comprometidos.
+        Fuera del plan de vivir: ya están comprometidos.
       </p>
       <div className="mt-3 flex flex-col">
         {rows.map(({ icon: Icon, label, hint, usd }) => (
@@ -344,7 +457,7 @@ function FixedCard({ b }: { b: BudgetAnalysis }) {
 /* ------------------------------------------------------------------ page  */
 
 /** ¿Estamos gastando bien? Compara el gasto diario de "vivir" (todo menos
- *  alojamiento y generales) contra un objetivo por ciudad. Sin cuentas
+ *  alojamiento y generales) contra un rango por ciudad. Sin cuentas
  *  regresivas: las paradas futuras existen, pero nadie las cuenta. */
 export default function Budget() {
   const budget = useQuery({ queryKey: ["budget"], queryFn: getBudget });
@@ -369,9 +482,9 @@ export default function Budget() {
         ready={!!budget.data}
         skeleton={
           <div className="flex flex-col gap-5">
-            <Skeleton className="h-48" />
+            <Skeleton className="h-56" />
+            <Skeleton className="h-28" />
             <Skeleton className="h-64" />
-            <Skeleton className="h-32" />
           </div>
         }
       >
@@ -409,6 +522,10 @@ function BudgetBody({
       </div>
 
       <div className="animate-rise-in stagger-2">
+        <CushionCard b={b} />
+      </div>
+
+      <div className="animate-rise-in stagger-3">
         <Card className="px-5 py-1">
           <div className="flex items-center gap-2 py-3">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brick-bg text-brick">
@@ -432,11 +549,17 @@ function BudgetBody({
         </Card>
       </div>
 
-      <div className="animate-rise-in stagger-3">
+      {b.current && (
+        <div className="animate-rise-in stagger-4">
+          <BudgetCategoryMix c={b.current} />
+        </div>
+      )}
+
+      <div className="animate-rise-in stagger-5">
         <ProjectionCard b={b} />
       </div>
 
-      <div className="animate-rise-in stagger-4">
+      <div className="animate-rise-in stagger-5">
         <FixedCard b={b} />
       </div>
     </div>

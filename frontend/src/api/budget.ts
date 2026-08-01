@@ -5,7 +5,7 @@ export const getBudget = async (): Promise<BudgetAnalysis> => (await api.get("/b
 
 export const putStopBudget = async (
   slug: string,
-  body: { daily_usd: string; note?: string | null },
+  body: { daily_min_usd: string; daily_max_usd: string; note?: string | null },
 ): Promise<StopBudget> => (await api.put(`/budget/${slug}`, body)).data;
 
 export const deleteStopBudget = async (slug: string): Promise<void> => {

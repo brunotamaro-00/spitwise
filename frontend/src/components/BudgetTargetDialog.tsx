@@ -12,9 +12,13 @@ import { useToast } from "@/components/ui/Toast";
 import { normalizeAmountInput, sanitizeAmountInput, toInputValue } from "@/lib/format";
 import type { CityBudget } from "@/types";
 
-/** Fija el target de "vivir" de una parada: USD/día por persona.
+/** Fija el plan de "vivir" de una parada: un RANGO USD/día por persona.
  *
- *  Solo invalida `["budget"]`: el target no es un movimiento, así que no toca
+ *  Rango y no número porque un presupuesto de viaje nunca es un punto: el
+ *  techo es el límite (recién arriba de ahí se pasaron) y el centro, derivado,
+ *  es el objetivo contra el que se miden colchón y proyección.
+ *
+ *  Solo invalida `["budget"]`: el plan no es un movimiento, así que no toca
  *  balance, dashboard ni la lista de gastos. */
 export default function BudgetTargetDialog({ city, onClose }: {
   city: CityBudget;
@@ -22,8 +26,11 @@ export default function BudgetTargetDialog({ city, onClose }: {
 }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const [amount, setAmount] = useState(
-    city.target_daily_usd ? toInputValue(city.target_daily_usd) : "",
+  const [min, setMin] = useState(
+    city.target_min_usd ? toInputValue(city.target_min_usd) : "",
+  );
+  const [max, setMax] = useState(
+    city.target_max_usd ? toInputValue(city.target_max_usd) : "",
   );
   const [note, setNote] = useState(city.note ?? "");
   const [err, setErr] = useState<string | null>(null);
@@ -37,27 +44,35 @@ export default function BudgetTargetDialog({ city, onClose }: {
   const save = useMutation({
     mutationFn: () =>
       putStopBudget(city.stop_slug, {
-        daily_usd: normalizeAmountInput(amount),
+        daily_min_usd: normalizeAmountInput(min),
+        daily_max_usd: normalizeAmountInput(max),
         note: note.trim() || null,
       }),
-    onSuccess: () => done("Presupuesto guardado"),
-    onError: (e) => setErr(errorDetail(e, "No se pudo guardar el presupuesto.")),
+    onSuccess: () => done("Plan guardado"),
+    onError: (e) => setErr(errorDetail(e, "No se pudo guardar el plan.")),
   });
 
   const remove = useMutation({
     mutationFn: () => deleteStopBudget(city.stop_slug),
-    onSuccess: () => done("Presupuesto borrado"),
-    onError: (e) => setErr(errorDetail(e, "No se pudo borrar el presupuesto.")),
+    onSuccess: () => done("Plan borrado"),
+    onError: (e) => setErr(errorDetail(e, "No se pudo borrar el plan.")),
   });
 
   const busy = save.isPending || remove.isPending;
 
+  const lo = Number(normalizeAmountInput(min));
+  const hi = Number(normalizeAmountInput(max));
+  const center = lo > 0 && hi >= lo ? (lo + hi) / 2 : null;
+
   function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setErr(null);
-    const normalized = normalizeAmountInput(amount);
-    if (!normalized || Number.isNaN(Number(normalized)) || Number(normalized) <= 0) {
-      setErr("Ingresá un monto por día en USD.");
+    if (!(lo > 0) || !(hi > 0)) {
+      setErr("Ingresá el mínimo y el máximo por día, en USD.");
+      return;
+    }
+    if (hi < lo) {
+      setErr("El máximo no puede ser menor que el mínimo.");
       return;
     }
     save.mutate();
@@ -67,19 +82,42 @@ export default function BudgetTargetDialog({ city, onClose }: {
     <Modal title={city.city_name} onClose={onClose} size="sm" locked={busy}>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <Field
-          label="Presupuesto por día"
-          hint="USD por persona, sin alojamiento: comida, café, super, transporte, salidas y actividades."
+          label="Plan por día"
+          hint="USD por persona, sin alojamiento: comida, café, super, transporte, salidas y actividades. El máximo es el techo."
         >
-          <Input
-            inputMode="decimal"
-            autoFocus
-            placeholder="0"
-            value={amount}
-            onChange={(e) => setAmount(sanitizeAmountInput(e.target.value))}
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              inputMode="decimal"
+              autoFocus
+              aria-label="Mínimo por día"
+              placeholder="mínimo"
+              value={min}
+              onChange={(e) => setMin(sanitizeAmountInput(e.target.value))}
+            />
+            <span aria-hidden="true" className="shrink-0 text-sm font-bold text-ink-3">
+              –
+            </span>
+            <Input
+              inputMode="decimal"
+              aria-label="Máximo por día"
+              placeholder="máximo"
+              value={max}
+              onChange={(e) => setMax(sanitizeAmountInput(e.target.value))}
+            />
+          </div>
         </Field>
 
-        <Field label="Nota" hint="Opcional: por qué ese número.">
+        {center != null && (
+          <p className="-mt-1 text-[12px] font-medium text-ink-3">
+            Objetivo{" "}
+            <span className="font-tabular font-semibold text-ink-2">
+              USD {Math.round(center)}
+            </span>
+            /día — el centro del rango, contra el que se miden el colchón y la proyección.
+          </p>
+        )}
+
+        <Field label="Nota" hint="Opcional: por qué ese rango.">
           <Input
             placeholder="hostel con cocina"
             maxLength={200}

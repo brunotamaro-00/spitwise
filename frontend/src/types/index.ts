@@ -65,12 +65,21 @@ export type TripPace = { as_of: string; trip: TripBlock; cities: CityPace[] };
 
 /* --- Presupuesto de "vivir" (backend: app/budget.py) --------------------
  * "Vivir" = todo menos alojamiento y generales. Es el mismo `other_usd` que
- * /ciudades muestra como "Vivir /día": el presupuesto solo agrega el target
- * contra el cual compararlo. Todos los montos son string (decimal). */
+ * /ciudades muestra como "Vivir /día": el presupuesto solo agrega el plan
+ * contra el cual compararlo. Todos los montos son string (decimal).
+ *
+ * El plan de una parada es un RANGO: el techo (`target_max_usd`) es el límite
+ * y el centro (`target_daily_usd`) el objetivo contra el que se miden todos
+ * los agregados. */
+
+/** Dónde cae el ritmo real contra la banda: debajo del piso (ahorrando),
+ *  adentro (en plan) o arriba del techo (pasados). */
+export type BandPosition = "under" | "in" | "over";
 
 export type StopBudget = {
   stop_slug: string;
-  daily_usd: string;
+  daily_min_usd: string;
+  daily_max_usd: string;
   note: string | null;
   updated_at: string;
 };
@@ -88,14 +97,30 @@ export type CityBudget = {
   nights: number;
   elapsed_nights: number;
   movement_count: number;
+  target_min_usd: string | null;
+  target_max_usd: string | null;
+  /** El centro de la banda. */
   target_daily_usd: string | null;
   note: string | null;
   living_usd: string;
   living_per_day_usd: string | null;
   budget_accrued_usd: string | null;
   variance_usd: string | null;
-  /** null sin target, sin noches, o en futuras (solo tienen prepago). */
+  band_position: BandPosition | null;
+  /** Desvío contra el borde violado; null adentro de la banda. */
+  edge_delta_pct: number | null;
+  /** null sin plan, sin noches, o en futuras (solo tienen prepago). */
   delta_pct: number | null;
+};
+
+/** En qué se va el vivir de la parada, contra la mezcla del viaje. */
+export type CategoryMix = {
+  category_id: number | null;
+  living_usd: string;
+  share_pct: number | null;
+  trip_share_pct: number | null;
+  /** share de la parada / share del viaje. >1 = acá se te va más en esto. */
+  ratio: number | null;
 };
 
 export type CurrentCityBudget = {
@@ -107,6 +132,8 @@ export type CurrentCityBudget = {
   lived_nights: number;
   total_nights: number;
   remaining_days: number;
+  target_min_usd: string | null;
+  target_max_usd: string | null;
   target_daily_usd: string | null;
   living_usd: string;
   living_per_day_usd: string | null;
@@ -115,7 +142,10 @@ export type CurrentCityBudget = {
   remaining_budget_usd: string | null;
   /** Puede ser negativo: ya se pasaron. Cambia el copy, no el signo. */
   remaining_daily_usd: string | null;
+  band_position: BandPosition | null;
+  edge_delta_pct: number | null;
   delta_pct: number | null;
+  by_category: CategoryMix[];
 };
 
 export type NextStopBudget = {
@@ -124,7 +154,22 @@ export type NextStopBudget = {
   country_flag: string | null;
   arrival_date: string | null;
   nights: number;
+  target_min_usd: string | null;
+  target_max_usd: string | null;
   target_daily_usd: string | null;
+};
+
+/** Colchón acumulado y ritmo necesario: la palanca de control del viaje. */
+export type TripCushion = {
+  covered_nights: number;
+  budget_to_date_usd: string | null;
+  living_to_date_usd: string;
+  /** Puede ser negativo: van arriba del plan. */
+  cushion_usd: string | null;
+  remaining_nights: number;
+  needed_daily_usd: string | null;
+  avg_target_daily_usd: string | null;
+  needed_delta_pct: number | null;
 };
 
 export type TripPlan = {
@@ -132,6 +177,8 @@ export type TripPlan = {
   covered_nights: number;
   coverage_pct: number | null;
   uncovered_slugs: string[];
+  living_budget_min_usd: string | null;
+  living_budget_max_usd: string | null;
   living_budget_usd: string | null;
   avg_target_daily_usd: string | null;
   next_stop: NextStopBudget | null;
@@ -142,6 +189,8 @@ export type BudgetProjection = {
   covered_nights: number;
   coverage_pct: number | null;
   uncovered_slugs: string[];
+  living_budget_min_usd: string | null;
+  living_budget_max_usd: string | null;
   living_budget_usd: string | null;
   living_to_date_usd: string;
   living_run_rate_usd: string | null;
@@ -160,6 +209,7 @@ export type BudgetAnalysis = {
   as_of: string;
   trip_status: TripStatus;
   current: CurrentCityBudget | null;
+  cushion: TripCushion;
   plan: TripPlan;
   cities: CityBudget[];
   projection: BudgetProjection;
