@@ -2,7 +2,14 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 
 class TokenResponse(BaseModel):
@@ -148,6 +155,9 @@ class CategorySpendOut(BaseModel):
 
 TripStatus = Literal["not_started", "in_progress", "finished"]
 StopPaceStatus = Literal["past", "current", "future"]
+# Dónde cae el ritmo real contra la banda del plan: debajo del piso (ahorrando),
+# adentro (en plan) o arriba del techo (pasados). El techo es el límite.
+BandPosition = Literal["under", "in", "over"]
 
 
 class TripBlockOut(BaseModel):
@@ -204,22 +214,36 @@ class TripPaceOut(BaseModel):
 
 
 class StopBudgetIn(BaseModel):
-    # le=1000 es una cota anti-typo: nadie vive con USD 1.000/día en este viaje,
-    # así que un "500" con un cero de más muere en 422 en vez de arruinar el
-    # veredicto de la ciudad en silencio.
-    daily_usd: Decimal = Field(gt=0, le=1000)
+    """El plan de una parada es un rango, no un número.
+
+    `le=1000` es una cota anti-typo: nadie vive con USD 1.000/día en este viaje,
+    así que un "500" con un cero de más muere en 422 en vez de arruinar el
+    veredicto de la ciudad en silencio.
+    """
+
+    daily_min_usd: Decimal = Field(gt=0, le=1000)
+    daily_max_usd: Decimal = Field(gt=0, le=1000)
     note: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def _check_band(self) -> "StopBudgetIn":
+        # Una banda invertida no es un plan: `app/budget.py` la descartaría en
+        # silencio (baja la cobertura), así que se rechaza en el borde.
+        if self.daily_max_usd < self.daily_min_usd:
+            raise ValueError("el máximo no puede ser menor que el mínimo")
+        return self
 
 
 class StopBudgetOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     stop_slug: str
-    daily_usd: Decimal
+    daily_min_usd: Decimal
+    daily_max_usd: Decimal
     note: str | None
     updated_at: datetime
 
-    @field_serializer("daily_usd")
+    @field_serializer("daily_min_usd", "daily_max_usd")
     def _ser_daily(self, v: Decimal) -> str:
         return f"{v:.2f}"
 
@@ -242,14 +266,35 @@ class CityBudgetOut(BaseModel):
     nights: int
     elapsed_nights: int
     movement_count: int
+    target_min_usd: str | None
+    target_max_usd: str | None
+    # El centro de la banda: el objetivo contra el que se miden los agregados.
     target_daily_usd: str | None
     note: str | None
     living_usd: str
     living_per_day_usd: str | None
     budget_accrued_usd: str | None
     variance_usd: str | None
-    # None sin target, sin noches, o en futuras (solo tienen prepago imputado).
+    # "under" | "in" | "over": el veredicto que pinta la barra.
+    band_position: BandPosition | None
+    # Desvío contra el borde violado; None adentro de la banda.
+    edge_delta_pct: float | None
+    # None sin banda, sin noches, o en futuras (solo tienen prepago imputado).
     delta_pct: float | None
+
+
+class CategoryMixOut(BaseModel):
+    """En qué se va el vivir de la parada, contra la mezcla del viaje.
+
+    Compara **proporciones**: el monto crudo depende de cuántos días llevás acá,
+    el share dice si esta ciudad se te va en algo distinto que el resto.
+    """
+
+    category_id: int | None
+    living_usd: str
+    share_pct: float | None
+    trip_share_pct: float | None
+    ratio: float | None
 
 
 class CurrentCityBudgetOut(BaseModel):
@@ -263,6 +308,8 @@ class CurrentCityBudgetOut(BaseModel):
     lived_nights: int
     total_nights: int
     remaining_days: int
+    target_min_usd: str | None
+    target_max_usd: str | None
     target_daily_usd: str | None
     living_usd: str
     living_per_day_usd: str | None
@@ -271,7 +318,10 @@ class CurrentCityBudgetOut(BaseModel):
     remaining_budget_usd: str | None
     # Puede ser negativo: ya se pasaron. La página cambia el copy, no el signo.
     remaining_daily_usd: str | None
+    band_position: BandPosition | None
+    edge_delta_pct: float | None
     delta_pct: float | None
+    by_category: list[CategoryMixOut]
 
 
 class NextStopBudgetOut(BaseModel):
@@ -280,7 +330,26 @@ class NextStopBudgetOut(BaseModel):
     country_flag: str | None
     arrival_date: date | None
     nights: int
+    target_min_usd: str | None
+    target_max_usd: str | None
     target_daily_usd: str | None
+
+
+class TripCushionOut(BaseModel):
+    """Colchón acumulado y ritmo necesario: la palanca de control del viaje.
+
+    `cushion_usd` puede ser negativo (van arriba del plan) y no se clampea.
+    `needed_daily_usd` es None cuando no queda viaje por delante.
+    """
+
+    covered_nights: int
+    budget_to_date_usd: str | None
+    living_to_date_usd: str
+    cushion_usd: str | None
+    remaining_nights: int
+    needed_daily_usd: str | None
+    avg_target_daily_usd: str | None
+    needed_delta_pct: float | None
 
 
 class TripPlanOut(BaseModel):
@@ -290,6 +359,8 @@ class TripPlanOut(BaseModel):
     covered_nights: int
     coverage_pct: float | None
     uncovered_slugs: list[str]
+    living_budget_min_usd: str | None
+    living_budget_max_usd: str | None
     living_budget_usd: str | None
     avg_target_daily_usd: str | None
     next_stop: NextStopBudgetOut | None
@@ -307,6 +378,10 @@ class BudgetProjectionOut(BaseModel):
     covered_nights: int
     coverage_pct: float | None
     uncovered_slugs: list[str]
+    # El presupuesto se muestra como el rango que es; la varianza se mide
+    # contra el centro (`living_budget_usd`).
+    living_budget_min_usd: str | None
+    living_budget_max_usd: str | None
     living_budget_usd: str | None
     living_to_date_usd: str
     living_run_rate_usd: str | None
@@ -327,6 +402,7 @@ class BudgetOut(BaseModel):
     as_of: date
     trip_status: TripStatus
     current: CurrentCityBudgetOut | None
+    cushion: TripCushionOut
     plan: TripPlanOut
     cities: list[CityBudgetOut]
     projection: BudgetProjectionOut
