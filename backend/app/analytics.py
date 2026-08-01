@@ -9,6 +9,11 @@ Funciones puras (sin I/O), estilo balance.py/spend.py. El modelo:
   todas las ciudades debajo de la línea por construcción. Van aparte, en
   `general_usd` / `general_per_day_usd`, y solo entran en la proyección.
 - Todo es personal (`user_share`): la parte del usuario, no el gross.
+- `living_by_category` (por ciudad y del viaje) es el desglose de ese mismo
+  "vivir" por categoría. Se agrega en este módulo, y no en `app/budget.py`,
+  porque acá está el único loop que ya sabe qué movimiento es alojamiento y
+  cuál es general: la suma del dict da `other_usd` por construcción, no por
+  disciplina.
 """
 
 from datetime import date, timedelta
@@ -134,11 +139,19 @@ def build_trip_pace(
         if m.stop_slug is None or m.stop_slug not in by_slug:
             general += share
             continue
-        row = per_stop.setdefault(m.stop_slug, {"lodging": _ZERO, "other": _ZERO, "count": 0})
+        row = per_stop.setdefault(
+            m.stop_slug, {"lodging": _ZERO, "other": _ZERO, "count": 0, "by_cat": {}}
+        )
         if lodging_category_id is not None and m.category_id == lodging_category_id:
             row["lodging"] += share
         else:
             row["other"] += share
+            # Desglose de "vivir" por categoría, agregado acá y no en budget.py:
+            # este es el único loop que ya sabe qué es alojamiento y qué es
+            # general, así que la suma del dict da `other_usd` por construcción.
+            row["by_cat"][m.category_id] = (
+                row["by_cat"].get(m.category_id, _ZERO) + share
+            )
         row["count"] += 1
 
     # Filas: itinerario visible (sin candidatas) + cualquier parada ajena
@@ -152,8 +165,11 @@ def build_trip_pace(
 
     cities: list[dict] = []
     accrued = _ZERO
+    trip_by_cat: dict[int | None, Decimal] = {}
     for s in row_stops:
-        agg = per_stop.get(s.slug, {"lodging": _ZERO, "other": _ZERO, "count": 0})
+        agg = per_stop.get(
+            s.slug, {"lodging": _ZERO, "other": _ZERO, "count": 0, "by_cat": {}}
+        )
         lodging, other = agg["lodging"], agg["other"]
         nights = stop_nights(s)
         status = stop_status(s, today)
@@ -199,8 +215,11 @@ def build_trip_pace(
                 "per_day_usd": per_day,
                 "lodging_per_night_usd": lodging_per_night,
                 "other_per_day_usd": other_per_day,
+                "living_by_category": dict(agg["by_cat"]),
             }
         )
+        for cat_id, amount in agg["by_cat"].items():
+            trip_by_cat[cat_id] = trip_by_cat.get(cat_id, _ZERO) + amount
 
     general_per_day = general / total_nights if total_nights else None
     # `accrued` venía solo de ciudades: ese es el ritmo que se compara contra
@@ -250,6 +269,9 @@ def build_trip_pace(
             "run_rate_usd": run_rate,
             "accrued_usd": accrued,
             "projected_total_usd": projected,
+            # Mezcla de "vivir" de todo el viaje: la baseline contra la que se
+            # compara la de una parada. Suma de las ciudades ⇒ sin generales.
+            "living_by_category": trip_by_cat,
         },
         "cities": cities,
     }

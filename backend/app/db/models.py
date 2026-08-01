@@ -122,7 +122,14 @@ class Stop(Base):
 
 
 class StopBudget(Base):
-    """Target de gasto diario de "vivir" de una parada, en USD **por persona**.
+    """Plan de gasto diario de "vivir" de una parada, en USD **por persona**.
+
+    Es un **rango**, no un número: `Itinerary/PRESUPUESTO.md` da bandas
+    (`$2170-2650`) y colapsarlas a un punto era precisión falsa. El techo
+    (`daily_max_usd`) es el límite —recién arriba de ahí se "pasaron"— y el
+    centro derivado `(min + max) / 2` es el objetivo contra el que se miden los
+    agregados (devengado, colchón, proyección). El centro no se guarda: sería un
+    tercer estado que puede quedar desincronizado de la banda.
 
     "Vivir" = todo menos alojamiento y generales (ver `app/budget.py`). Es un
     objetivo cargado a mano en la web, no un límite ni un dato de Andiamo.
@@ -133,14 +140,15 @@ class StopBudget(Base):
     es dato autoral que no tiene por qué morir con eso. Por lo mismo `stop_slug`
     no lleva FK.
 
-    Un target por parada, compartido por los dos: el número ya es por persona,
+    Una banda por parada, compartida por los dos: el número ya es por persona,
     y los tramos donde difieren son paradas distintas (Portugal vs Pititas).
     """
 
     __tablename__ = "stop_budgets"
 
     stop_slug: Mapped[str] = mapped_column(String(80), primary_key=True)
-    daily_usd: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    daily_min_usd: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    daily_max_usd: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     note: Mapped[str | None] = mapped_column(String(200))
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()

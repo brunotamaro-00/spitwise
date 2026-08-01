@@ -1,9 +1,14 @@
-"""build_budget: target de vivir por parada contra el gasto real.
+"""build_budget: la banda de vivir por parada contra el gasto real.
 
 Los helpers llaman `build_trip_pace` **real** y le pasan el resultado a
 `build_budget`. Es a propósito: el riesgo de esta arquitectura no es la
 aritmética del presupuesto, es que los dos módulos se desacoplen y /ciudades
 termine diciendo un número y /presupuesto otro.
+
+`plans` acepta un escalar o un par `(min, max)`. Un escalar arma una **banda de
+ancho cero**, que se comporta exactamente como el target de un solo número que
+había antes: por eso toda la batería vieja de tests sigue escrita con escalares
+y funciona como el test de no-regresión del modelo de rango.
 """
 
 from datetime import date
@@ -11,7 +16,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from app.analytics import build_trip_pace
-from app.budget import build_budget
+from app.budget import Band, band_position, build_budget, edge_delta_pct
 
 LODGING = 1  # category_id de Alojamiento en estos tests
 OTHER = 2
@@ -35,12 +40,19 @@ def _mov(slug, usd, cat=OTHER, split="shared", paid_by=1):
     )
 
 
+def _band(v) -> Band:
+    """Escalar => banda de ancho cero (el target de un solo número de antes)."""
+    if isinstance(v, (tuple, list)):
+        return Band(Decimal(str(v[0])), Decimal(str(v[1])))
+    return Band(Decimal(str(v)), Decimal(str(v)))
+
+
 def _budget(stops, movements, today, targets=None, username="bruno", user_id=1):
     pace = build_trip_pace(
         stops, movements, lodging_category_id=LODGING,
         user_id=user_id, username=username, today=today,
     )
-    return build_budget(pace, {k: Decimal(v) for k, v in (targets or {}).items()})
+    return build_budget(pace, {k: _band(v) for k, v in (targets or {}).items()})
 
 
 def _row(data, slug):
@@ -273,3 +285,176 @@ def test_shares_are_personal():
                     username="katia", user_id=2)
     assert _row(bruno, "roma")["living_usd"] == Decimal("0")
     assert _row(katia, "roma")["living_usd"] == Decimal("100")
+
+
+# --------------------------------------------------------------- banda (rango)
+
+
+def test_band_positions():
+    """Las tres lecturas de una banda 40–60, sobre la misma parada de 10 noches."""
+    def pos(usd):
+        data = _budget([ROMA], [_mov("roma", usd)], date(2026, 9, 1),
+                       {"roma": (40, 60)})
+        return _row(data, "roma")
+
+    ahorrando = pos("600")   # 300 share => 30/día, debajo del piso
+    en_plan = pos("1000")    # 500 share => 50/día, justo en el centro
+    pasados = pos("1400")    # 700 share => 70/día, arriba del techo
+
+    assert ahorrando["band_position"] == "under"
+    assert en_plan["band_position"] == "in"
+    assert pasados["band_position"] == "over"
+
+    assert ahorrando["target_min_usd"] == Decimal("40")
+    assert ahorrando["target_max_usd"] == Decimal("60")
+    assert ahorrando["target_daily_usd"] == Decimal("50")   # el centro
+
+
+def test_edge_delta_is_measured_against_the_violated_edge():
+    """Adentro de la banda no hay desvío que reportar: ese es el punto del rango.
+    Afuera, el % se mide contra el borde violado, no contra el centro."""
+    data = _budget([ROMA], [_mov("roma", "1320")], date(2026, 9, 1), {"roma": (40, 60)})
+    r = _row(data, "roma")
+    assert r["living_per_day_usd"] == Decimal("66")
+    assert r["edge_delta_pct"] == 10.0          # 66 vs el techo de 60
+    assert r["delta_pct"] == 32.0               # 66 vs el centro de 50
+
+    dentro = _budget([ROMA], [_mov("roma", "1100")], date(2026, 9, 1), {"roma": (40, 60)})
+    assert _row(dentro, "roma")["edge_delta_pct"] is None
+    assert _row(dentro, "roma")["delta_pct"] == 10.0
+
+
+def test_band_helpers_are_defensive():
+    """El módulo puro no confía en la DB: banda invertida o con piso <= 0 se
+    trata como ausente, igual que un target negativo."""
+    assert band_position(Decimal("50"), None) is None
+    assert edge_delta_pct(None, Band(Decimal("40"), Decimal("60"))) is None
+
+    invertida = _budget([ROMA], [_mov("roma", "600")], date(2026, 9, 1),
+                        {"roma": (60, 40)})
+    assert _row(invertida, "roma")["target_daily_usd"] is None
+    assert invertida["projection"]["uncovered_slugs"] == ["roma"]
+
+
+def test_projection_carries_both_edges():
+    """El total del viaje se muestra como rango; la varianza sigue contra el centro."""
+    data = _budget([ROMA], [_mov("roma", "1000")], date(2026, 9, 1), {"roma": (40, 60)})
+    p = data["projection"]
+    assert p["living_budget_min_usd"] == Decimal("400")
+    assert p["living_budget_max_usd"] == Decimal("600")
+    assert p["living_budget_usd"] == Decimal("500")
+    assert p["variance_usd"] == Decimal("0")     # ritmo 50/día = el centro
+
+
+def test_next_stop_shows_the_band():
+    stops = [ROMA, _stop("paris", order=2, arrival=date(2026, 9, 1),
+                         departure=date(2026, 9, 6))]
+    data = _budget(stops, [], date(2026, 8, 5), {"roma": 50, "paris": (30, 50)})
+    nxt = data["plan"]["next_stop"]
+    assert nxt["stop_slug"] == "paris"
+    assert (nxt["target_min_usd"], nxt["target_max_usd"]) == (Decimal("30"), Decimal("50"))
+    assert nxt["target_daily_usd"] == Decimal("40")
+
+
+# ---------------------------------------------------------- colchón del viaje
+
+
+def test_cushion_positive_raises_the_needed_rate():
+    """Roma cerrada gastando la mitad del plan: el colchón es positivo y lo que
+    queda por día sube por encima del promedio del plan."""
+    stops = [ROMA, _stop("paris", order=2, arrival=date(2026, 8, 11),
+                         departure=date(2026, 8, 21))]
+    # Roma: 250 share en 10 noches = 25/día contra un centro de 50 => +250 de colchón.
+    data = _budget(stops, [_mov("roma", "500")], date(2026, 8, 11),
+                   {"roma": (40, 60), "paris": (40, 60)})
+    c = data["cushion"]
+    assert c["covered_nights"] == 20
+    # 10 noches de Roma + el día 1 de París, que ya se vivió.
+    assert c["budget_to_date_usd"] == Decimal("550")
+    assert c["living_to_date_usd"] == Decimal("250")
+    assert c["cushion_usd"] == Decimal("300")
+    assert c["avg_target_daily_usd"] == Decimal("50")
+    # Día 1 de París: quedan 10 noches (hoy cuenta) y 750 de presupuesto.
+    assert c["remaining_nights"] == 10
+    assert c["needed_daily_usd"] == Decimal("75")
+    assert c["needed_delta_pct"] == 50.0
+
+
+def test_cushion_negative_lowers_the_needed_rate():
+    stops = [ROMA, _stop("paris", order=2, arrival=date(2026, 8, 11),
+                         departure=date(2026, 8, 21))]
+    # Roma: 750 share en 10 noches = 75/día contra 50 => -250 de colchón.
+    data = _budget(stops, [_mov("roma", "1500")], date(2026, 8, 11),
+                   {"roma": (40, 60), "paris": (40, 60)})
+    c = data["cushion"]
+    assert c["cushion_usd"] == Decimal("-200")   # 550 devengado vs 750 gastado
+    assert c["needed_daily_usd"] == Decimal("25")
+    assert c["needed_delta_pct"] == -50.0
+
+
+def test_cushion_counts_prepaid_of_future_stops():
+    """Una actividad ya pagada de una parada futura consume presupuesto de vivir
+    aunque la parada no haya empezado: no puede quedar afuera del ritmo necesario.
+
+    Hoy (11/8) es un día de traslado: Roma cerró y París todavía no empieza, así
+    que hoy NO suma una noche a las que quedan."""
+    stops = [ROMA, _stop("paris", order=2, arrival=date(2026, 9, 1),
+                         departure=date(2026, 9, 11))]
+    movs = [_mov("roma", "1000"), _mov("paris", "400")]  # 500 + 200 de share
+    data = _budget(stops, movs, date(2026, 8, 11), {"roma": 50, "paris": 50})
+    c = data["cushion"]
+    assert c["living_to_date_usd"] == Decimal("500")     # el devengado excluye futuras
+    assert c["cushion_usd"] == Decimal("0")
+    # 1000 de presupuesto total − 700 ya comprometidos, en las 10 noches de París.
+    assert c["needed_daily_usd"] == Decimal("30")
+
+
+def test_cushion_is_empty_without_bands_and_after_the_trip():
+    sin_banda = _budget([ROMA], [_mov("roma", "600")], date(2026, 8, 5))
+    assert sin_banda["cushion"]["cushion_usd"] is None
+    assert sin_banda["cushion"]["needed_daily_usd"] is None
+
+    terminado = _budget([ROMA], [_mov("roma", "600")], date(2026, 12, 1), {"roma": 50})
+    assert terminado["cushion"]["cushion_usd"] == Decimal("200")  # el balance queda
+    assert terminado["cushion"]["remaining_nights"] == 0
+    assert terminado["cushion"]["needed_daily_usd"] is None       # no hay ritmo que pedir
+
+
+def test_cushion_before_the_trip_spreads_over_every_night():
+    data = _budget([ROMA], [], date(2026, 7, 1), {"roma": 50})
+    c = data["cushion"]
+    assert c["remaining_nights"] == 10        # sin días vividos, no se suma "hoy"
+    assert c["needed_daily_usd"] == Decimal("50")
+
+
+# -------------------------------------------------------- en qué se te va
+
+
+def test_category_mix_compares_proportions_not_amounts():
+    """La mezcla de la parada contra la del viaje. Roma se lleva el 100% del
+    café del viaje, así que su share duplica al del viaje."""
+    FOOD, COFFEE = 2, 3
+    stops = [ROMA, _stop("paris", order=2, arrival=date(2026, 7, 20),
+                         departure=date(2026, 7, 30))]
+    movs = [
+        _mov("roma", "400", cat=FOOD),      # 200 share
+        _mov("roma", "400", cat=COFFEE),    # 200 share
+        _mov("paris", "800", cat=FOOD),     # 400 share, otra parada
+    ]
+    data = _budget(stops, movs, date(2026, 8, 5), {"roma": 50, "paris": 50})
+    mix = data["current"]["by_category"]
+
+    assert [m["category_id"] for m in mix] == [FOOD, COFFEE]  # ordenado desc
+    comida, cafe = mix
+    assert comida["living_usd"] == Decimal("200")
+    assert comida["share_pct"] == 50.0
+    assert comida["trip_share_pct"] == 75.0                  # 600 de 800
+    assert round(comida["ratio"], 3) == 0.667
+    assert cafe["trip_share_pct"] == 25.0
+    assert cafe["ratio"] == 2.0                              # el doble de lo normal
+
+
+def test_category_mix_is_empty_without_living_spend():
+    data = _budget([ROMA], [_mov("roma", "1000", cat=LODGING)], date(2026, 8, 5),
+                   {"roma": 50})
+    assert data["current"]["by_category"] == []

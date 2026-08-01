@@ -229,3 +229,28 @@ def test_status_and_lived_days_helpers():
     assert lived_days(s, date(2026, 8, 1)) == 1  # día de llegada = día 1
     assert lived_days(s, date(2026, 8, 10)) == 10
     assert lived_days(s, date(2026, 12, 1)) == 10
+
+
+def test_living_by_category_sums_to_other():
+    """El desglose de vivir es una partición de `other_usd`: ni el alojamiento
+    ni los generales entran, y la suma cierra exacto. Es el guard de que
+    /presupuesto no muestra un desglose que no da el total de la ciudad."""
+    FOOD, COFFEE = 2, 3
+    stops = [_stop("roma", arrival=date(2026, 8, 1), departure=date(2026, 8, 11))]
+    movs = [
+        _mov("roma", "500", cat=LODGING),
+        _mov("roma", "120", cat=FOOD),
+        _mov("roma", "40", cat=COFFEE),
+        _mov("roma", "30", cat=None),          # sin categoría: igual es vivir
+        _mov(None, "800", cat=FOOD),           # general: no pasa por ninguna ciudad
+    ]
+    data = _pace(stops, movs, date(2026, 8, 4))
+    roma = _city(data, "roma")
+
+    by_cat = roma["living_by_category"]
+    assert by_cat == {FOOD: Decimal("60"), COFFEE: Decimal("20"), None: Decimal("15")}
+    assert sum(by_cat.values()) == roma["other_usd"]
+    assert LODGING not in by_cat
+    # El del viaje es la suma de las ciudades, así que tampoco tiene generales.
+    assert data["trip"]["living_by_category"] == by_cat
+    assert sum(data["trip"]["living_by_category"].values()) < data["trip"]["total_usd"]
