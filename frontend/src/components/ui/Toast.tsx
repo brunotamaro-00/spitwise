@@ -57,7 +57,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.97 }}
                 transition={{ type: "spring", stiffness: 500, damping: 32 }}
-                className={`pointer-events-auto flex max-w-full items-center gap-2 rounded-full py-2.5 pl-4 pr-2 text-sm font-semibold soft-pop ${
+                // rounded-2xl y no rounded-full: un error puede ocupar dos o
+                // tres líneas (ver el span de abajo) y la píldora deja de ser
+                // una píldora. El éxito, de una línea, se ve igual.
+                className={`pointer-events-auto flex max-w-full items-start gap-2 rounded-2xl py-2.5 pl-4 pr-2 text-sm font-semibold soft-pop ${
                   t.kind === "success" ? "espresso-panel" : "bg-danger text-white"
                 }`}
               >
@@ -66,7 +69,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 ) : (
                   <AlertCircle size={17} strokeWidth={2.25} className="shrink-0" aria-hidden="true" />
                 )}
-                <span className="min-w-0 flex-1 truncate">{t.text}</span>
+                {/* Wrapea, no trunca. Los errores traen el `detail` real de la
+                    API ("fx_rate para ARS debe ser el multiplicador a USD…",
+                    83 chars) y a 402px `truncate` cortaba en ~48: se veía la
+                    mitad justo del mensaje que dice qué corregir, que es todo
+                    el motivo por el que `errorDetail` existe. `line-clamp-3`
+                    pone el tope antes de que un detail largo tape la pantalla. */}
+                <span className="min-w-0 flex-1 line-clamp-3 break-words">{t.text}</span>
                 {/* Cerrar a mano: el contenedor es pointer-events-none y cada
                     toast lo reactiva, para poder sacarlo antes de que expire. */}
                 <button
