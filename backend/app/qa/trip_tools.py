@@ -17,8 +17,10 @@ import unicodedata
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.copy import link_andiamo_stop
+from app.bot.documents.kinds import DOC_KINDS
 from app.config import get_settings
-from app.db.models import GuideDoc, StopGuide, TripNote
+from app.db.models import GuideDoc, Stop, StopGuide, TripDocument, TripNote
 from app.llm.chat import ToolSpec
 
 _MAX_DOC_CHARS = 25_000
@@ -72,6 +74,14 @@ def _query_terms(query: str) -> list[str]:
 def doc_link(guide_slug: str, doc_slug: str) -> str | None:
     base = (get_settings().andiamo_url or "").rstrip("/")
     return f"{base}/guias/{guide_slug}/{doc_slug}" if base else None
+
+
+def document_link(doc_id: str) -> str | None:
+    """Link al archivo guardado. Es la única ruta de Andiamo que resuelve las
+    dos fuentes (upload en R2 y link externo); pide sesión abierta, que es el
+    caso normal en el celu."""
+    base = (get_settings().andiamo_url or "").rstrip("/")
+    return f"{base}/api/documents/{doc_id}" if base else None
 
 
 async def _load_docs(session: AsyncSession, cache: dict) -> list[GuideDoc]:
@@ -348,6 +358,88 @@ async def list_notes(session: AsyncSession, *, stop_slug: str | None = None,
     }
 
 
+def _score_document(d: TripDocument, terms: list[str]) -> tuple[int, list[str]]:
+    """Score de un documento contra los términos. El label es el nombre que le
+    puso quien lo guardó, así que pesa mucho más que la nota o el archivo."""
+    label = _fold(d.label)
+    rest = _fold(f"{d.note or ''} {d.file_name or ''} {DOC_KINDS.get(d.kind, '')}")
+    score, matched = 0, []
+    for t in terms:
+        if t in label:
+            score += 30
+            matched.append(t)
+        elif t in rest:
+            score += 10
+            matched.append(t)
+    return score, matched
+
+
+async def search_documents(session: AsyncSession, *, query: str | None = None,
+                           stop_slug: str | None = None, kind: str | None = None) -> dict:
+    """Busca en los documentos guardados en Andiamo (solo metadata local).
+
+    Sin argumentos devuelve los más recientes. Un stop_slug que no es una parada
+    del itinerario es un error del agente (ValueError); una parada real sin
+    documentos devuelve lista vacía, que es una respuesta legítima.
+    """
+    if kind is not None and kind not in DOC_KINDS:
+        raise ValueError(f"kind inválido: {kind!r}; válidos: {sorted(DOC_KINDS)}")
+
+    if stop_slug:
+        known = set((await session.execute(select(Stop.slug))).scalars().all())
+        if stop_slug not in known:
+            raise ValueError(f"stop_slug desconocido: {stop_slug!r}; paradas: {sorted(known)}")
+
+    q = select(TripDocument)
+    if stop_slug:
+        # Los generales (stop_slug null) valen para cualquier parada: el seguro
+        # de viaje es la respuesta correcta a "¿tengo algo del seguro en Roma?".
+        q = q.where((TripDocument.stop_slug == stop_slug) | (TripDocument.stop_slug.is_(None)))
+    if kind:
+        q = q.where(TripDocument.kind == kind)
+    docs = list((await session.execute(q)).scalars().all())
+
+    terms = _query_terms(query) if query else []
+    if terms:
+        scored = [(s, m, d) for d in docs for s, m in [_score_document(d, terms)] if s > 0]
+        scored.sort(key=lambda x: (-x[0], x[2].label))
+        hits = [(d, m) for _, m, d in scored]
+        match_mode = "all" if any(len(m) == len(terms) for _, m in hits) else (
+            "partial" if hits else "none")
+    else:
+        docs.sort(key=lambda d: (d.created_at is None, -(d.created_at.timestamp()
+                                                         if d.created_at else 0)))
+        hits = [(d, []) for d in docs]
+        match_mode = "listing"
+
+    rows = [{
+        "id": d.id,
+        "label": d.label,
+        "note": d.note,
+        "kind": d.kind,
+        "kind_label": DOC_KINDS.get(d.kind, "Otro"),
+        "stop_slug": d.stop_slug,
+        "doc_date": d.doc_date.isoformat() if d.doc_date else None,
+        "matched_terms": m,
+        "file_link": document_link(d.id),
+        "stop_link": link_andiamo_stop(d.stop_slug),
+    } for d, m in hits[:_MAX_SEARCH_HITS]]
+    truncated = len(hits) > _MAX_SEARCH_HITS
+    return {
+        "documents": rows,
+        "total_documents": len(hits),
+        "match_mode": match_mode,
+        "terms_used": terms,
+        "truncated": truncated,
+        "note": ("documentos que ustedes guardaron en Andiamo (vouchers, entradas, "
+                 "seguros). 'file_link' abre el archivo; 'stop_link' es la parada donde "
+                 "vive. stop_slug null = documento general del viaje. Si viene vacío, "
+                 "no hay nada guardado de eso — decilo, no lo inventes."
+                 + (" La lista viene recortada: afiná query o stop_slug."
+                    if truncated else "")),
+    }
+
+
 def build_trip_tools(session: AsyncSession) -> list[ToolSpec]:
     cache: dict = {}  # docs compartidos entre tool calls del mismo turno
 
@@ -362,6 +454,9 @@ def build_trip_tools(session: AsyncSession) -> list[ToolSpec]:
 
     async def _notes(**kw):
         return await list_notes(session, **kw)
+
+    async def _documents(**kw):
+        return await search_documents(session, **kw)
 
     return [
         ToolSpec(
@@ -447,5 +542,28 @@ def build_trip_tools(session: AsyncSession) -> list[ToolSpec]:
                 "additionalProperties": False,
             },
             handler=_notes,
+        ),
+        ToolSpec(
+            name="search_documents",
+            description=("Documentos guardados en Andiamo: vouchers, entradas, check-ins, "
+                         "seguros, pasajes. Usalo para '¿dónde está el voucher del hostel "
+                         "de Roma?' o '¿tenemos la entrada del Coliseo?'. Filtrá por query "
+                         "(texto del nombre o la nota), stop_slug (esa parada + los "
+                         "generales) y/o kind. Sin argumentos lista los más recientes. "
+                         "Devuelve 'file_link' (abre el archivo) y 'stop_link' (la parada): "
+                         "pasale al usuario el file_link. Lista vacía = no está guardado."),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string",
+                              "description": "Palabras clave del documento ('voucher hostel')."},
+                    "stop_slug": {"type": "string",
+                                  "description": "Slug de la parada (del snapshot o list_guides)."},
+                    "kind": {"type": "string", "enum": sorted(DOC_KINDS),
+                             "description": "Tipo de documento."},
+                },
+                "additionalProperties": False,
+            },
+            handler=_documents,
         ),
     ]

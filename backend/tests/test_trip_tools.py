@@ -1,5 +1,6 @@
 from app.db.models import GuideDoc, StopGuide, TripNote
-from app.qa.trip_tools import build_trip_tools, list_guides, list_notes, read_guide_doc, search_guides
+from app.qa.trip_tools import (build_trip_tools, list_guides, list_notes, read_guide_doc,
+                               search_documents, search_guides)
 
 
 async def _seed(db_session):
@@ -125,4 +126,106 @@ async def test_build_trip_tools_names(db_session):
     tools = build_trip_tools(db_session)
     assert [t.name for t in tools] == [
         "search_guides", "list_guides", "read_guide_doc", "list_notes",
+        "search_documents",
     ]
+
+
+# --- search_documents -------------------------------------------------------
+
+async def _seed_documents(db_session):
+    from datetime import date, datetime
+    from app.db.models import Stop, TripDocument
+    db_session.add_all([
+        Stop(slug="roma", order=1, name="Roma", country="Italia",
+             arrival_date=date(2026, 8, 1), departure_date=date(2026, 8, 10)),
+        Stop(slug="lisboa", order=2, name="Lisboa", country="Portugal",
+             arrival_date=date(2026, 8, 10), departure_date=date(2026, 8, 15)),
+    ])
+    db_session.add_all([
+        TripDocument(id="d1", stop_slug="roma", label="Voucher hostel Roma",
+                     note="Check-in 15hs", kind="voucher", source="upload",
+                     doc_date=date(2026, 8, 1), file_name="voucher.pdf",
+                     mime_type="application/pdf",
+                     created_at=datetime(2026, 7, 20, 10, 0)),
+        TripDocument(id="d2", stop_slug="roma", label="Entrada Coliseo",
+                     note=None, kind="ticket", source="upload",
+                     doc_date=date(2026, 8, 3), file_name="coliseo.pdf",
+                     mime_type="application/pdf",
+                     created_at=datetime(2026, 7, 25, 10, 0)),
+        TripDocument(id="d3", stop_slug=None, label="Seguro de viaje",
+                     note="Póliza 123", kind="insurance", source="link",
+                     doc_date=None, file_name=None, mime_type=None,
+                     created_at=datetime(2026, 6, 1, 10, 0)),
+    ])
+    await db_session.commit()
+
+
+async def test_search_documents_by_query(db_session):
+    await _seed_documents(db_session)
+    out = await search_documents(db_session, query="voucher hostel")
+    assert [d["id"] for d in out["documents"]] == ["d1"]
+    assert out["match_mode"] == "all"
+    assert out["documents"][0]["kind_label"] == "Voucher"
+
+
+async def test_search_documents_stop_includes_generals(db_session):
+    await _seed_documents(db_session)
+    out = await search_documents(db_session, stop_slug="roma")
+    # La parada + los generales: el seguro vale para cualquier ciudad.
+    assert {d["id"] for d in out["documents"]} == {"d1", "d2", "d3"}
+    out = await search_documents(db_session, stop_slug="lisboa")
+    assert {d["id"] for d in out["documents"]} == {"d3"}
+
+
+async def test_search_documents_kind_filter(db_session):
+    await _seed_documents(db_session)
+    out = await search_documents(db_session, kind="ticket")
+    assert [d["id"] for d in out["documents"]] == ["d2"]
+
+
+async def test_search_documents_no_hits_is_empty_not_error(db_session):
+    await _seed_documents(db_session)
+    out = await search_documents(db_session, query="pasaje ferry")
+    assert out["documents"] == [] and out["match_mode"] == "none"
+
+
+async def test_search_documents_unknown_stop_raises(db_session):
+    await _seed_documents(db_session)
+    try:
+        await search_documents(db_session, stop_slug="atlantis")
+        assert False, "debería levantar ValueError"
+    except ValueError as e:
+        assert "atlantis" in str(e) and "roma" in str(e)
+
+
+async def test_search_documents_unknown_kind_raises(db_session):
+    await _seed_documents(db_session)
+    try:
+        await search_documents(db_session, kind="hotel")
+        assert False, "debería levantar ValueError"
+    except ValueError as e:
+        assert "hotel" in str(e)
+
+
+async def test_search_documents_links(db_session, monkeypatch):
+    from app.config import get_settings
+    monkeypatch.setenv("ANDIAMO_URL", "http://andiamo")
+    get_settings.cache_clear()
+    try:
+        await _seed_documents(db_session)
+        out = await search_documents(db_session, query="coliseo")
+        doc = out["documents"][0]
+        # El archivo se sirve por id; la parada es el contexto.
+        assert doc["file_link"] == "http://andiamo/api/documents/d2"
+        assert doc["stop_link"] == "http://andiamo/stops/roma"
+        out = await search_documents(db_session, query="seguro")
+        assert out["documents"][0]["stop_link"] == "http://andiamo/general"
+    finally:
+        get_settings.cache_clear()
+
+
+async def test_search_documents_listing_is_recent_first(db_session):
+    await _seed_documents(db_session)
+    out = await search_documents(db_session)
+    assert [d["id"] for d in out["documents"]] == ["d2", "d1", "d3"]
+    assert out["match_mode"] == "listing"

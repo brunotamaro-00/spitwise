@@ -77,7 +77,8 @@ async def test_trip_agent_isolated_from_finance(db_session):
     call = chat.calls[0]
     # Solo tools de guías/notas — ninguna financiera.
     assert {t.name for t in call["tools"]} == {
-        "search_guides", "list_guides", "read_guide_doc", "list_notes"}
+        "search_guides", "list_guides", "read_guide_doc", "list_notes",
+        "search_documents"}
     # Prompt propio: grounding sí, semántica financiera no.
     assert "guías" in call["system"] and "NUNCA completes" in call["system"]
     for financial in ("aggregate_expenses", "get_balance", "edit_movement", "attribution"):
@@ -157,7 +158,8 @@ async def test_dispatch_routes_trip_question(db_session):
                            llm_client=FakeLLM(_payload("trip_question")), chat_client=chat)
     assert reply.text == "respuesta de guía"
     assert {t.name for t in chat.calls[0]["tools"]} == {
-        "search_guides", "list_guides", "read_guide_doc", "list_notes"}
+        "search_guides", "list_guides", "read_guide_doc", "list_notes",
+        "search_documents"}
 
 
 async def test_dispatch_unknown_follows_latest_channel(db_session):
