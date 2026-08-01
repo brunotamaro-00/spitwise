@@ -204,6 +204,30 @@ class TripNote(Base):
     synced_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
 
+class TripDocument(Base):
+    """Snapshot local de los documentos de Andiamo (por parada o generales).
+
+    Solo metadata: el archivo vive en R2 y lo sirve Andiamo en
+    /api/documents/<id>. El bot busca acá y devuelve ese link; nunca toca
+    storage. Fuente de verdad = Andiamo, igual que TripNote.
+    """
+
+    __tablename__ = "trip_documents"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    stop_slug: Mapped[str | None] = mapped_column(String(80), index=True)
+    label: Mapped[str] = mapped_column(String(200))
+    note: Mapped[str | None] = mapped_column(Text)
+    # checkin | voucher | ticket | carRental | train | insurance | flight | other
+    kind: Mapped[str] = mapped_column(String(20))
+    source: Mapped[str] = mapped_column(String(10))  # upload | link
+    doc_date: Mapped[date | None] = mapped_column(Date)
+    file_name: Mapped[str | None] = mapped_column(String(255))
+    mime_type: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
+    synced_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
 class SyncMeta(Base):
     """Key-value mínimo para metadata de syncs (hoy: guides_version)."""
 

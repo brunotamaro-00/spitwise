@@ -222,7 +222,9 @@ async def sync_hook(body: SyncHookIn | None = None, _: None = Depends(require_ap
     Responde 202 al instante; el sync corre como task. Sin body o con
     evento desconocido → stops (compat con el ping original)."""
     event = (body.event if body else "") or "stops.changed"
-    if event == "notes.changed":
+    if event in ("notes.changed", "documents.changed"):
+        # Los dos saltean las guías: notas y documentos son metadata chica y la
+        # misma pasada cubre ambos.
         force_content_sync_soon(notes_only=True)
     elif event == "guides.changed":
         force_content_sync_soon()
