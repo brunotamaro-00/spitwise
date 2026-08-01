@@ -504,8 +504,8 @@ async def _chk_promedio_dia(ctx: CheckCtx) -> list[str]:
     return e
 
 async def _chk_presupuesto(ctx: CheckCtx) -> list[str]:
-    """'¿Vamos bien acá?' se contesta con el target de la parada, no con el
-    promedio del viaje. Y la tool es de solo lectura."""
+    """'¿Vamos bien acá?' se contesta con el rango planeado de la parada, no con
+    el promedio del viaje. Y la tool es de solo lectura."""
     e = Errors()
     e.want(ctx.channels() == ["qa", "qa"], f"canal financiero en los dos turnos, fue {ctx.channels()}")
     e.want("budget_status" in ctx.tools_used(),
@@ -979,10 +979,10 @@ CONVERSATIONS_EXTRA += [
         name="Presupuesto de la ciudad",
         id="presupuesto-ciudad",
         check=_chk_presupuesto,
-        goal="'¿Vamos bien acá?' se responde contra el target de la parada, no contra "
-             "el promedio del viaje; y una parada sin target se dice, no se estima.",
+        goal="'¿Vamos bien acá?' se responde contra el RANGO planeado de la parada, no "
+             "contra el promedio del viaje; y una parada sin plan se dice, no se estima.",
         turns=[
-            Turn(BRUNO_WA, "¿vamos bien de guita en Lisboa?", note="target vs real"),
+            Turn(BRUNO_WA, "¿vamos bien de guita en Lisboa?", note="rango vs real"),
             # Vocabulario de plata explícito a propósito. Dos formas que NO
             # funcionan y no se arreglan acá: el elíptico "¿y en Interlaken?"
             # (el parser lo manda a guías por el nombre de ciudad) y la palabra
@@ -991,13 +991,13 @@ CONVERSATIONS_EXTRA += [
             # deriva bien al contador; arreglar el ruteo es tocar el prompt del
             # parser, fuera del alcance de este escenario.
             Turn(BRUNO_WA, "¿y en Interlaken cuánto podemos gastar por día?",
-                 note="parada sin target"),
+                 note="parada sin plan"),
         ],
         expect_hints=[
-            "Turno 1: debe llamar budget_status y comparar contra el target de Lisboa "
-            "(USD 40/día). FAIL: contesta con aggregate_expenses y el promedio del viaje",
-            "Turno 2: Interlaken NO tiene target cargado. Tiene que decirlo. "
-            "FAIL: inventa un target o lo deriva del promedio de las otras paradas",
+            "Turno 1: debe llamar budget_status y comparar contra el rango de Lisboa "
+            "(USD 34–46/día). FAIL: contesta con aggregate_expenses y el promedio del viaje",
+            "Turno 2: Interlaken NO tiene plan cargado. Tiene que decirlo. "
+            "FAIL: inventa un rango o lo deriva del promedio de las otras paradas",
             "Ninguno de los dos turnos puede crear ni tocar movimientos",
         ],
         fix_in="qa/tools.py budget_status · bot/qa.py (prompt) · app/budget.py",
@@ -1038,13 +1038,16 @@ async def seed(session: AsyncSession) -> None:
              departure_date=date(2026, 9, 18), currency_code="GBP", timezone="Europe/London"),
     ])
 
-    # Targets de presupuesto. Interlaken queda SIN target a propósito: el
+    # Bandas de presupuesto. Interlaken queda SIN banda a propósito: el
     # escenario `presupuesto-ciudad` también verifica la negativa honesta
-    # ("esa parada no tiene target") en vez de un número inventado.
+    # ("esa parada no tiene plan cargado") en vez de un número inventado.
     session.add_all([
-        StopBudget(stop_slug="lisboa", daily_usd=Decimal("40")),
-        StopBudget(stop_slug="paris", daily_usd=Decimal("55")),
-        StopBudget(stop_slug="roma", daily_usd=Decimal("50")),
+        StopBudget(stop_slug="lisboa", daily_min_usd=Decimal("34"),
+                   daily_max_usd=Decimal("46")),
+        StopBudget(stop_slug="paris", daily_min_usd=Decimal("46"),
+                   daily_max_usd=Decimal("64")),
+        StopBudget(stop_slug="roma", daily_min_usd=Decimal("42"),
+                   daily_max_usd=Decimal("58")),
     ])
 
     # Cache de guías/notas para los escenarios de trip_question. synced_at
