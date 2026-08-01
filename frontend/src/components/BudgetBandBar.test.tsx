@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import BudgetBandBar from "./BudgetBandBar";
 
@@ -30,6 +30,23 @@ describe("BudgetBandBar", () => {
     );
     expect(container.querySelector(".bg-accent-amber-solid")).toBeTruthy();
     expect(container.querySelector(".bg-danger")).toBeNull();
+  });
+
+  /** Una banda de ancho cero es el modelo de target único de antes, y CLAUDE.md
+   *  la declara el caso de no-regresión del presupuesto. Los tres postes (piso,
+   *  objetivo, techo) caen en el mismo %, así que keyearlos por posición daba
+   *  tres keys idénticas: React lo reporta como error y avisa que duplicar u
+   *  omitir hijos es comportamiento no soportado. */
+  it("con min === max dibuja los tres postes sin keys duplicadas", () => {
+    const errors: unknown[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...a) => errors.push(a));
+    const { container } = render(
+      <BudgetBandBar min="80.00" max="80.00" value="80.00" position="in" label="Londres" />,
+    );
+    spy.mockRestore();
+
+    expect(container.querySelectorAll(':scope > div > span[aria-hidden="true"]')).toHaveLength(3);
+    expect(errors.flat().join(" ")).not.toMatch(/same key/i);
   });
 
   it("no renderiza nada con una banda no numérica", () => {

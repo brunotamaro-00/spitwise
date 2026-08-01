@@ -107,13 +107,18 @@ export default function BudgetBandBar({
           sobresaliendo de la pista. Sin ellos, un gasto que se pasa tapa la
           zona del plan con su propio relleno y la barra deja de decir dónde
           estaba el límite — justo en el caso en que más importa. */}
+      {/* La key va por ROL y no por posición: con una banda de ancho cero
+          (`min === max`, el caso de no-regresión del modelo de target único)
+          los tres postes caen en el mismo %, y `key={at}` daba tres keys
+          idénticas — React lo reporta como error y avisa que duplicar u omitir
+          hijos es comportamiento no soportado. */}
       {[
-        { at: g.bandStart, strong: false },
-        { at: g.center, strong: true },
-        { at: g.bandStart + g.bandWidth, strong: false },
-      ].map(({ at, strong }) => (
+        { role: "floor", at: g.bandStart, strong: false },
+        { role: "center", at: g.center, strong: true },
+        { role: "ceiling", at: g.bandStart + g.bandWidth, strong: false },
+      ].map(({ role, at, strong }) => (
         <span
-          key={at}
+          key={role}
           aria-hidden="true"
           className={`absolute w-0.5 rounded-full ${s.tick} ${
             hero
