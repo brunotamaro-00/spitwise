@@ -7,6 +7,24 @@ import { DURATION } from "@/lib/motion";
 
 const SPRING = { type: "spring", stiffness: 420, damping: 38 } as const;
 
+/** Cuántos diálogos hay abiertos ahora mismo.
+ *
+ *  Existe porque los gestos globales de la app (hoy el pull-to-refresh) escuchan
+ *  en `window` y no tienen forma de saber que el dedo está adentro de un sheet.
+ *  Con la página en el tope —el caso normal— arrastrar el sheet hacia abajo para
+ *  descartarlo superaba el umbral del pull y refetcheaba TODA la app, con
+ *  vibración incluida, justo mientras el usuario cerraba un modal.
+ *
+ *  Contador y no booleano: el sheet de detalle abre el de edición encima, así
+ *  que el cierre del primero no puede desbloquear el gesto mientras el segundo
+ *  sigue arriba. Como todo diálogo de la app pasa por este componente, un
+ *  diálogo nuevo hereda la protección sin tocar nada. */
+let openDialogs = 0;
+
+export function anyDialogOpen(): boolean {
+  return openDialogs > 0;
+}
+
 /** Shell de diálogo: bottom sheet en mobile (slide-up con spring, drag para
  *  cerrar desde el handle/header, scroll-lock, focus trap) y diálogo centrado
  *  en desktop. Portal al body porque un ancestro con transform re-ancla `fixed`.
@@ -43,11 +61,18 @@ export default function Modal({ title, onClose, children, size = "md", locked = 
     setOpen(false); // AnimatePresence corre la salida y onExitComplete desmonta
   }
 
-  // Scroll-lock del fondo mientras el diálogo está montado.
+  // Scroll-lock del fondo + registro del diálogo abierto (ver `openDialogs`),
+  // mientras el diálogo está montado. Van juntos a propósito: los dos describen
+  // "el fondo no se toca", y separarlos abre la puerta a que un gesto global
+  // quede escuchando sobre un modal abierto.
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    openDialogs += 1;
+    return () => {
+      document.body.style.overflow = prev;
+      openDialogs -= 1;
+    };
   }, []);
 
   // Foco inicial adentro + trap de Tab + restaurar foco al cerrar.

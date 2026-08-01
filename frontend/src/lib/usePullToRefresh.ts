@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { anyDialogOpen } from "@/components/ui/Modal";
+
 const TRIGGER_PX = 72;
 const MAX_PX = 110;
 
@@ -16,10 +18,23 @@ export function usePullToRefresh(): { pull: number; refreshing: boolean } {
 
   useEffect(() => {
     function onStart(e: TouchEvent) {
-      startY.current = window.scrollY <= 0 ? e.touches[0].clientY : null;
+      // Con un sheet abierto el dedo está adentro del modal, no en la página:
+      // el `scrollY <= 0` de abajo es cierto igual (el fondo está lockeado en el
+      // tope), así que sin este corte arrastrar el sheet para cerrarlo pasaba el
+      // umbral y refetcheaba toda la app. Ver `anyDialogOpen` en ui/Modal.
+      startY.current =
+        !anyDialogOpen() && window.scrollY <= 0 ? e.touches[0].clientY : null;
     }
     function onMove(e: TouchEvent) {
       if (startY.current == null) return;
+      // Un diálogo puede abrirse a mitad del gesto (tocar una fila mientras se
+      // arrastra): ahí el pull se cancela en vez de seguir acumulando.
+      if (anyDialogOpen()) {
+        startY.current = null;
+        pullRef.current = 0;
+        setPull(0);
+        return;
+      }
       const dy = e.touches[0].clientY - startY.current;
       const next = dy > 0 && window.scrollY <= 0 ? Math.min(dy * 0.5, MAX_PX) : 0;
       pullRef.current = next;
