@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/Toast";
 import { categoryBg, categoryColor } from "@/lib/chartTheme";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue, todayLocal } from "@/lib/format";
+import { invalidateLedger } from "@/lib/queryClient";
 import { stopForDate } from "@/lib/stops";
 import { useMe } from "@/lib/useMe";
 import type { Movement, MovementSplit } from "@/types";
@@ -246,10 +247,7 @@ export default function AddMovementDialog({ editing, onClose }: {
       return isEdit ? updateMovement(editing!.id, body) : createMovement(body);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["movements"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["balance"] });
-      qc.invalidateQueries({ queryKey: ["city"] });
+      invalidateLedger(qc);
       toast("success", editing ? "Cambios guardados" : "Gasto guardado");
       onClose();
     },

@@ -28,6 +28,7 @@ import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { useToast } from "@/components/ui/Toast";
 import { formatAmount, formatDayHeader, formatShortDate, formatUsd } from "@/lib/format";
 import { createdDayKey, dayTotalShare, dayTotalUsd, groupByDay } from "@/lib/groupByDay";
+import { invalidateLedger } from "@/lib/queryClient";
 import { involvesMe, myShare, needsConfirmation } from "@/lib/share";
 import { useTripToday } from "@/lib/useTripToday";
 import { useMe } from "@/lib/useMe";
@@ -128,10 +129,7 @@ export default function Movements() {
   const del = useMutation({
     mutationFn: (m: Movement) => deleteMovement(m.id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["movements"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["balance"] });
-      qc.invalidateQueries({ queryKey: ["city"] });
+      invalidateLedger(qc);
       setToDelete(null);
       setDeleteErr(null);
       toast("success", "Movimiento borrado");

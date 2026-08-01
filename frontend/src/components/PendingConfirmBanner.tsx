@@ -8,6 +8,7 @@ import { listUsers } from "@/api/users";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { capitalize, formatShortDate, formatUsd } from "@/lib/format";
+import { invalidateLedger } from "@/lib/queryClient";
 import type { Movement } from "@/types";
 
 /** Aviso de gastos futuros que llegaron a su fecha y esperan confirmación
@@ -49,10 +50,7 @@ function PendingRow({ mv }: { mv: Movement }) {
   const confirm = useMutation({
     mutationFn: () => confirmMovement(mv.id, paidBy !== mv.paid_by ? paidBy : undefined),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["movements"] });
-      qc.invalidateQueries({ queryKey: ["balance"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["city"] });
+      invalidateLedger(qc);
       toast("success", "Gasto confirmado");
     },
     onError: (e) => toast("error", errorDetail(e, "No se pudo confirmar. Probá de nuevo.")),

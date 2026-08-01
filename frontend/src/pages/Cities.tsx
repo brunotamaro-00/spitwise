@@ -28,6 +28,7 @@ import { useToast } from "@/components/ui/Toast";
 import { formatAmount, formatDayHeader, formatShortDate, formatUsd, parseMoney } from "@/lib/format";
 import { useAndiamoUrl } from "@/lib/useConfig";
 import { dayTotalShare, groupByDay } from "@/lib/groupByDay";
+import { invalidateLedger } from "@/lib/queryClient";
 import { useMe } from "@/lib/useMe";
 import type { Category, CityPace, Movement } from "@/types";
 
@@ -70,10 +71,7 @@ export default function Cities() {
   const del = useMutation({
     mutationFn: (m: Movement) => deleteMovement(m.id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["movements"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["balance"] });
-      qc.invalidateQueries({ queryKey: ["city"] });
+      invalidateLedger(qc);
       setToDelete(null);
       setDeleteErr(null);
       toast("success", "Movimiento borrado");
