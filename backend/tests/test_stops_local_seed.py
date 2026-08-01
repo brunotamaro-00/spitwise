@@ -17,14 +17,29 @@ def owner(monkeypatch):
     get_settings.cache_clear()
 
 
+@pytest.fixture
+def no_owner(monkeypatch):
+    """Sin owner configurado, de verdad.
+
+    `Settings` lee `env_file=".env"`, así que limpiar la caché no alcanza: en la
+    máquina de desarrollo el `.env` real trae `PITITAS_OWNER=katia` y el test
+    veía un owner que no había pedido. Pasaba en CI (donde no hay `.env`) y
+    fallaba local — el peor modo de fallo para una suite que se corre a mano.
+    La env var explícita gana sobre el dotenv, así que esto lo fija en los dos.
+    """
+    monkeypatch.setenv("PITITAS_OWNER", "")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 async def _seed_portugal(session):
     session.add(Stop(slug="portugal", order=7, name="Portugal", currency_code="EUR",
                      arrival_date=date(2026, 9, 4), departure_date=date(2026, 9, 12)))
     await session.commit()
 
 
-async def test_sin_owner_no_siembra_nada(db_session):
-    get_settings.cache_clear()
+async def test_sin_owner_no_siembra_nada(db_session, no_owner):
     await seed_local_stops(db_session)
     assert (await db_session.execute(select(func.count()).select_from(Stop))).scalar_one() == 0
 
