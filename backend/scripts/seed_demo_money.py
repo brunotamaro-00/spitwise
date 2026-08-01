@@ -44,7 +44,7 @@ from demo_common import (
     _add_mov,
     _created,
     _seed_day,
-    budget_target_for,
+    budget_band_for,
     region_for,
 )
 
@@ -91,9 +91,10 @@ def _seed_budgets(s, stops) -> None:
     for stop in stops:
         if not _budgetable(stop):
             continue
-        target = budget_target_for(stop)
-        if target is not None:
-            s.add(StopBudget(stop_slug=stop.slug, daily_usd=target))
+        band = budget_band_for(stop)
+        if band is not None:
+            s.add(StopBudget(stop_slug=stop.slug,
+                             daily_min_usd=band[0], daily_max_usd=band[1]))
 
 
 def _usable(stop: Stop) -> bool:
@@ -328,7 +329,7 @@ async def _report(s, cats, stops, first, last, days) -> None:
           f"(vence {to_confirm[0].payment_date})")
 
     # La demo pública no puede abrir /presupuesto a medio llenar: una parada sin
-    # target baja la cobertura y la proyección sale en modo "parcial", que se
+    # banda baja la cobertura y la proyección sale en modo "parcial", que se
     # lee como feature rota. Cae antes del commit, así que un fallo deja la
     # demo de ayer en pie.
     all_stops = (await s.execute(select(Stop))).scalars().all()
@@ -336,10 +337,10 @@ async def _report(s, cats, stops, first, last, days) -> None:
     uncovered = sorted(st.slug for st in all_stops if _budgetable(st) and st.slug not in seeded)
     if uncovered:
         raise SystemExit(
-            f"Paradas sin target de presupuesto: {', '.join(uncovered)}. Mapealas "
+            f"Paradas sin banda de presupuesto: {', '.join(uncovered)}. Mapealas "
             "en scripts/seed_stop_budgets.py (BLOQUE_POR_PAIS / BLOQUE_POR_SLUG)."
         )
-    print(f"✓ presupuesto: {len(seeded)} paradas con target (cobertura 100%)")
+    print(f"✓ presupuesto: {len(seeded)} paradas con banda (cobertura 100%)")
 
 
 if __name__ == "__main__":

@@ -106,21 +106,21 @@ def region_for(slug: str) -> str:
     return REGION_BY_SLUG.get(slug, DEFAULT_REGION)
 
 
-def budget_target_for(stop) -> Decimal | None:
-    """Target de "vivir" (USD/día pp) de una parada, para las demos.
+def budget_band_for(stop) -> tuple[Decimal, Decimal] | None:
+    """Banda de "vivir" (USD/día pp, min–max) de una parada, para las demos.
 
     Delega en la derivación real de `seed_stop_budgets` en vez de mantener una
-    segunda tabla de números: si la demo mostrara targets propios, /presupuesto
+    segunda tabla de números: si la demo mostrara bandas propias, /presupuesto
     sería un decorado que no se parece a lo que produce el seed de producción,
     y las dos tablas driftearían en la primera actualización del PRESUPUESTO.
 
     None = parada que el mapeo por país/slug no cubre. El llamador decide qué
     hacer (la demo local lo usa para dejar un hueco a propósito).
     """
-    from seed_stop_budgets import bloque_for, target_for_bloque
+    from seed_stop_budgets import band_for_bloque, bloque_for
 
     bloque = bloque_for(stop)
-    return target_for_bloque(bloque) if bloque else None
+    return band_for_bloque(bloque) if bloque else None
 
 
 def rate_for(currency: str | None) -> tuple[str, Decimal]:

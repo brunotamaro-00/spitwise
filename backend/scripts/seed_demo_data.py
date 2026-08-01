@@ -39,7 +39,7 @@ from demo_common import (  # noqa: F401
     _add_mov,
     _created,
     _seed_day,
-    budget_target_for,
+    budget_band_for,
 )
 
 TODAY = date.today()
@@ -138,12 +138,13 @@ async def main() -> None:
                 is_flex_margin=is_flex, owner_username=owner,
             )
             s.add(stop)
-            # El margen flex queda SIN target a propósito: es el único hueco de
+            # El margen flex queda SIN banda a propósito: es el único hueco de
             # cobertura de la demo local, y sin un hueco el estado "cobertura
             # parcial" de /presupuesto no se ve nunca al desarrollar.
-            target = None if is_flex else budget_target_for(stop)
-            if target is not None:
-                s.add(StopBudget(stop_slug=slug, daily_usd=target))
+            band = None if is_flex else budget_band_for(stop)
+            if band is not None:
+                s.add(StopBudget(stop_slug=slug,
+                                 daily_min_usd=band[0], daily_max_usd=band[1]))
 
             past_or_current = arrival <= TODAY
             payer = bruno
@@ -169,7 +170,9 @@ async def main() -> None:
             owner_username="katia",
         )
         s.add(pititas)
-        s.add(StopBudget(stop_slug="pititas", daily_usd=budget_target_for(pititas)))
+        pit_band = budget_band_for(pititas)
+        s.add(StopBudget(stop_slug="pititas",
+                         daily_min_usd=pit_band[0], daily_max_usd=pit_band[1]))
         if lis_arr <= TODAY:
             _add_mov(s, cats["Alojamiento"], "EUR", 611.00,
                      lis_arr - timedelta(days=30), "pititas", "Pititas", katia,
