@@ -139,6 +139,36 @@ async def test_partial_coverage_reports_uncovered(app_client, monkeypatch):
     assert p["living_budget_usd"] == "60.00"  # sin extrapolar a París
 
 
+async def test_cost_block_serializes_the_whole_trip(app_client, monkeypatch):
+    """El cierre de la página: vivir proyectado + dormir (reservado + estimado)
+    + generales, todo como string igual que el resto de los montos."""
+    h = await _seed_and_auth(app_client)
+    _freeze_today(monkeypatch, date(2026, 8, 30))  # día 2 de París, Londres cerrada
+    await app_client.put("/api/v1/budget/londres", json=_plan("20"), headers=h)
+    await app_client.put("/api/v1/budget/paris", json=_plan("20"), headers=h)
+
+    c = (await app_client.get("/api/v1/budget", headers=h)).json()["cost"]
+    assert c["basis"] == "projected"
+    assert c["unbooked_nights"] == 3            # París sin alojamiento cargado
+    assert c["lodging_is_estimated"] is True
+    assert c["lodging_estimated_usd"] == "45.00"    # 15/noche × 3
+    assert c["lodging_projected_usd"] == "90.00"    # 45 reservado + 45 estimado
+    assert c["living_usd"] == "30.00"               # 5/día × 6 noches
+    assert c["general_usd"] == "30.00"
+    assert c["total_usd"] == "150.00"
+
+
+async def test_cost_block_is_committed_before_any_city_closes(app_client, monkeypatch):
+    h = await _seed_and_auth(app_client)
+    _freeze_today(monkeypatch, date(2026, 8, 6))  # día 2 de Londres, nada cerrado
+    await app_client.put("/api/v1/budget/londres", json=_plan("20"), headers=h)
+
+    j = (await app_client.get("/api/v1/budget", headers=h)).json()
+    assert j["projection"]["projected_living_usd"] is None
+    assert j["cost"]["basis"] == "committed"
+    assert j["cost"]["living_usd"] == j["projection"]["living_to_date_usd"] == "15.00"
+
+
 async def test_put_creates_and_updates(app_client, monkeypatch):
     h = await _seed_and_auth(app_client)
     _freeze_today(monkeypatch, date(2026, 8, 6))

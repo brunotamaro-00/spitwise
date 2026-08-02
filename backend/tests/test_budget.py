@@ -529,3 +529,99 @@ def test_category_mix_is_empty_without_living_spend():
     data = _budget([ROMA], [_mov("roma", "1000", cat=LODGING)], date(2026, 8, 5),
                    {"roma": 50})
     assert data["current"]["by_category"] == []
+
+
+# ------------------------------------------------------ el costo del viaje
+
+
+def test_cost_estimates_the_unbooked_nights():
+    """Roma reservada y París no: las noches que faltan se estiman al precio
+    real por noche, y el total es la suma de los tres bloques."""
+    paris = _stop("paris", order=2, arrival=date(2026, 8, 11), departure=date(2026, 8, 21))
+    movs = [
+        _mov("roma", "2000", cat=LODGING),   # 1000 de share en 10 noches = 100/noche
+        _mov("roma", "1000"),                # 500 de vivir en 10 noches = 50/día
+        _mov(None, "600"),                   # 300 de generales
+    ]
+    # Día 3 de París: Roma cerrada da el ritmo, y París todavía no lo diluye.
+    data = _budget([ROMA, paris], movs, date(2026, 8, 13), {"roma": 50, "paris": 50})
+    c = data["cost"]
+
+    assert c["unbooked_nights"] == 10                       # las de París
+    assert c["lodging_estimated_usd"] == Decimal("1000")    # 100 × 10
+    assert c["lodging_projected_usd"] == Decimal("2000")    # 1000 reservado + 1000
+    assert c["lodging_is_estimated"] is True
+    assert c["basis"] == "projected"
+    assert c["living_usd"] == Decimal("1000")               # 50/día × 20 noches
+    assert c["general_usd"] == Decimal("300")
+    assert c["total_usd"] == Decimal("3300")
+    assert c["total_usd"] == c["living_usd"] + c["lodging_projected_usd"] + c["general_usd"]
+
+
+def test_cost_without_unbooked_nights_has_no_estimate():
+    """Todo reservado: no hay nada que estimar y el total es el comprometido."""
+    movs = [_mov("roma", "2000", cat=LODGING), _mov("roma", "1000")]
+    data = _budget([ROMA], movs, date(2026, 8, 21), {"roma": 50})
+    c = data["cost"]
+
+    assert c["unbooked_nights"] == 0
+    assert c["lodging_estimated_usd"] == Decimal("0")
+    assert c["lodging_is_estimated"] is False
+    assert c["lodging_projected_usd"] == Decimal("1000")
+    assert c["total_usd"] == Decimal("1500")   # 500 de vivir + 1000 de dormir
+
+
+def test_cost_without_any_booking_does_not_invent_a_price():
+    """Sin una sola noche reservada no hay base para estimar: None, y el total
+    sigue siendo un número (el vivir + los generales que sí existen)."""
+    data = _budget([ROMA], [_mov("roma", "1000"), _mov(None, "400")],
+                   date(2026, 8, 21), {"roma": 50})
+    c = data["cost"]
+
+    assert data["fixed"]["per_night_usd"] is None
+    assert c["unbooked_nights"] == 10
+    assert c["lodging_estimated_usd"] is None
+    assert c["lodging_is_estimated"] is False
+    assert c["lodging_projected_usd"] == Decimal("0")
+    assert c["total_usd"] == Decimal("700")    # 500 de vivir + 200 de generales
+
+
+def test_cost_without_closed_cities_is_committed_not_projected():
+    """Sin ninguna ciudad cerrada no hay ritmo: el total es lo comprometido
+    hasta hoy y el `basis` lo dice, para que la página no lo llame proyección."""
+    data = _budget([ROMA], [_mov("roma", "600")], date(2026, 8, 4), {"roma": 50})
+    p, c = data["projection"], data["cost"]
+
+    assert p["projected_living_usd"] is None
+    assert c["basis"] == "committed"
+    assert c["living_usd"] == p["living_to_date_usd"] == Decimal("300")
+
+
+def test_cost_does_not_project_generals():
+    """Los vuelos del tramo que falta ya están comprados: se suman tal cual y
+    no se extrapolan por día. Espeja `analytics._project`."""
+    paris = _stop("paris", order=2, arrival=date(2026, 8, 11), departure=date(2026, 8, 21))
+    movs = [_mov("roma", "1000"), _mov(None, "800")]
+    data = _budget([ROMA, paris], movs, date(2026, 8, 13), {"roma": 50, "paris": 50})
+    c = data["cost"]
+
+    assert c["general_usd"] == data["fixed"]["general_usd"] == Decimal("400")
+    assert c["living_usd"] == Decimal("1000")   # el vivir SÍ se proyecta a 20 noches
+
+
+def test_cost_unbooked_nights_come_from_the_itinerary_not_the_bands():
+    """Las noches sin reservar salen de `total_nights` (el universo de
+    `fixed_block`), no de `budget_nights`: la parada del otro no tiene noches
+    propias en el presupuesto pero tampoco alojamiento que estimarle."""
+    stops = [
+        _stop("portugal", order=1, arrival=date(2026, 9, 4), departure=date(2026, 9, 12),
+              owner_username="bruno"),
+        _stop("pititas", order=2, arrival=date(2026, 9, 4), departure=date(2026, 9, 12),
+              is_local=True, owner_username="katia"),
+    ]
+    data = _budget(stops, [_mov("portugal", "160")], date(2026, 9, 20),
+                   {"portugal": 50, "pititas": 50})
+
+    assert data["projection"]["budget_nights"] == 8         # solo Portugal
+    assert data["cost"]["unbooked_nights"] == data["fixed"]["total_nights"]
+    assert data["cost"]["unbooked_nights"] >= 0

@@ -1,6 +1,12 @@
 import type { BadgeTone } from "@/components/ui/Badge";
 import { formatUsd, parseMoney } from "@/lib/format";
-import type { BandPosition, CurrentCityBudget, TripCushion } from "@/types";
+import type {
+  BandPosition,
+  CurrentCityBudget,
+  FixedBlock,
+  TripCost,
+  TripCushion,
+} from "@/types";
 
 /** Qué dice el bloque focal de la ciudad en curso.
  *
@@ -209,6 +215,49 @@ export function projectionRead(p: {
   if (value > hi) return { kind: "over", amountUsd: String(value - hi) };
   if (value < lo) return { kind: "under", amountUsd: String(lo - value) };
   return { kind: "inside" };
+}
+
+/* --------------------------------------------- el costo del viaje entero --- */
+
+/** Lectura del hero de la card: cuánto sale el viaje y con qué nombre llamarlo.
+ *
+ *  El `label` sale de acá y no de un ternario en el JSX porque es la parte
+ *  frágil: sin ninguna ciudad cerrada no hay ritmo, el total es solo lo
+ *  comprometido hasta hoy, y llamarlo "estimado del viaje" sería prometer una
+ *  proyección que el backend no hizo. `basis` es el interruptor, no un `null`
+ *  suelto que haya que interpretar acá. */
+export function tripCostRead(c: TripCost): {
+  amountUsd: string;
+  label: string;
+  estimated: boolean;
+  basis: TripCost["basis"];
+} {
+  const projected = c.basis === "projected";
+  return {
+    amountUsd: c.total_usd,
+    label: projected ? "costo estimado del viaje" : "comprometido hasta hoy",
+    // El total lleva estimación si se proyectó el vivir o si hay noches sin
+    // reservar puestas a precio: cualquiera de las dos ya lo vuelve un estimado.
+    estimated: projected || c.lodging_is_estimated,
+    basis: c.basis,
+  };
+}
+
+/** La cobertura del alojamiento, pegada al monto de su fila.
+ *
+ *  Sin esta línea, un itinerario a medio reservar hace leer el total como si
+ *  todas las noches estuvieran pagadas. Dice las dos cosas: cuántas noches hay
+ *  reservadas y a qué precio se estimaron las que faltan — y sin noches
+ *  faltantes pierde la parte "estimado", porque ahí no se estimó nada. */
+export function lodgingCoverage(f: FixedBlock, cost: TripCost): string | null {
+  if (f.total_nights === 0) return null;
+  if (f.booked_nights === 0) return "todavía sin reservas cargadas";
+  const noches =
+    f.booked_nights >= f.total_nights
+      ? `las ${f.total_nights} noches reservadas`
+      : `${f.booked_nights} de ${f.total_nights} noches reservadas`;
+  if (!cost.lodging_is_estimated || f.per_night_usd == null) return noches;
+  return `${noches} · ${formatUsd(f.per_night_usd, "whole")}/noche estimado`;
 }
 
 /* ----------------------------------------------------------- cobertura --- */

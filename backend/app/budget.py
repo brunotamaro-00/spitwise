@@ -17,6 +17,10 @@ Funciones puras (sin I/O), estilo balance.py/spend.py/analytics.py. El modelo:
   Una banda de ancho cero (`min == max`) se comporta igual que el target de un
   solo número, y ese es el test de no-regresión de este módulo.
 - Una parada sin banda no se compara ni se extrapola: baja la cobertura.
+- **El costo del viaje entero (`trip_cost`) se compone, no se juzga.** Vivir
+  proyectado + alojamiento (lo reservado más una estimación de las noches que
+  faltan) + generales comprometidos. El veredicto contra la banda sigue midiendo
+  **solo** vivir: dormir y los generales no se "gastan bien o mal".
 - **Regla de honestidad:** con cobertura parcial, el presupuesto del viaje es
   parcial, y compararlo contra una proyección de noches completas es mentir.
   `coverage_pct` y `uncovered_slugs` viajan siempre junto a la varianza para
@@ -505,12 +509,77 @@ def fixed_block(cities: list[dict], *, general_usd: Decimal, total_nights: int) 
     }
 
 
+def trip_cost(projection: dict, fixed: dict) -> dict:
+    """Cuánto sale el viaje entero: la suma de lo que la página muestra separado.
+
+    Se arma con los dicts que ya construyeron `trip_budget_projection` y
+    `fixed_block` — no re-agrega movimientos, igual que el resto del módulo.
+
+    - **`basis` es el interruptor del copy**, no un detalle interno. Con al menos
+      una ciudad cerrada hay run-rate y el total es una **proyección**; sin
+      ninguna, el total es solo **lo comprometido hasta hoy** y presentarlo como
+      proyección sería mentir. Viaja explícito para que el frontend no lo tenga
+      que deducir de un `None` suelto.
+    - **Los generales no se proyectan.** Los vuelos y pases del tramo que falta
+      ya suelen estar comprados; extrapolar un $/día de generales inventaría
+      plata. Misma decisión que `analytics._project`.
+    - **La estimación de alojamiento usa `per_night_usd`**, que divide por las
+      noches efectivamente reservadas (ver `fixed_block`): es el precio real que
+      vienen pagando, no un promedio diluido sobre el viaje entero. Sin nada
+      reservado no hay base para estimar y `lodging_estimated_usd` es None: no
+      se inventa un precio por noche.
+    - Las noches sin reservar salen de `fixed.total_nights` (días del itinerario)
+      y **no** de `projection.budget_nights` (las elegibles, que excluyen las
+      paradas del otro y las de 0 noches): el denominador de `booked_nights` es
+      el universo de `fixed_block`, y cruzar los dos daría noches faltantes
+      negativas o infladas. No "arreglarlo" unificándolos.
+
+    Nota de coherencia: el Dashboard muestra `trip.projected_total_usd`
+    (`analytics._project`: generales + noches × ritmo all-in de las cerradas),
+    que **ignora las reservas futuras ya cargadas**. Este total da distinto a
+    propósito — usa el alojamiento real reservado y estima solo lo que falta.
+    Unificar los dos números es una decisión de producto aparte.
+    """
+    total_nights = fixed["total_nights"]
+    booked_nights = fixed["booked_nights"]
+    per_night = fixed["per_night_usd"]
+
+    unbooked = max(total_nights - booked_nights, 0)
+    estimated = per_night * unbooked if per_night is not None else None
+    lodging_projected = fixed["lodging_usd"] + (estimated or _ZERO)
+
+    projected_living = projection["projected_living_usd"]
+    living = (
+        projected_living
+        if projected_living is not None
+        else projection["living_to_date_usd"]
+    )
+    general = fixed["general_usd"]
+
+    return {
+        "unbooked_nights": unbooked,
+        "lodging_estimated_usd": estimated,
+        "lodging_projected_usd": lodging_projected,
+        "living_usd": living,
+        "general_usd": general,
+        "total_usd": living + lodging_projected + general,
+        "basis": "projected" if projected_living is not None else "committed",
+        "lodging_is_estimated": unbooked > 0 and estimated is not None,
+    }
+
+
 def build_budget(pace: dict, bands: Bands, notes: Notes | None = None) -> dict:
     """Análisis completo. Único punto de entrada de la API y de la tool del bot.
 
     `pace` es el dict que devuelve `analytics.build_trip_pace`.
     """
     cities, trip = pace["cities"], pace["trip"]
+    projection = trip_budget_projection(cities, bands, trip=trip)
+    fixed = fixed_block(
+        cities,
+        general_usd=trip["general_usd"],
+        total_nights=trip["total_nights"],
+    )
     return {
         # El estado del viaje viaja explícito: el frontend lo necesita para
         # elegir el copy del bloque focal cuando no hay ciudad en curso, y
@@ -520,10 +589,8 @@ def build_budget(pace: dict, bands: Bands, notes: Notes | None = None) -> dict:
         "cushion": trip_cushion(cities, bands),
         "plan": trip_plan(cities, bands),
         "cities": city_budget_rows(cities, bands, notes),
-        "projection": trip_budget_projection(cities, bands, trip=trip),
-        "fixed": fixed_block(
-            cities,
-            general_usd=trip["general_usd"],
-            total_nights=trip["total_nights"],
-        ),
+        "projection": projection,
+        "fixed": fixed,
+        # El cierre: lo que la página muestra separado, sumado una sola vez.
+        "cost": trip_cost(projection, fixed),
     }

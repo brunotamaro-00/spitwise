@@ -408,6 +408,25 @@ class FixedBlockOut(BaseModel):
     per_night_usd: str | None
 
 
+class TripCostOut(BaseModel):
+    """Cuánto sale el viaje entero: vivir + alojamiento + generales.
+
+    `basis` elige el copy: `projected` (hay ritmo de ciudades cerradas) o
+    `committed` (todavía ninguna cerrada, así que el total es lo comprometido
+    hasta hoy y no una proyección). `lodging_is_estimated` avisa que parte del
+    alojamiento son noches sin reservar estimadas a `per_night_usd`.
+    """
+
+    unbooked_nights: int
+    lodging_estimated_usd: str | None
+    lodging_projected_usd: str
+    living_usd: str
+    general_usd: str
+    total_usd: str
+    basis: Literal["projected", "committed"]
+    lodging_is_estimated: bool
+
+
 class BudgetOut(BaseModel):
     as_of: date
     trip_status: TripStatus
@@ -417,6 +436,7 @@ class BudgetOut(BaseModel):
     cities: list[CityBudgetOut]
     projection: BudgetProjectionOut
     fixed: FixedBlockOut
+    cost: TripCostOut
 
 
 class CitySpendPublicOut(BaseModel):

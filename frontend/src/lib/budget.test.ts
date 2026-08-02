@@ -9,10 +9,12 @@ import {
   coverageLine,
   currentVerdict,
   cushionRead,
+  lodgingCoverage,
   projectionRead,
   stayProgress,
+  tripCostRead,
 } from "@/lib/budget";
-import type { CurrentCityBudget, TripCushion } from "@/types";
+import type { CurrentCityBudget, FixedBlock, TripCost, TripCushion } from "@/types";
 
 const base: CurrentCityBudget = {
   stop_slug: "viena",
@@ -286,5 +288,76 @@ describe("projectionRead", () => {
 
   it("justo sobre el borde sigue siendo adentro", () => {
     expect(projectionRead(p("8000.00")).kind).toBe("inside");
+  });
+});
+
+describe("tripCostRead", () => {
+  const baseCost: TripCost = {
+    unbooked_nights: 46,
+    lodging_estimated_usd: "4692.00",
+    lodging_projected_usd: "10016.00",
+    living_usd: "7992.00",
+    general_usd: "3100.00",
+    total_usd: "21108.00",
+    basis: "projected",
+    lodging_is_estimated: true,
+  };
+  const cost = (over: Partial<TripCost>): TripCost => ({ ...baseCost, ...over });
+
+  it("con ritmo de ciudades cerradas el total es un estimado del viaje", () => {
+    expect(tripCostRead(baseCost)).toEqual({
+      amountUsd: "21108.00",
+      label: "costo estimado del viaje",
+      estimated: true,
+      basis: "projected",
+    });
+  });
+
+  it("sin ninguna ciudad cerrada NO se llama proyección", () => {
+    const r = tripCostRead(cost({ basis: "committed", lodging_is_estimated: false }));
+    expect(r.label).toBe("comprometido hasta hoy");
+    expect(r.estimated).toBe(false);
+  });
+
+  it("noches sin reservar ya alcanzan para que el total sea un estimado", () => {
+    expect(tripCostRead(cost({ basis: "committed" })).estimated).toBe(true);
+  });
+});
+
+describe("lodgingCoverage", () => {
+  const baseFixed: FixedBlock = {
+    lodging_usd: "5324.00",
+    general_usd: "3100.00",
+    total_usd: "8424.00",
+    booked_nights: 62,
+    total_nights: 108,
+    per_night_usd: "102.00",
+  };
+  const fixed = (over: Partial<FixedBlock>): FixedBlock => ({ ...baseFixed, ...over });
+  const cost = (over: Partial<TripCost>): TripCost =>
+    ({ lodging_is_estimated: true, ...over }) as TripCost;
+
+  it("dice las noches reservadas y a qué precio se estimaron las que faltan", () => {
+    expect(lodgingCoverage(baseFixed, cost({}))).toBe(
+      "62 de 108 noches reservadas · USD 102/noche estimado",
+    );
+  });
+
+  it("sin noches faltantes pierde la parte estimada: no se estimó nada", () => {
+    const f = fixed({ booked_nights: 108 });
+    expect(lodgingCoverage(f, cost({ lodging_is_estimated: false }))).toBe(
+      "las 108 noches reservadas",
+    );
+  });
+
+  it("sin una sola reserva no inventa un precio por noche", () => {
+    const f = fixed({ booked_nights: 0, per_night_usd: null });
+    expect(lodgingCoverage(f, cost({ lodging_is_estimated: false }))).toBe(
+      "todavía sin reservas cargadas",
+    );
+  });
+
+  it("sin itinerario no hay cobertura que contar", () => {
+    expect(lodgingCoverage(fixed({ total_nights: 0, booked_nights: 0 }), cost({}))).toBeNull();
   });
 });

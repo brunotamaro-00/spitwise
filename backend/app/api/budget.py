@@ -29,6 +29,7 @@ from app.api.schemas import (
     NextStopBudgetOut,
     StopBudgetIn,
     StopBudgetOut,
+    TripCostOut,
     TripCushionOut,
     TripPlanOut,
 )
@@ -53,17 +54,18 @@ async def get_budget(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> BudgetOut:
-    """Análisis completo: ciudad en curso, colchón, filas por ciudad, proyección y fijos."""
+    """Análisis completo: ciudad en curso, colchón, filas por ciudad, proyección, fijos y costo total."""
     pace, today = await load_trip_pace(session, user)
     bands, notes = await _load_bands(session)
     data = build_budget(pace, bands, notes)
 
-    cur, cush, plan, proj, fixed = (
+    cur, cush, plan, proj, fixed, cost = (
         data["current"],
         data["cushion"],
         data["plan"],
         data["projection"],
         data["fixed"],
+        data["cost"],
     )
     nxt = plan["next_stop"]
 
@@ -189,6 +191,16 @@ async def get_budget(
             booked_nights=fixed["booked_nights"],
             total_nights=fixed["total_nights"],
             per_night_usd=_money_opt(fixed["per_night_usd"]),
+        ),
+        cost=TripCostOut(
+            unbooked_nights=cost["unbooked_nights"],
+            lodging_estimated_usd=_money_opt(cost["lodging_estimated_usd"]),
+            lodging_projected_usd=_money(cost["lodging_projected_usd"]),
+            living_usd=_money(cost["living_usd"]),
+            general_usd=_money(cost["general_usd"]),
+            total_usd=_money(cost["total_usd"]),
+            basis=cost["basis"],
+            lodging_is_estimated=cost["lodging_is_estimated"],
         ),
     )
 

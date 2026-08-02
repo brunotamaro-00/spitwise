@@ -212,6 +212,20 @@ export type FixedBlock = {
   per_night_usd: string | null;
 };
 
+/** Cuánto sale el viaje entero. `basis` elige el copy del hero: `projected`
+ *  (hay ritmo de ciudades cerradas) o `committed` (todavía ninguna cerrada, así
+ *  que el total es lo comprometido hasta hoy y no una proyección). */
+export type TripCost = {
+  unbooked_nights: number;
+  lodging_estimated_usd: string | null;
+  lodging_projected_usd: string;
+  living_usd: string;
+  general_usd: string;
+  total_usd: string;
+  basis: "projected" | "committed";
+  lodging_is_estimated: boolean;
+};
+
 export type BudgetAnalysis = {
   as_of: string;
   trip_status: TripStatus;
@@ -221,6 +235,7 @@ export type BudgetAnalysis = {
   cities: CityBudget[];
   projection: BudgetProjection;
   fixed: FixedBlock;
+  cost: TripCost;
 };
 
 export type Category = { id: number; name: string; icon: string | null; sort_order: number };

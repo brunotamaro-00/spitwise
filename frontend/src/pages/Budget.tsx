@@ -6,7 +6,6 @@ import { getBudget } from "@/api/budget";
 import CityRow from "@/components/budget/CityRow";
 import CurrentHero from "@/components/budget/CurrentHero";
 import CushionCard from "@/components/budget/CushionCard";
-import FixedCard from "@/components/budget/FixedCard";
 import PlanHero from "@/components/budget/PlanHero";
 import ProjectionCard from "@/components/budget/ProjectionCard";
 import BudgetCategoryMix from "@/components/BudgetCategoryMix";
@@ -113,12 +112,11 @@ function BudgetBody({
         </div>
       )}
 
+      {/* El cierre de la página: el costo del viaje entero. Alojamiento y
+          generales viven adentro, como partes del total y no como una card
+          suelta repitiendo los mismos montos. */}
       <div className="animate-rise-in stagger-5">
         <ProjectionCard b={b} />
-      </div>
-
-      <div className="animate-rise-in stagger-5">
-        <FixedCard b={b} />
       </div>
     </div>
   );
