@@ -40,8 +40,8 @@ describe("BudgetBandBar", () => {
         0,
       );
     };
-    expect(reach("68.00", "95.00")).toBeCloseTo(81);
-    expect(reach("20.00", "30.00")).toBeCloseTo(81);
+    expect(reach("68.00", "95.00")).toBeCloseTo(67.5);  // 81 de 120
+    expect(reach("20.00", "30.00")).toBeCloseTo(67.5);
   });
 
   /** Decisión explícita, y revierte la regla vieja ("nunca rojo"): pasarse
@@ -61,7 +61,7 @@ describe("BudgetBandBar", () => {
     expect(container.querySelector(".bg-heat-far")).toBeNull();
   });
 
-  it("fuera del eje marca el tope: si no, USD 100 y USD 300 se ven igual", () => {
+  it("fuera del eje marca el tope: si no, USD 120 y USD 300 se ven igual", () => {
     const cap = (value: string) => {
       const { container } = render(
         <BudgetBandBar min="40.00" max="60.00" value={value} label="X" />,

@@ -74,9 +74,9 @@ describe("bandLevel / levelTone / bandLabel", () => {
   });
 
   it("fuera del eje de la barra el color se hace cargo, sea cual sea el plan", () => {
-    // Un plan holgado (90–95) gastando 110: solo +16% del techo, pero la barra
+    // Un plan holgado (110–115) gastando 125: solo +9% del techo, pero la barra
     // ya no puede crecer, así que el nivel tiene que decirlo igual.
-    expect(bandLevel(110, 90, 95)).toBe("far");
+    expect(bandLevel(125, 110, 115)).toBe("far");
   });
 
   it("sin ritmo (parada futura) no hay nivel", () => {
@@ -116,10 +116,16 @@ describe("bandGeometry", () => {
     // Es TODO el punto de la escala fija: antes cada barra se escalaba contra
     // su propia banda y dos ciudades muy distintas dibujaban lo mismo.
     expect(bandGeometry(68, 95, 81).value).toBe(bandGeometry(20, 30, 81).value);
-    expect(bandGeometry(68, 95, 81).value).toBe(81);
+    expect(bandGeometry(68, 95, 81).value).toBeCloseTo(67.5);  // 81 de 120
     // Y el plan de cada una cae en lugares distintos, que es lo que se escanea.
-    expect(bandGeometry(68, 95, 81).bandStart).toBe(68);
-    expect(bandGeometry(20, 30, 81).bandStart).toBe(20);
+    expect(bandGeometry(68, 95, 81).bandStart).toBeCloseTo(56.67);
+    expect(bandGeometry(20, 30, 81).bandStart).toBeCloseTo(16.67);
+  });
+
+  it("la banda más cara del itinerario entra entera en el eje", () => {
+    const g = bandGeometry(71, 104, 90);
+    expect(g.bandClipped).toBe(false);
+    expect(g.bandStart + g.bandWidth).toBeLessThan(100);
   });
 
   it("un gasto por encima del eje capea y lo declara", () => {
@@ -129,12 +135,12 @@ describe("bandGeometry", () => {
   });
 
   it("adentro del eje no hay tope que marcar", () => {
-    expect(bandGeometry(40, 60, 99).overCap).toBe(false);
+    expect(bandGeometry(40, 60, 119).overCap).toBe(false);
     expect(bandGeometry(40, 60, null).overCap).toBe(false);
   });
 
   it("un plan más caro que el eje se declara recortado", () => {
-    expect(bandGeometry(90, 120, 100).bandClipped).toBe(true);
+    expect(bandGeometry(110, 140, 120).bandClipped).toBe(true);
     expect(bandGeometry(40, 60, 50).bandClipped).toBe(false);
   });
 

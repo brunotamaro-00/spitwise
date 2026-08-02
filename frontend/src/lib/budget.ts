@@ -26,16 +26,18 @@ export function currentVerdict(c: CurrentCityBudget): BudgetVerdict {
 
 /* ------------------------------------------------------------ la banda --- */
 
-/** El 100% de cualquier barra de $/día: USD 100 por día y por persona.
+/** El 100% de cualquier barra de $/día: USD 120 por día y por persona.
  *
  *  **Escala fija, no relativa a cada plan.** Antes cada barra se escalaba
  *  contra su propia banda, así que una parada de plan 68–95 gastando 81 y otra
  *  de plan 20–30 gastando 25 dibujaban el relleno a la misma altura: la lista
  *  se veía prolija y no decía nada. Con un eje común, la altura del relleno ES
- *  el gasto y las 27 filas se escanean de un saque. USD 100/día es el techo
- *  natural del viaje (la banda más cara del plan queda holgada adentro) y un
- *  número redondo que se puede tener en la cabeza mientras se scrollea. */
-export const BAR_MAX_USD = 100;
+ *  el gasto y las 27 filas se escanean de un saque.
+ *
+ *  USD 120/día deja **todas** las bandas del plan adentro del eje (la más cara
+ *  hoy es 71–104) y sigue siendo un número redondo que se puede tener en la
+ *  cabeza mientras se scrollea. */
+export const BAR_MAX_USD = 120;
 
 /** Los cinco pasos del ritmo contra el plan. `edge` (pegado al techo) existe
  *  porque adentro de una banda ancha no es lo mismo estar en el piso que a un

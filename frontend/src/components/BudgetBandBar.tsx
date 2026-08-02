@@ -3,7 +3,7 @@ import { formatUsd } from "@/lib/format";
 
 /* Relleno = dónde estás, en la rampa de ritmo (`--color-heat-*`): teal si
    ahorrás, verde en plan, dorado pegado al techo, naranja pasado y rojo
-   pasado fuerte. La escala es SIEMPRE la misma (USD 100/día), así que la
+   pasado fuerte. La escala es SIEMPRE la misma (USD 120/día), así que la
    altura del relleno se puede comparar entre filas — ese es el punto. */
 const FILL = {
   save: "bg-heat-save",
@@ -30,7 +30,7 @@ const SIZES = {
 
 /** El gasto diario contra la banda del plan, en una barra de eje fijo.
  *
- *  Cuatro capas: la pista (0 → USD 100/día, igual en toda la app), la **zona
+ *  Cuatro capas: la pista (0 → USD 120/día, igual en toda la app), la **zona
  *  del plan** (min–max, tenue: "acá querés caer"), el **relleno** (lo que
  *  gastás por día, sólido y más fino, encima) y el **tope** cuando el gasto se
  *  sale del eje. La marca vertical del medio es el centro de la banda.
@@ -117,7 +117,7 @@ export default function BudgetBandBar({
             )}
           </>
         )}
-        {/* Tope: el gasto se salió del eje. Sin esta cuña, USD 100/día y
+        {/* Tope: el gasto se salió del eje. Sin esta cuña, USD 120/día y
             USD 300/día se ven idénticos —relleno completo— y la barra vuelve a
             no decir cuánto. El badge de al lado pone el número exacto. */}
         {g.overCap && (
