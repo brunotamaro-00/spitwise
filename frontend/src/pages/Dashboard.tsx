@@ -18,28 +18,15 @@ import TripPaceCard from "@/components/TripPaceCard";
 import AnimatedUsd from "@/components/ui/AnimatedUsd";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
-import ErrorState from "@/components/ui/ErrorState";
+import AsyncSection from "@/components/ui/AsyncSection";
+import EmptyState from "@/components/ui/EmptyState";
 import Hero from "@/components/ui/Hero";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Skeleton from "@/components/ui/Skeleton";
-import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { capitalize, formatUsd } from "@/lib/format";
 import { myShare } from "@/lib/share";
 import { useMe } from "@/lib/useMe";
 import type { Category, Movement } from "@/types";
-
-/** Slot de card asíncrona: loading → skeleton, error → ErrorState CONTENIDO acá.
- *  Antes el dashboard hacía un early-return con un ErrorState de página completa
- *  si fallaba cualquiera de los cuatro queries, y se perdían los datos de los
- *  otros tres — una caída de /pace escondía el hero y el balance. */
-function Slot({ query, skeleton, children }: {
-  query: { isError: boolean; data: unknown; refetch: () => unknown };
-  skeleton: React.ReactNode;
-  children: () => React.ReactNode;
-}) {
-  if (query.isError) return <ErrorState onRetry={() => void query.refetch()} />;
-  return <SkeletonReveal ready={!!query.data} skeleton={skeleton}>{children}</SkeletonReveal>;
-}
 
 export default function Dashboard() {
   const [settle, setSettle] = useState(false);
@@ -96,8 +83,16 @@ export default function Dashboard() {
 
       {/* Hero del viaje: el gasto total manda; el balance es secundario. */}
       <div className="animate-rise-in stagger-1">
-        <Slot query={summary} skeleton={<Skeleton className="h-44" />}>
-          {() => (
+        <AsyncSection query={summary} skeleton={<Skeleton className="h-44" />}>
+          {() => summary.data!.movement_count === 0 ? (
+          <Card>
+            <EmptyState
+              icon={Receipt}
+              title="Sin gastos todavía"
+              description="Tocá el + para cargar el primero: el dashboard se arma solo."
+            />
+          </Card>
+          ) : (
           <Hero eyebrow="Mis gastos · todo el viaje">
             <p className="mt-2 font-display text-6xl leading-none tracking-display font-tabular lg:text-7xl">
               <AnimatedUsd value={summary.data!.total_usd} />
@@ -125,35 +120,35 @@ export default function Dashboard() {
             )}
           </Hero>
           )}
-        </Slot>
+        </AsyncSection>
       </div>
 
       <div className="animate-rise-in stagger-2">
-        <Slot query={balance} skeleton={<Skeleton className="h-20" />}>
+        <AsyncSection query={balance} skeleton={<Skeleton className="h-20" />}>
           {() => (
             <BalanceHero balance={balance.data!} names={names} myId={me.data?.id} onSettle={() => setSettle(true)} />
           )}
-        </Slot>
+        </AsyncSection>
       </div>
 
       <div className="animate-rise-in stagger-3">
-        <Slot query={pace} skeleton={<Skeleton className="h-40" />}>
+        <AsyncSection query={pace} skeleton={<Skeleton className="h-40" />}>
           {() => <TripPaceCard pace={pace.data!} />}
-        </Slot>
+        </AsyncSection>
       </div>
 
       {/* items-stretch + grid 12: el donut (denso) va angosto, el ritmo por
           ciudad respira en la columna ancha; nadie deja huecos. */}
       <div className="animate-rise-in stagger-4 grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
         <div className="lg:col-span-5">
-          <Slot query={byCat} skeleton={<Skeleton className="h-64" />}>
+          <AsyncSection query={byCat} skeleton={<Skeleton className="h-64" />}>
             {() => <CategoryDonut data={byCat.data!} subtitle="Todo el viaje" />}
-          </Slot>
+          </AsyncSection>
         </div>
         <div className="lg:col-span-7">
-          <Slot query={pace} skeleton={<Skeleton className="h-64" />}>
+          <AsyncSection query={pace} skeleton={<Skeleton className="h-64" />}>
             {() => <CityPaceChart cities={pace.data!.cities} trip={pace.data!.trip} />}
-          </Slot>
+          </AsyncSection>
         </div>
       </div>
 
