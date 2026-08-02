@@ -17,12 +17,12 @@ export default function DemoBanner() {
       className="sticky top-0 z-30 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-b-2 border-ink/15 bg-gold px-4 py-2 text-ink"
     >
       <FlaskConical size={13} strokeWidth={2.5} aria-hidden="true" className="shrink-0" />
-      <span className="text-[12px] font-extrabold uppercase tracking-[0.08em]">Demo pública</span>
-      <span className="text-[12px] font-semibold">datos inventados, no es un viaje real</span>
+      <span className="text-xs font-extrabold uppercase tracking-caps">Demo pública</span>
+      <span className="text-xs font-semibold">datos inventados, no es un viaje real</span>
       {config.andiamo_url ? (
         <a
           href={config.andiamo_url}
-          className="text-[12px] font-extrabold uppercase tracking-[0.08em] underline decoration-2 underline-offset-2"
+          className="text-xs font-extrabold uppercase tracking-caps underline decoration-2 underline-offset-2"
         >
           Ver Andiamo ↗
         </a>

@@ -108,7 +108,7 @@ export default function BudgetTargetDialog({ city, onClose }: {
         </Field>
 
         {center != null && (
-          <p className="-mt-1 text-[12px] font-medium text-ink-3">
+          <p className="-mt-1 text-xs font-medium text-ink-3">
             Objetivo{" "}
             <span className="font-tabular font-semibold text-ink-2">
               USD {Math.round(center)}
@@ -126,7 +126,7 @@ export default function BudgetTargetDialog({ city, onClose }: {
           />
         </Field>
 
-        <p className="text-[12px] font-medium text-ink-3">
+        <p className="text-xs font-medium text-ink-3">
           {city.nights} noche{city.nights === 1 ? "" : "s"}
           {city.movement_count > 0 && (
             <>

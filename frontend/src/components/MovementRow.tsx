@@ -54,13 +54,13 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
             {mv.description || (isSettlement ? "Pago (saldo)" : "Sin descripción")}
           </p>
           {(mv.status === "pending" || mv.status === "awaiting") && (
-            <span className="shrink-0 rounded-full bg-accent-amber-bg px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-accent-amber-ink">
+            <span className="shrink-0 rounded-full bg-accent-amber-bg px-1.5 py-px text-fine font-bold uppercase tracking-wide text-accent-amber-ink">
               {mv.status === "awaiting" ? "Por confirmar" : "Pendiente"}
             </span>
           )}
           {cbLabel && (
             <span
-              className="shrink-0 rounded-full bg-accent-teal-bg px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-accent-teal-ink"
+              className="shrink-0 rounded-full bg-accent-teal-bg px-1.5 py-px text-fine font-bold uppercase tracking-wide text-accent-teal-ink"
               title={`Cashback ${cbLabel}`}
             >
               CB {cbLabel}
@@ -70,7 +70,7 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
         <p className="mt-0.5 truncate text-xs text-ink-3">
           {mv.city_name ? (
             <>
-              {flag && <Flag flag={flag} className="mr-1 text-[11px]" />}
+              {flag && <Flag flag={flag} className="mr-1 text-meta" />}
               {mv.city_name} ·{" "}
             </>
           ) : null}
@@ -91,10 +91,10 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
           </p>
         )}
         {showSharePrimary ? (
-          <p className="font-tabular text-[11px] text-ink-faint">ticket {formatUsd(mv.amount_usd)}</p>
+          <p className="font-tabular text-meta text-ink-faint">ticket {formatUsd(mv.amount_usd)}</p>
         ) : (
           !isSettlement && myId != null && (
-            <p className="font-tabular text-[11px] text-ink-faint">tu parte {formatUsd(String(share))}</p>
+            <p className="font-tabular text-meta text-ink-faint">tu parte {formatUsd(String(share))}</p>
           )
         )}
       </div>

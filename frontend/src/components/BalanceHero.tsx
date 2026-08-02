@@ -22,7 +22,7 @@ export default function BalanceHero({ balance, names, myId, onSettle }: {
           <Check size={22} strokeWidth={2.5} aria-hidden="true" />
         </span>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-3">Balance</p>
+          <p className="text-meta font-semibold uppercase tracking-eyebrow text-ink-3">Balance</p>
           <p className="font-display text-xl leading-tight text-success">Están a mano</p>
         </div>
       </Card>
@@ -38,7 +38,7 @@ export default function BalanceHero({ balance, names, myId, onSettle }: {
           <Handshake size={20} strokeWidth={2} aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-3">Balance</p>
+          <p className="text-meta font-semibold uppercase tracking-eyebrow text-ink-3">Balance</p>
           <p className="truncate text-sm text-ink-2">
             <span className="font-bold text-ink">{names[balance.debtor_id!] ?? "Alguien"}</span>{" "}
             le debe a{" "}
@@ -49,7 +49,7 @@ export default function BalanceHero({ balance, names, myId, onSettle }: {
       <div className="flex items-center gap-4">
         <NumberPopIn
           value={formatUsd(balance.amount_usd)}
-          className={`font-display text-[1.7rem] leading-none font-tabular ${
+          className={`font-display text-wordmark leading-none font-tabular ${
             iAmCreditor ? "text-success" : "text-brick"
           }`}
         />

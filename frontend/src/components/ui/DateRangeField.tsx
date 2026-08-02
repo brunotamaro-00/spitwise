@@ -150,7 +150,7 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
             </button>
           </div>
 
-          <div className="mt-2 grid grid-cols-7 text-center text-[11px] font-semibold text-ink-faint">
+          <div className="mt-2 grid grid-cols-7 text-center text-meta font-semibold text-ink-faint">
             {WEEKDAYS.map((w) => <span key={w}>{w}</span>)}
           </div>
 

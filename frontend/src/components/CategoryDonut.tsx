@@ -55,7 +55,7 @@ export default function CategoryDonut({
     <Card className="flex h-full flex-col p-5">
       <div className="mb-4 flex items-baseline justify-between gap-2">
         <Label className="block">{title}</Label>
-        {subtitle && <span className="text-[11px] text-ink-faint">{subtitle}</span>}
+        {subtitle && <span className="text-meta text-ink-faint">{subtitle}</span>}
       </div>
       <div
         className={
@@ -75,7 +75,7 @@ export default function CategoryDonut({
         >
           {/* Total detrás del chart para que el tooltip quede por encima */}
           <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Total</span>
+            <span className="text-meta font-medium uppercase tracking-wide text-ink-3">Total</span>
             <span className="font-display text-2xl leading-none text-ink font-tabular">
               {formatUsd(total.toFixed(2), "whole")}
             </span>

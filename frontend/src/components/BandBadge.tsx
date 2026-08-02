@@ -23,7 +23,7 @@ export default function BandBadge({
   if (label == null) return null;
   return (
     <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-meta font-bold ${
         TONES[bandTone(position)]
       } ${position === "over" ? "font-tabular" : ""}`}
     >

@@ -37,7 +37,7 @@ function PaceTooltip({ active, payload }: { active?: boolean; payload?: { payloa
       </div>
       <div className="mt-1">
         {r.status === "future" ? (
-          <span className="text-[11px] font-medium text-ink-3">reservado</span>
+          <span className="text-meta font-medium text-ink-3">reservado</span>
         ) : (
           <DeltaBadge pct={r.delta} />
         )}
@@ -111,7 +111,7 @@ export default function CityPaceChart({
       <div className="mb-4 flex items-baseline justify-between gap-2">
         <Label>{title} ($/día)</Label>
         {showAvg && (
-          <span className="text-[11px] font-medium text-ink-3">
+          <span className="text-meta font-medium text-ink-3">
             promedio <span className="font-tabular font-semibold">{formatUsd(trip.avg_per_day_usd!)}</span>
           </span>
         )}

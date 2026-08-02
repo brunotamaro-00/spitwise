@@ -62,8 +62,8 @@ export default function Layout() {
         >
           <img src="/brand/mark-tile.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 object-contain drop-shadow-sm" />
           <div>
-            <Wordmark className="text-[1.7rem]" />
-            <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
+            <Wordmark className="text-wordmark" />
+            <p className="mt-0.5 text-meta font-semibold uppercase tracking-eyebrow text-ink-faint">
               Europa 2026
             </p>
           </div>
@@ -86,7 +86,7 @@ export default function Layout() {
                   {label}
                   {to === "/movimientos" && confirmCount > 0 && (
                     <span
-                      className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-amber-solid px-1.5 text-[11px] font-bold text-white"
+                      className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-amber-solid px-1.5 text-meta font-bold text-white"
                       aria-label={`${confirmCount} por confirmar`}
                     >
                       <span aria-hidden="true">{confirmCount}</span>
@@ -115,7 +115,7 @@ export default function Layout() {
           className="flex items-center gap-2.5 rounded-lg transition-opacity hover:opacity-80 focus-ring"
         >
           <img src="/brand/mark-tile.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain drop-shadow-sm" />
-          <Wordmark className="text-[1.8rem]" />
+          <Wordmark className="text-wordmark" />
         </NavLink>
         <div className="flex items-center gap-2">
           {avatar}
@@ -194,7 +194,7 @@ export default function Layout() {
               to={to}
               end={to === "/"}
               className={({ isActive }) =>
-                `flex min-h-[56px] flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors focus-ring-inset ${
+                `flex min-h-[56px] flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 text-meta font-semibold transition-colors focus-ring-inset ${
                   isActive ? "text-brick" : "text-ink-3 hover:text-ink"
                 }`
               }
@@ -215,7 +215,7 @@ export default function Layout() {
                     <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} className="relative" aria-hidden="true" />
                     {to === "/movimientos" && confirmCount > 0 && (
                       <span
-                        className="absolute right-1.5 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-amber-solid px-1 text-[10px] font-bold text-white"
+                        className="absolute right-1.5 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-amber-solid px-1 text-fine font-bold text-white"
                         aria-label={`${confirmCount} por confirmar`}
                       >
                         <span aria-hidden="true">{confirmCount}</span>

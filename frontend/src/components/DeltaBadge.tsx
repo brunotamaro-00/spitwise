@@ -22,7 +22,7 @@ export default function DeltaBadge({
   const sign = rounded > 0 ? "+" : "";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 font-tabular text-[11px] font-bold ${tone}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 font-tabular text-meta font-bold ${tone}`}
     >
       {sign}
       {rounded}%{compact ? "" : " vs promedio"}

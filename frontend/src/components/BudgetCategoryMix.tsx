@@ -47,7 +47,7 @@ export default function BudgetCategoryMix({ c }: { c: CurrentCityBudget }) {
   return (
     <Card className="p-5">
       <h2 className="text-sm font-bold text-ink">En qué se te va</h2>
-      <p className="mt-0.5 text-[11px] font-medium text-ink-3">
+      <p className="mt-0.5 text-meta font-medium text-ink-3">
         Vivir en {c.city_name}, sin alojamiento · tu parte
       </p>
 
@@ -71,7 +71,7 @@ export default function BudgetCategoryMix({ c }: { c: CurrentCityBudget }) {
                     {name ?? "Sin categoría"}
                   </span>
                   {chip && (
-                    <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-ink-3">
+                    <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-2 px-1.5 py-0.5 text-fine font-bold text-ink-3">
                       {chip}
                     </span>
                   )}
@@ -94,7 +94,7 @@ export default function BudgetCategoryMix({ c }: { c: CurrentCityBudget }) {
                   {formatUsd(m.living_usd, "whole")}
                 </span>
                 {m.share_pct != null && (
-                  <span className="block font-tabular text-[11px] font-medium text-ink-3">
+                  <span className="block font-tabular text-meta font-medium text-ink-3">
                     {Math.round(m.share_pct)}%
                   </span>
                 )}

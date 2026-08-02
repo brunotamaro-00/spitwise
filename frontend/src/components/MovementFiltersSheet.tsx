@@ -54,7 +54,7 @@ function Switch({ checked, onChange, label }: {
 }
 
 const chipBase =
-  "flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors focus-ring";
+  "flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full border px-3 text-note font-semibold transition-colors focus-ring";
 const chipIdle = "border-border bg-surface text-ink-2 hover:bg-surface-2";
 
 /** Bottom sheet de filtros de /movimientos: toggle "solo míos", categorías como

@@ -32,7 +32,7 @@ export default function Kpi({ icon: Icon, tint, label, value, badge }: {
           plata en silencio. A 402px la columna deja 83px, y a text-lg
           "USD 1.234" ya medía 81px — text-base en mobile da aire real. */}
       <div className="min-w-0">
-        <p className="font-display text-base leading-none tracking-tight text-ink font-tabular lg:text-lg">
+        <p className="font-display text-base leading-none tracking-display text-ink font-tabular lg:text-lg">
           {value}
         </p>
         <p className="mt-1 whitespace-nowrap text-xs font-medium text-ink-3">{label}</p>

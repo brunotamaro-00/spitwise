@@ -21,7 +21,7 @@ export default function ConfirmDialog({
 }) {
   return (
     <Modal title={title} onClose={onClose} size="sm" locked={busy}>
-      <p className="text-[15px] text-ink-2">{message}</p>
+      <p className="text-entry text-ink-2">{message}</p>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
       <div className="mt-5 flex gap-2">
         <Button variant="secondary" className="flex-1" onClick={onClose} disabled={busy}>

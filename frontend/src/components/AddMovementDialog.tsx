@@ -118,7 +118,7 @@ function Segmented({ options, value, onChange, labelledBy }: {
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(o.value)}
             onKeyDown={(e) => onKeyDown(e, i)}
-            className={`relative z-10 min-h-[36px] flex-1 cursor-pointer rounded-md px-2 text-[13px] font-semibold transition-colors focus-ring ${
+            className={`relative z-10 min-h-[36px] flex-1 cursor-pointer rounded-md px-2 text-note font-semibold transition-colors focus-ring ${
               active ? "text-ink" : "text-ink-3 hover:text-ink"
             }`}
           >
@@ -286,7 +286,7 @@ export default function AddMovementDialog({ editing, onClose }: {
               aria-describedby={amountErr ? "amount-error" : undefined}
               value={amount}
               onChange={(e) => { setAmount(sanitizeAmountInput(e.target.value)); setAmountErr(null); }}
-              className="w-full min-w-0 bg-transparent font-display text-3xl leading-none tracking-[-0.02em] text-ink outline-none font-tabular placeholder:text-ink-faint"
+              className="w-full min-w-0 bg-transparent font-display text-3xl leading-none tracking-display text-ink outline-none font-tabular placeholder:text-ink-faint"
             />
             {/* wrapper de ancho fijo: el Select base trae w-full */}
             <div className="w-24 shrink-0">
@@ -300,7 +300,7 @@ export default function AddMovementDialog({ editing, onClose }: {
             </div>
           </div>
           {amountErr && (
-            <p id="amount-error" role="alert" className="mt-1.5 text-[13px] font-semibold text-danger">
+            <p id="amount-error" role="alert" className="mt-1.5 text-note font-semibold text-danger">
               {amountErr}
             </p>
           )}
@@ -354,7 +354,7 @@ export default function AddMovementDialog({ editing, onClose }: {
                   onClick={() => setCategoryId(active ? "" : String(c.id))}
                   aria-pressed={active}
                   whileTap={{ scale: 0.94 }}
-                  className={`flex min-h-[32px] cursor-pointer items-center gap-1.5 rounded-full border px-2 text-[13px] font-semibold transition-colors focus-ring ${
+                  className={`flex min-h-[32px] cursor-pointer items-center gap-1.5 rounded-full border px-2 text-note font-semibold transition-colors focus-ring ${
                     active ? "" : "border-border bg-surface text-ink-2 hover:bg-surface-2"
                   }`}
                   style={active ? {

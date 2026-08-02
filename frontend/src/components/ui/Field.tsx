@@ -49,7 +49,7 @@ export function Field({ label, hint, children }: {
     <label className="flex flex-col gap-1.5">
       <span className="flex items-baseline justify-between gap-2">
         <Label>{label}</Label>
-        {hint && <span className="text-[11px] text-ink-faint">{hint}</span>}
+        {hint && <span className="text-meta text-ink-faint">{hint}</span>}
       </span>
       {children}
     </label>
