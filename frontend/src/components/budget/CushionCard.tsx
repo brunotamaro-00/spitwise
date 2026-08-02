@@ -13,8 +13,13 @@ import CushionMeter from "./CushionMeter";
  *
  *  El colchón es una **resta** (lo que el plan separó − lo que gastaron), y
  *  mostrarla sola pedía fe. La barra pone los dos términos: el hueco entre el
- *  relleno y el poste ES el número grande. Abajo, en su propia superficie, la
- *  única cifra con la que se decide algo hoy — a cuánto por día pueden ir.
+ *  relleno y el poste ES el número grande. Abajo, una sola frase con el ritmo
+ *  al que pueden ir en lo que queda.
+ *
+ *  **Un número y una frase, a propósito.** La versión anterior llegó a cinco
+ *  cifras (colchón, los dos extremos de la barra rotulados, el ritmo con su
+ *  display grande, el plan promedio y el conteo de noches) para responder algo
+ *  que se dice en un renglón. La demo pública la abre gente que entra de cero.
  *
  *  Solo con el viaje en curso. Antes de arrancar el colchón es cero por
  *  construcción (no se vivió ninguna noche) y el ritmo necesario ya descuenta
@@ -26,7 +31,6 @@ export default function CushionCard({ b }: { b: BudgetAnalysis }) {
 
   const ahead = read.kind === "ahead";
   const needed = read.neededUsd;
-  const avg = b.cushion.avg_target_daily_usd;
   const planned = b.cushion.budget_to_date_usd;
 
   return (
@@ -42,7 +46,7 @@ export default function CushionCard({ b }: { b: BudgetAnalysis }) {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-meta font-semibold uppercase tracking-caps text-ink-3">
-              {ahead ? "Colchón del viaje" : "Arriba del plan"}
+              {ahead ? "Ahorrado en lo que va del viaje" : "Gastado de más hasta hoy"}
             </p>
             <p
               className={`font-display text-3xl leading-none tracking-display font-tabular ${
@@ -57,8 +61,8 @@ export default function CushionCard({ b }: { b: BudgetAnalysis }) {
 
         <p className="mt-3 text-sm font-medium text-ink-2">
           {ahead
-            ? "de lo que el plan ya había separado para estos días."
-            : "de más contra lo que el plan preveía hasta hoy."}
+            ? "Gastaron menos de lo que tenían planeado hasta hoy."
+            : "Gastaron más de lo que tenían planeado hasta hoy."}
         </p>
 
         {planned && (
@@ -72,32 +76,20 @@ export default function CushionCard({ b }: { b: BudgetAnalysis }) {
         )}
       </div>
 
-      {/* Superficie propia: es el ritmo al que hay que ir en lo que queda del
-          viaje. **No es un permiso** — el permiso vive en el hero y es uno solo
-          en toda la página. Decir "podés gastar" acá abría un segundo permiso
-          de otro scope, y dos permisos distintos en la misma pantalla es la
-          forma más rápida de que ninguno se crea. */}
+      {/* Una frase, no un tercer número grande. El ritmo del resto del viaje es
+          contexto del colchón, no otra respuesta: con su propio display, su
+          conteo de noches y el plan promedio al lado, la card pedía cinco
+          números para decir una cosa. En cuerpo de texto tampoco compite con el
+          hero — el único permiso grande de la página sigue siendo aquel. */}
       {needed && read.remainingNights > 0 && (
-        <div className="flex items-end justify-between gap-3 border-t border-border bg-surface-2/60 px-5 py-4">
-          <div>
-            <p className="text-meta font-semibold uppercase tracking-caps text-ink-3">
-              Ritmo del resto del viaje
-            </p>
-            <p className="mt-1 font-display text-2xl leading-none tracking-display text-ink font-tabular">
-              {formatUsd(needed, "whole")}
-              <span className="font-sans text-meta font-medium text-ink-3">/día</span>
-            </p>
-          </div>
-          <p className="text-right text-meta font-medium text-ink-3">
-            en las {read.remainingNights} noches que quedan
-            {avg && (
-              <>
-                <br />
-                plan <span className="font-tabular">{formatUsd(avg, "whole")}</span> por día
-              </>
-            )}
-          </p>
-        </div>
+        <p className="border-t border-border bg-surface-2/60 px-5 py-3.5 text-sm font-medium text-ink-2">
+          {ahead ? "Pueden gastar " : "Tienen que ir a "}
+          <span className="font-tabular font-bold text-ink">
+            {formatUsd(needed, "whole")}
+          </span>{" "}
+          por día en lo que queda del viaje
+          {ahead ? "." : " para cerrar en plan."}
+        </p>
       )}
     </Card>
   );

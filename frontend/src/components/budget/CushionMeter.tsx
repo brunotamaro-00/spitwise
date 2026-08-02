@@ -8,7 +8,11 @@ import { formatUsd } from "@/lib/format";
  *  cruza el poste y el exceso queda del otro lado, más tenue.
  *
  *  Por eso no es una barra de progreso normalizada a 100: acá el 100 es el
- *  mayor de los dos números, así el poste se mueve y el hueco significa algo. */
+ *  mayor de los dos números, así el poste se mueve y el hueco significa algo.
+ *
+ *  Sin rótulos debajo: los dos montos ("gastaron X" / "el plan separó Y") eran
+ *  la aritmética del número grande escrita al lado del número grande. La barra
+ *  ya dibuja la resta, y el `aria-label` la dice para quien no la ve. */
 export default function CushionMeter({
   spent,
   planned,
@@ -63,15 +67,6 @@ export default function CushionMeter({
           className="absolute h-4 w-0.5 rounded-full bg-ink/45"
           style={{ left: `calc(${at}% - 1px)` }}
         />
-      </div>
-      <div className="mt-1.5 flex items-baseline justify-between gap-3 text-fine font-medium text-ink-3">
-        <span>
-          gastaron <span className="font-tabular">{formatUsd(String(spent), "whole")}</span>
-        </span>
-        <span>
-          el plan separó{" "}
-          <span className="font-tabular">{formatUsd(String(planned), "whole")}</span>
-        </span>
       </div>
     </div>
   );

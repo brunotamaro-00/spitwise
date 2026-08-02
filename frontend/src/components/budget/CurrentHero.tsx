@@ -6,7 +6,6 @@ import { stayEnvelope, stayProgress, todayRead } from "@/lib/budget";
 import { formatUsd, parseMoney } from "@/lib/format";
 import type { CurrentCityBudget } from "@/types";
 
-import { bandText } from "./bandText";
 import StayEnvelopeBar from "./StayEnvelopeBar";
 
 /** Bloque focal con la ciudad en curso: **el pote de la parada**.
@@ -18,13 +17,19 @@ import StayEnvelopeBar from "./StayEnvelopeBar";
  *  con el "podés gastar" del colchón. El pote es estable, se lee como una
  *  billetera y sirve igual al llegar a la parada, cerrando el día y de control.
  *
- *  Debajo, dos lecturas de ese mismo pote: la barra (gastado contra lo que el
- *  plan separó hasta hoy, con el fin del pote a la vista) y la fila de HOY. Las
- *  tres cifras salen de **una sola tasa**, así que cierran entre sí. */
+ *  Debajo, dos lecturas de ese mismo pote: cuánto va gastado del plan de la
+ *  ciudad y cómo cerró hoy. Las tres cifras salen de **una sola tasa**, así que
+ *  cierran entre sí.
+ *
+ *  **Está podada a propósito.** La banda por día (57–83) y el plan devengado
+ *  hasta hoy eran precisos y mudos para quien entra de cero — la demo pública
+ *  la abre gente que no sabe qué es un pote de presupuesto. Cada dato que
+ *  necesitaba su propia leyenda se fue; el veredicto de ritmo viaja en una
+ *  palabra en el `BandBadge`, que es lo que se entiende de una. Lo fino sigue
+ *  disponible más abajo, por ciudad. */
 export default function CurrentHero({ c }: { c: CurrentCityBudget }) {
   const stay = stayEnvelope(c);
   const today = todayRead(c);
-  const plan = bandText(c.target_min_usd, c.target_max_usd);
 
   return (
     <Hero
@@ -52,11 +57,26 @@ export default function CurrentHero({ c }: { c: CurrentCityBudget }) {
           <p className="mt-3 text-sm text-white/85">
             {stay.kind === "left" ? (
               <>
-                te quedan del plan de {c.city_name} ·{" "}
+                {/* El plazo va en la frase del hero: "USD 241" solo no dice
+                    nada, "USD 241 para 3 días" se entiende sin saber qué es un
+                    presupuesto. Los días de la PARADA, no del viaje. */}
+                para{" "}
+                {c.remaining_days === 1 ? (
+                  <span className="font-semibold text-white">el último día</span>
+                ) : (
+                  <>
+                    los{" "}
+                    <span className="font-semibold text-white">
+                      {c.remaining_days} días
+                    </span>{" "}
+                    que quedan
+                  </>
+                )}{" "}
+                acá ·{" "}
                 <span className="font-tabular font-semibold text-white">
                   {formatUsd(stay.dailyUsd, "whole")}
                 </span>{" "}
-                por día hasta el check-out
+                por día
               </>
             ) : (
               <>de más que el plan de {c.city_name}</>
@@ -69,8 +89,7 @@ export default function CurrentHero({ c }: { c: CurrentCityBudget }) {
                 Gastaron{" "}
                 <span className="font-tabular font-semibold text-white">
                   {formatUsd(stay.spentUsd, "whole")}
-                </span>{" "}
-                de <span className="font-tabular">{formatUsd(stay.envelopeUsd, "whole")}</span>
+                </span>
               </span>
               {/* El veredicto sigue midiendo el RITMO contra la banda, no el
                   pote: son dos preguntas distintas y mezclarlas haría que una
@@ -87,19 +106,16 @@ export default function CurrentHero({ c }: { c: CurrentCityBudget }) {
               <StayEnvelopeBar
                 spent={parseMoney(stay.spentUsd)}
                 envelope={parseMoney(stay.envelopeUsd)}
-                max={parseMoney(stay.maxUsd)}
-                accrued={stay.accruedUsd == null ? null : parseMoney(stay.accruedUsd)}
                 over={stay.kind === "over"}
               />
             </div>
+            {/* El pie nombra el final de la barra. Es la única leyenda que
+                queda: el plan como banda (57–83 por día) y el plan devengado
+                hasta hoy eran dos conceptos más para alguien que entra de cero,
+                y el veredicto ya viaja en una palabra en el badge. */}
             <p className="mt-2 text-meta font-medium text-white/70">
-              El poste es lo que el plan separó hasta hoy
-              {plan && (
-                <>
-                  {" "}
-                  · plan <span className="font-tabular">{plan}</span> por día
-                </>
-              )}
+              de los <span className="font-tabular">{formatUsd(stay.envelopeUsd, "whole")}</span>{" "}
+              del plan de {c.city_name}
             </p>
           </div>
         </>
