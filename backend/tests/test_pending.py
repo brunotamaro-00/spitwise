@@ -21,3 +21,27 @@ async def test_pending_rejects_wrong_owner(db_session):
     assert await load_pending(db_session, token, owner="bruno") is not None
     await close_pending(db_session, token)
     assert await load_pending(db_session, token, owner="bruno") is None
+
+
+async def test_pending_rejects_wrong_kind(db_session):
+    """El kind es el tipo que el HANDLER espera: un token de otra clase no puede
+    llegar con un payload que el handler va a leer como si fuera suyo."""
+    token = await create_pending(db_session, owner="bruno", payload={"x": 1}, kind="doc_upload")
+    assert await load_pending(db_session, token, kind="del_confirm") is None
+    assert await load_pending(db_session, token, kind="doc_upload") == {"x": 1}
+    # Sin `kind` sigue cargando (los callers que no lo declaran no cambian).
+    assert await load_pending(db_session, token) == {"x": 1}
+
+
+async def test_create_pending_accepts_a_pregenerated_token(db_session):
+    """Pendings hermanos: cada payload necesita el token del otro antes de que
+    existan las filas."""
+    from app.bot.pending import new_token
+
+    t_a, t_b = new_token(), new_token()
+    await create_pending(db_session, owner="bruno", payload={"siblings": [t_b]},
+                         kind="del_confirm", token=t_a)
+    await create_pending(db_session, owner="bruno", payload={"siblings": [t_a]},
+                         kind="del_confirm", token=t_b)
+    assert (await load_pending(db_session, t_a))["siblings"] == [t_b]
+    assert (await load_pending(db_session, t_b))["siblings"] == [t_a]

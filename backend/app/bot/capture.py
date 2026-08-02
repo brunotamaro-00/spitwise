@@ -552,8 +552,11 @@ async def apply_category_pick(session, user: User, token: str, category_id: int,
         cashback_kind=cb_kind, cashback_value=cb_value,
         created_by=user.id, raw_message=data.get("raw_message"),
     )
+    # Sin commit intermedio: el movimiento y el cierre del pending entran en la
+    # MISMA transacción (la de `close_pending`). Commitear el movimiento primero
+    # dejaba una ventana en la que un doble tap del botón encontraba el pending
+    # todavía abierto y guardaba el gasto dos veces.
     session.add(mv)
-    await session.commit()
     await close_pending(session, token)
     cat = (await session.execute(select(Category).where(Category.id == category_id))).scalar_one_or_none()
     payer = (await session.execute(select(User).where(User.id == payer_id))).scalar_one_or_none() or user

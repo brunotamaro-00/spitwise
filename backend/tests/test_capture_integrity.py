@@ -259,3 +259,28 @@ async def test_category_pick_reprices_with_the_confirmation_date(db_session):
     await apply_category_pick(db_session, u1, token, cat_id, TODAY)
     mv = (await _movements(db_session))[0]
     assert mv.fx_rate == Decimal("2.00") and mv.amount_usd == Decimal("20.00")
+
+
+async def test_category_pick_double_tap_saves_one_movement(db_session):
+    """El commit del movimiento iba ANTES del cierre del pending: un doble tap
+    del botón encontraba el pending abierto y guardaba el gasto dos veces."""
+    from app.bot.capture import apply_category_pick
+    from app.bot.pending import create_pending
+
+    u1, _ = await _setup(db_session)
+    token = await create_pending(db_session, owner="bruno", kind="cat_pick", payload={
+        "amount": "10", "currency": "EUR", "amount_usd": "11", "fx_rate": "1.10",
+        "fx_source": "cache", "split": "shared", "description": "Aquello",
+        "stop_slug": "lisboa", "city_name": "Lisboa", "payment_date": None,
+        "status": "confirmed", "cashback_kind": None, "cashback_value": None,
+        "paid_by": u1.id, "raw_message": "x",
+    })
+    cat_id = (await db_session.execute(
+        select(Category.id).where(Category.name == "Comida"))).scalar_one()
+
+    first = await apply_category_pick(db_session, u1, token, cat_id, TODAY)
+    second = await apply_category_pick(db_session, u1, token, cat_id, TODAY)
+
+    assert "Aquello" in first.text
+    assert "Expiró" in second.text
+    assert len(await _movements(db_session)) == 1
