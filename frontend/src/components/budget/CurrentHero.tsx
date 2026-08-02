@@ -68,14 +68,19 @@ export default function CurrentHero({ c }: { c: CurrentCityBudget }) {
               </span>
               /día
             </span>
-            <BandBadge position={c.band_position} edgeDeltaPct={c.edge_delta_pct} />
+            <BandBadge
+              position={c.band_position}
+              edgeDeltaPct={c.edge_delta_pct}
+              min={c.target_min_usd}
+              max={c.target_max_usd}
+              value={c.living_per_day_usd}
+            />
           </div>
           <div className="mt-2.5">
             <BudgetBandBar
               min={c.target_min_usd}
               max={c.target_max_usd}
               value={c.living_per_day_usd}
-              position={c.band_position}
               size="lg"
               variant="hero"
               label={c.city_name}

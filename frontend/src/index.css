@@ -105,7 +105,34 @@
      las notas usan estas; los charts y los íconos siguen con las de arriba. */
   --color-accent-amber-ink: #866722;   /* 4.50:1 sobre accent-amber-bg */
   --color-accent-teal-ink: #09786C;    /* 4.50:1 sobre accent-teal-bg  */
+  --color-accent-green-ink: #3F6B22;   /* 5.47:1 sobre accent-green-bg */
   --color-accent-amber-solid: #8A6A23; /* relleno con texto blanco: 5.04:1 */
+
+  /* ── Rampa de ritmo (`heat`) ────────────────────────────────────────────
+     Los cinco pasos del gasto diario contra el plan, de ahorrar a pasarse
+     fuerte. Nombrados por lo que SIGNIFICAN, no por el color: el día que el
+     naranja no funcione se cambia el hex, no los 12 lugares que lo usan.
+
+     Se apoya en la paleta que ya existe (teal → verde oliva → dorado →
+     terracota → ladrillo rojo): cuatro de los cinco fills son tokens de
+     arriba y solo `over` es un hue nuevo, que cae justo entre el dorado y el
+     brick que ya conviven en la app.
+
+     Dos propiedades chequeadas, no estimadas:
+     - cada fill ≥ 3:1 sobre `surface` y sobre `surface-2` (UI no textual);
+     - la luminancia BAJA con la severidad (.213 → .221 → .158 → .147 → .139),
+       así la rampa sigue ordenada en escala de grises y bajo daltonismo, donde
+       un semáforo verde/rojo colapsa. El color igual nunca viaja solo: al lado
+       siempre va el `BandBadge` con la palabra. */
+  --color-heat-save: var(--color-accent-teal);         /* debajo del piso  */
+  --color-heat-plan: var(--color-accent-green);        /* dentro del plan  */
+  --color-heat-edge: var(--color-accent-amber-solid);  /* pegado al techo  */
+  --color-heat-over: #B04E15;                          /* pasado hasta 25% */
+  --color-heat-far: var(--color-danger);               /* pasado fuerte    */
+
+  --color-heat-over-bg: #FAEADF;
+  --color-heat-over-ink: #A04713;  /* 5.26:1 sobre heat-over-bg */
+  --color-danger-ink: #B32E12;     /* 5.43:1 sobre danger-bg    */
 
   /* Secundarios / semánticos */
   --color-gold: #C8A24B;

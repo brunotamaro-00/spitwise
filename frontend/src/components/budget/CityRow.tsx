@@ -59,7 +59,13 @@ export default function CityRow({ c, onEdit }: { c: CityBudget; onEdit: () => vo
               {future ? "por venir" : "—"}
             </span>
           )}
-          <BandBadge position={c.band_position} edgeDeltaPct={c.edge_delta_pct} />
+          <BandBadge
+            position={c.band_position}
+            edgeDeltaPct={c.edge_delta_pct}
+            min={c.target_min_usd}
+            max={c.target_max_usd}
+            value={value}
+          />
         </div>
       </div>
 
@@ -69,7 +75,6 @@ export default function CityRow({ c, onEdit }: { c: CityBudget; onEdit: () => vo
           min={c.target_min_usd!}
           max={c.target_max_usd!}
           value={value}
-          position={c.band_position}
           label={c.city_name}
         />
       )}

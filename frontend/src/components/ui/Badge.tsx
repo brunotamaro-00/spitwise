@@ -3,12 +3,20 @@ import { cn } from "@/lib/cn";
 /* Intent: metadata compacta que etiqueta un dato (estado, veredicto, delta)
    sin robarle protagonismo. Siempre subordinado al valor que acompaña:
    tinte suave + texto -ink (los pares ya validados AA), nunca color saturado.
-   Nunca rojo: un badge informa, no alarma (esa regla viene de BandBadge). */
+
+   `green` · `orange` · `red` son la rampa de ritmo del presupuesto (ver
+   `--color-heat-*` en index.css). El rojo entró con una decisión explícita:
+   en /presupuesto, pasarse fuerte del plan es lo único que tiene que verse
+   desde lejos. Afuera de esa rampa la regla sigue siendo la de siempre —
+   un badge informa, no alarma. */
 
 const TONES = {
   neutral: "bg-surface-2 text-ink-3",
   teal: "bg-accent-teal-bg text-accent-teal-ink",
+  green: "bg-accent-green-bg text-accent-green-ink",
   amber: "bg-accent-amber-bg text-accent-amber-ink",
+  orange: "bg-heat-over-bg text-heat-over-ink",
+  red: "bg-danger-bg text-danger-ink",
   brick: "bg-brick-bg text-brick-ink",
 } as const;
 

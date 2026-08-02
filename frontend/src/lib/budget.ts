@@ -1,3 +1,4 @@
+import type { BadgeTone } from "@/components/ui/Badge";
 import { parseMoney } from "@/lib/format";
 import type { BandPosition, CurrentCityBudget, TripCushion } from "@/types";
 
@@ -25,47 +26,99 @@ export function currentVerdict(c: CurrentCityBudget): BudgetVerdict {
 
 /* ------------------------------------------------------------ la banda --- */
 
-/** Tono semántico de una posición en la banda.
+/** El 100% de cualquier barra de $/día: USD 100 por día y por persona.
  *
- *  `neutral` para "en plan" a propósito: estar adentro del rango no es un
- *  logro que haya que celebrar en verde, es lo esperado. El único tono que
- *  llama la atención es el ámbar de pasarse — y **nunca** es rojo: esto es
- *  contexto para decidir el almuerzo, no una alarma. */
-export type BandTone = "teal" | "neutral" | "amber";
+ *  **Escala fija, no relativa a cada plan.** Antes cada barra se escalaba
+ *  contra su propia banda, así que una parada de plan 68–95 gastando 81 y otra
+ *  de plan 20–30 gastando 25 dibujaban el relleno a la misma altura: la lista
+ *  se veía prolija y no decía nada. Con un eje común, la altura del relleno ES
+ *  el gasto y las 27 filas se escanean de un saque. USD 100/día es el techo
+ *  natural del viaje (la banda más cara del plan queda holgada adentro) y un
+ *  número redondo que se puede tener en la cabeza mientras se scrollea. */
+export const BAR_MAX_USD = 100;
 
-export function bandTone(position: BandPosition | null | undefined): BandTone {
-  if (position === "under") return "teal";
-  if (position === "over") return "amber";
-  return "neutral";
+/** Los cinco pasos del ritmo contra el plan. `edge` (pegado al techo) existe
+ *  porque adentro de una banda ancha no es lo mismo estar en el piso que a un
+ *  café de pasarse, y esa distinción es la que evita la sorpresa. */
+export type BandLevel = "save" | "plan" | "edge" | "over" | "far";
+
+/** Dentro de la banda: a partir de qué fracción del rango ya es "al límite". */
+const EDGE_AT = 0.75;
+/** Arriba del techo: hasta qué desvío es "pasado" y no "muy pasado". */
+const FAR_AT = 0.25;
+
+/** El nivel del ritmo real dentro (o fuera) de la banda. **Única fuente** del
+ *  color en toda la página: barra, badge y card de proyección leen de acá.
+ *
+ *  Una banda de ancho cero (`min === max`, el caso de no-regresión del modelo
+ *  de target único) da `t = 0` ⇒ `plan`, nunca `edge`. */
+export function bandLevel(
+  value: number | null,
+  min: number,
+  max: number,
+): BandLevel | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  if (value < min) return "save";
+  if (value <= max) {
+    const t = max > min ? (value - min) / (max - min) : 0;
+    return t > EDGE_AT ? "edge" : "plan";
+  }
+  // Fuera de la escala de la barra se trata como "muy pasado" pase lo que
+  // pase: si el relleno ya no puede crecer, el color tiene que hacerse cargo.
+  return value >= BAR_MAX_USD || value / max - 1 > FAR_AT ? "far" : "over";
+}
+
+/** Tono de `Badge` de cada paso. Sí, hay rojo: pasarse fuerte del plan es la
+ *  única cosa que esta página necesita que se vea desde lejos. */
+export function levelTone(level: BandLevel | null | undefined): BadgeTone {
+  switch (level) {
+    case "save":
+      return "teal";
+    case "plan":
+      return "green";
+    case "edge":
+      return "amber";
+    case "over":
+      return "orange";
+    case "far":
+      return "red";
+    default:
+      return "neutral";
+  }
 }
 
 /** Texto del veredicto. Afuera del rango lleva el % contra el borde que se
- *  violó; adentro no lleva número porque no hay desvío que reportar. */
+ *  violó; adentro no lleva número porque no hay desvío que reportar — salvo
+ *  `edge`, que avisa sin número porque todavía no hay desvío. */
 export function bandLabel(
   position: BandPosition | null | undefined,
   edgeDeltaPct: number | null | undefined,
+  level?: BandLevel | null,
 ): string | null {
   if (position == null) return null;
-  if (position === "in") return "en plan";
   if (position === "under") return "ahorrando";
+  if (position === "in") return level === "edge" ? "al límite" : "en plan";
   const pct = edgeDeltaPct == null ? null : Math.round(edgeDeltaPct);
   return pct == null || pct === 0 ? "pasado" : `+${pct}%`;
 }
 
-/** Fracciones 0..1 de la barra: dónde empieza y termina la zona del plan,
- *  dónde cae el objetivo y hasta dónde llega el gasto real.
+/** Porcentajes 0..100 de la barra sobre el eje fijo de `BAR_MAX_USD`: dónde
+ *  empieza y termina la zona del plan, dónde cae el objetivo y hasta dónde
+ *  llega el gasto real.
  *
- *  La escala deja aire arriba del techo para que la zona del plan no ocupe
- *  toda la barra (sin margen no se ve que se puede pasar), y se estira si el
- *  gasto real se fue por encima. */
+ *  `overCap` = el gasto se salió del eje (la barra no puede crecer más y el
+ *  extremo tiene que decirlo). `bandClipped` = el plan mismo se sale del eje;
+ *  hoy no pasa con ninguna parada, pero la barra no puede dibujar un techo que
+ *  no está ahí. */
 export function bandGeometry(min: number, max: number, value: number | null) {
-  const scale = Math.max(max * 1.25, (value ?? 0) * 1.08, min * 1.25, 1);
-  const pct = (n: number) => Math.min(Math.max((n / scale) * 100, 0), 100);
+  const pct = (n: number) => Math.min(Math.max((n / BAR_MAX_USD) * 100, 0), 100);
   return {
     bandStart: pct(min),
     bandWidth: pct(max) - pct(min),
     center: pct((min + max) / 2),
     value: value == null ? null : pct(value),
+    overCap: value != null && value >= BAR_MAX_USD,
+    bandClipped: max > BAR_MAX_USD,
   };
 }
 

@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   bandGeometry,
   bandLabel,
-  bandTone,
+  bandLevel,
+  levelTone,
   coverageLine,
   currentVerdict,
   cushionRead,
@@ -59,15 +60,41 @@ describe("currentVerdict", () => {
   });
 });
 
-describe("bandTone / bandLabel", () => {
-  it("debajo del piso es ahorro, arriba del techo es aviso", () => {
-    expect(bandTone("under")).toBe("teal");
-    expect(bandTone("over")).toBe("amber");
+describe("bandLevel / levelTone / bandLabel", () => {
+  it("recorre la rampa de ahorro a pasarse fuerte", () => {
+    expect(bandLevel(30, 40, 60)).toBe("save");
+    expect(bandLevel(45, 40, 60)).toBe("plan");
+    expect(bandLevel(58, 40, 60)).toBe("edge");   // último cuarto de la banda
+    expect(bandLevel(65, 40, 60)).toBe("over");   // +8% del techo
+    expect(bandLevel(90, 40, 60)).toBe("far");    // +50%
   });
 
-  it("adentro del rango el tono es neutro: estar en plan es lo esperado", () => {
-    expect(bandTone("in")).toBe("neutral");
+  it("una banda de ancho cero cae en 'plan', nunca en 'al límite'", () => {
+    expect(bandLevel(50, 50, 50)).toBe("plan");
+  });
+
+  it("fuera del eje de la barra el color se hace cargo, sea cual sea el plan", () => {
+    // Un plan holgado (90–95) gastando 110: solo +16% del techo, pero la barra
+    // ya no puede crecer, así que el nivel tiene que decirlo igual.
+    expect(bandLevel(110, 90, 95)).toBe("far");
+  });
+
+  it("sin ritmo (parada futura) no hay nivel", () => {
+    expect(bandLevel(null, 40, 60)).toBeNull();
+    expect(levelTone(null)).toBe("neutral");
+  });
+
+  it("cada paso tiene su tono, y pasarse fuerte sí es rojo", () => {
+    expect(levelTone("save")).toBe("teal");
+    expect(levelTone("plan")).toBe("green");
+    expect(levelTone("edge")).toBe("amber");
+    expect(levelTone("over")).toBe("orange");
+    expect(levelTone("far")).toBe("red");
+  });
+
+  it("adentro del rango el texto avisa si está pegado al techo", () => {
     expect(bandLabel("in", null)).toBe("en plan");
+    expect(bandLabel("in", null, "edge")).toBe("al límite");
   });
 
   it("solo afuera del rango se muestra un %, y contra el borde violado", () => {
@@ -77,7 +104,6 @@ describe("bandTone / bandLabel", () => {
 
   it("sin posición (futura o sin plan) no hay veredicto", () => {
     expect(bandLabel(null, 30)).toBeNull();
-    expect(bandTone(null)).toBe("neutral");
   });
 
   it("pasado sin % no queda con un '+0%' vacío", () => {
@@ -86,17 +112,30 @@ describe("bandTone / bandLabel", () => {
 });
 
 describe("bandGeometry", () => {
-  it("deja aire arriba del techo: la zona del plan nunca llena la barra", () => {
-    const g = bandGeometry(40, 60, 50);
-    expect(g.bandStart + g.bandWidth).toBeLessThan(100);
-    expect(g.center).toBeGreaterThan(g.bandStart);
-    expect(g.center).toBeLessThan(g.bandStart + g.bandWidth);
+  it("el eje es fijo: el mismo gasto ocupa lo mismo con planes distintos", () => {
+    // Es TODO el punto de la escala fija: antes cada barra se escalaba contra
+    // su propia banda y dos ciudades muy distintas dibujaban lo mismo.
+    expect(bandGeometry(68, 95, 81).value).toBe(bandGeometry(20, 30, 81).value);
+    expect(bandGeometry(68, 95, 81).value).toBe(81);
+    // Y el plan de cada una cae en lugares distintos, que es lo que se escanea.
+    expect(bandGeometry(68, 95, 81).bandStart).toBe(68);
+    expect(bandGeometry(20, 30, 81).bandStart).toBe(20);
   });
 
-  it("un gasto muy por encima del techo no se sale de la barra", () => {
+  it("un gasto por encima del eje capea y lo declara", () => {
     const g = bandGeometry(40, 60, 500);
-    expect(g.value).toBeLessThanOrEqual(100);
-    expect(g.value).toBeGreaterThan(g.bandStart + g.bandWidth);
+    expect(g.value).toBe(100);
+    expect(g.overCap).toBe(true);
+  });
+
+  it("adentro del eje no hay tope que marcar", () => {
+    expect(bandGeometry(40, 60, 99).overCap).toBe(false);
+    expect(bandGeometry(40, 60, null).overCap).toBe(false);
+  });
+
+  it("un plan más caro que el eje se declara recortado", () => {
+    expect(bandGeometry(90, 120, 100).bandClipped).toBe(true);
+    expect(bandGeometry(40, 60, 50).bandClipped).toBe(false);
   });
 
   it("sin gasto (parada futura) solo se dibuja el plan", () => {
