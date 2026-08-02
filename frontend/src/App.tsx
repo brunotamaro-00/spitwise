@@ -11,6 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import Movements from "@/pages/Movements";
 import NotFound from "@/pages/NotFound";
+import Preview from "@/pages/Preview";
 
 function Guard({ children }: { children: React.ReactNode }) {
   return isAuthenticated() ? <>{children}</> : <Navigate to="/login" replace />;
@@ -23,6 +24,9 @@ export default function App() {
       <DemoIntro />
       <Routes>
         <Route path="/login" element={<Login />} />
+        {/* Kitchen-sink del sistema de diseño: solo en dev, sin auth ni Layout
+            (ver .interface-design/system.md). Vite elimina la rama en el build. */}
+        {import.meta.env.DEV && <Route path="/preview" element={<Preview />} />}
         <Route element={<Guard><Layout /></Guard>}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/presupuesto" element={<Budget />} />
