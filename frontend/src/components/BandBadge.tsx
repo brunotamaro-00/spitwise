@@ -1,11 +1,6 @@
+import Badge from "@/components/ui/Badge";
 import { bandLabel, bandTone } from "@/lib/budget";
 import type { BandPosition } from "@/types";
-
-const TONES = {
-  teal: "bg-accent-teal-bg text-accent-teal-ink",
-  neutral: "bg-surface-2 text-ink-3",
-  amber: "bg-accent-amber-bg text-accent-amber-ink",
-} as const;
 
 /** Veredicto contra la banda del plan: `ahorrando` · `en plan` · `+9%`.
  *
@@ -22,12 +17,8 @@ export default function BandBadge({
   const label = bandLabel(position, edgeDeltaPct);
   if (label == null) return null;
   return (
-    <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-meta font-bold ${
-        TONES[bandTone(position)]
-      } ${position === "over" ? "font-tabular" : ""}`}
-    >
+    <Badge tone={bandTone(position)} tabular={position === "over"}>
       {label}
-    </span>
+    </Badge>
   );
 }

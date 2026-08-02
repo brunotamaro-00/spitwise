@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import BandBadge from "@/components/BandBadge";
 import DeltaBadge from "@/components/DeltaBadge";
+import Badge, { CountBadge } from "@/components/ui/Badge";
 import { PageTitle, SpitDivider, Wordmark } from "@/components/ui/Brand";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -60,14 +61,30 @@ export default function Preview() {
         </Card>
       </Section>
 
-      <Section title="Badges (pre-extracción F3)">
-        <Card className="flex flex-wrap items-center gap-2 p-5">
-          <BandBadge position="under" edgeDeltaPct={null} />
-          <BandBadge position="in" edgeDeltaPct={null} />
-          <BandBadge position="over" edgeDeltaPct={9} />
-          <DeltaBadge pct={40} />
-          <DeltaBadge pct={-22} compact />
-          <DeltaBadge pct={4} />
+      <Section title="Badge — tonos × tamaños">
+        <Card className="flex flex-col gap-3 p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge>neutral</Badge>
+            <Badge tone="teal">teal</Badge>
+            <Badge tone="amber">amber</Badge>
+            <Badge tone="brick">brick</Badge>
+            <Badge tone="amber" size="sm" caps>Por confirmar</Badge>
+            <Badge tone="teal" size="sm" caps>CB 5%</Badge>
+            <Badge tone="brick" size="sm" caps>hoy</Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <BandBadge position="under" edgeDeltaPct={null} />
+            <BandBadge position="in" edgeDeltaPct={null} />
+            <BandBadge position="over" edgeDeltaPct={9} />
+            <DeltaBadge pct={40} />
+            <DeltaBadge pct={-22} compact />
+            <DeltaBadge pct={4} />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <CountBadge count={4} aria-label="4 por confirmar" />
+            <CountBadge count={12} size="sm" aria-label="12 por confirmar" />
+            <CountBadge count={3} tone="brick" size="sm" aria-label="3 filtros activos" />
+          </div>
         </Card>
       </Section>
 

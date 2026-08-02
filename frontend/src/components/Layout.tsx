@@ -7,6 +7,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { logout } from "@/api/auth";
 import { listMovements } from "@/api/movements";
 import AddMovementDialog from "@/components/AddMovementDialog";
+import { CountBadge } from "@/components/ui/Badge";
 import { Wordmark } from "@/components/ui/Brand";
 import { capitalize } from "@/lib/format";
 import { DURATION, EASE_SMOOTH_OUT, SPRING_SLIDE } from "@/lib/motion";
@@ -85,12 +86,11 @@ export default function Layout() {
                   <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} aria-hidden="true" />
                   {label}
                   {to === "/movimientos" && confirmCount > 0 && (
-                    <span
-                      className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-amber-solid px-1.5 text-meta font-bold text-white"
+                    <CountBadge
+                      count={confirmCount}
+                      className="ml-auto"
                       aria-label={`${confirmCount} por confirmar`}
-                    >
-                      <span aria-hidden="true">{confirmCount}</span>
-                    </span>
+                    />
                   )}
                 </>
               )}
@@ -216,12 +216,12 @@ export default function Layout() {
                     )}
                     <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} className="relative" aria-hidden="true" />
                     {to === "/movimientos" && confirmCount > 0 && (
-                      <span
-                        className="absolute right-1.5 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-amber-solid px-1 text-fine font-bold text-white"
+                      <CountBadge
+                        count={confirmCount}
+                        size="sm"
+                        className="absolute right-1.5 top-0"
                         aria-label={`${confirmCount} por confirmar`}
-                      >
-                        <span aria-hidden="true">{confirmCount}</span>
-                      </span>
+                      />
                     )}
                   </span>
                   {label}

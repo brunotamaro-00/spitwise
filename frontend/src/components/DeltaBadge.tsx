@@ -1,3 +1,5 @@
+import Badge from "@/components/ui/Badge";
+
 /** Pill informativa "+40% vs promedio". Ámbar por encima del promedio del
  *  viaje, teal por debajo, neutra en ±10%. Nunca roja: es contexto, no alarma.
  *  Sin delta (ciudades futuras) no renderiza nada.
@@ -13,19 +15,12 @@ export default function DeltaBadge({
 }) {
   if (pct == null || Number.isNaN(pct)) return null;
   const rounded = Math.round(pct);
-  const tone =
-    Math.abs(pct) < 10
-      ? "bg-surface-2 text-ink-3"
-      : pct > 0
-        ? "bg-accent-amber-bg text-accent-amber-ink"
-        : "bg-accent-teal-bg text-accent-teal-ink";
+  const tone = Math.abs(pct) < 10 ? "neutral" : pct > 0 ? "amber" : "teal";
   const sign = rounded > 0 ? "+" : "";
   return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 font-tabular text-meta font-bold ${tone}`}
-    >
+    <Badge tone={tone} tabular>
       {sign}
       {rounded}%{compact ? "" : " vs promedio"}
-    </span>
+    </Badge>
   );
 }

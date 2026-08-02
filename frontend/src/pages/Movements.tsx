@@ -16,6 +16,7 @@ import MovementFiltersSheet, {
 import MovementRow from "@/components/MovementRow";
 import MovementSheet from "@/components/MovementSheet";
 import PendingConfirmBanner from "@/components/PendingConfirmBanner";
+import { CountBadge } from "@/components/ui/Badge";
 import { PageTitle } from "@/components/ui/Brand";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -195,9 +196,13 @@ export default function Movements() {
         >
           <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
           {activeCount > 0 && (
-            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick px-1 text-fine font-bold text-white">
-              {activeCount}
-            </span>
+            <CountBadge
+              count={activeCount}
+              tone="brick"
+              size="sm"
+              className="absolute -right-1.5 -top-1.5"
+              aria-label={`${activeCount} filtros activos`}
+            />
           )}
         </button>
       </div>

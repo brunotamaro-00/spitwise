@@ -9,6 +9,7 @@ import BudgetCategoryMix from "@/components/BudgetCategoryMix";
 import BudgetTargetDialog from "@/components/BudgetTargetDialog";
 import Flag from "@/components/Flag";
 import AnimatedUsd from "@/components/ui/AnimatedUsd";
+import Badge from "@/components/ui/Badge";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
@@ -282,9 +283,9 @@ function CityRow({ c, onEdit }: { c: CityBudget; onEdit: () => void }) {
             {c.country_flag && <Flag flag={c.country_flag} className="shrink-0 text-sm leading-none" />}
             <span className="min-w-0 truncate">{c.city_name}</span>
             {c.status === "current" && (
-              <span className="shrink-0 rounded-full bg-brick-bg px-2 py-0.5 text-fine font-bold uppercase tracking-wide text-brick-ink">
+              <Badge tone="brick" size="sm" caps className="shrink-0">
                 hoy
-              </span>
+              </Badge>
             )}
           </p>
           <p className="mt-0.5 text-meta font-medium text-ink-3">
@@ -296,10 +297,10 @@ function CityRow({ c, onEdit }: { c: CityBudget; onEdit: () => void }) {
 
         <div className="flex shrink-0 flex-col items-end gap-1">
           {!hasPlan ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-brick-bg px-2 py-1 text-meta font-bold text-brick-ink">
+            <Badge tone="brick">
               <Plus size={11} strokeWidth={2.5} aria-hidden="true" />
               definir
-            </span>
+            </Badge>
           ) : value && !isZeroMoney(value) ? (
             <span className="font-tabular text-sm font-bold text-ink">
               {formatUsd(value, "whole")}

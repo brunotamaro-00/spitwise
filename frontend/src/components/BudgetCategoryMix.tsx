@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { listCategories } from "@/api/categories";
 import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
 import { categoryBg, categoryColor, categoryIcon } from "@/lib/chartTheme";
 import { formatUsd } from "@/lib/format";
 import type { CategoryMix, CurrentCityBudget } from "@/types";
@@ -71,9 +72,9 @@ export default function BudgetCategoryMix({ c }: { c: CurrentCityBudget }) {
                     {name ?? "Sin categoría"}
                   </span>
                   {chip && (
-                    <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-2 px-1.5 py-0.5 text-fine font-bold text-ink-3">
+                    <Badge size="sm" className="shrink-0">
                       {chip}
-                    </span>
+                    </Badge>
                   )}
                 </span>
                 <span

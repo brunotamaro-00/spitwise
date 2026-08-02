@@ -1,6 +1,7 @@
 import { Handshake, Pencil, Trash2 } from "lucide-react";
 
 import Flag from "@/components/Flag";
+import Badge from "@/components/ui/Badge";
 import { cashbackLabel, netAmount } from "@/lib/cashback";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { categoryBg, categoryColor } from "@/lib/chartTheme";
@@ -54,17 +55,14 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
             {mv.description || (isSettlement ? "Pago (saldo)" : "Sin descripción")}
           </p>
           {(mv.status === "pending" || mv.status === "awaiting") && (
-            <span className="shrink-0 rounded-full bg-accent-amber-bg px-1.5 py-px text-fine font-bold uppercase tracking-wide text-accent-amber-ink">
+            <Badge tone="amber" size="sm" caps className="shrink-0">
               {mv.status === "awaiting" ? "Por confirmar" : "Pendiente"}
-            </span>
+            </Badge>
           )}
           {cbLabel && (
-            <span
-              className="shrink-0 rounded-full bg-accent-teal-bg px-1.5 py-px text-fine font-bold uppercase tracking-wide text-accent-teal-ink"
-              title={`Cashback ${cbLabel}`}
-            >
+            <Badge tone="teal" size="sm" caps className="shrink-0" title={`Cashback ${cbLabel}`}>
               CB {cbLabel}
-            </span>
+            </Badge>
           )}
         </div>
         <p className="mt-0.5 truncate text-xs text-ink-3">
