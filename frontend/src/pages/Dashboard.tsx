@@ -19,6 +19,7 @@ import AnimatedUsd from "@/components/ui/AnimatedUsd";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
+import Hero from "@/components/ui/Hero";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Skeleton from "@/components/ui/Skeleton";
 import SkeletonReveal from "@/components/ui/SkeletonReveal";
@@ -97,39 +98,32 @@ export default function Dashboard() {
       <div className="animate-rise-in stagger-1">
         <Slot query={summary} skeleton={<Skeleton className="h-44" />}>
           {() => (
-          <Card className="relative overflow-hidden p-6 text-white hero-gradient soft-hero lg:p-7">
-            <div className="spit-dots absolute inset-0" aria-hidden="true" />
-            <div className="hero-sheen absolute inset-0" aria-hidden="true" />
-            <div className="relative">
-              <p className="text-meta font-semibold uppercase tracking-eyebrow text-white/70">
-                Mis gastos · todo el viaje
-              </p>
-              <p className="mt-2 font-display text-6xl leading-none tracking-display font-tabular lg:text-7xl">
-                <AnimatedUsd value={summary.data!.total_usd} />
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-white/85">
+          <Hero eyebrow="Mis gastos · todo el viaje">
+            <p className="mt-2 font-display text-6xl leading-none tracking-display font-tabular lg:text-7xl">
+              <AnimatedUsd value={summary.data!.total_usd} />
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-white/85">
+              <span className="inline-flex items-center gap-1.5">
+                <Receipt size={15} strokeWidth={2} aria-hidden="true" />
+                {summary.data!.movement_count} movimiento{summary.data!.movement_count === 1 ? "" : "s"}
+              </span>
+              {trip?.avg_per_day_usd && (
                 <span className="inline-flex items-center gap-1.5">
-                  <Receipt size={15} strokeWidth={2} aria-hidden="true" />
-                  {summary.data!.movement_count} movimiento{summary.data!.movement_count === 1 ? "" : "s"}
+                  <TrendingUp size={15} strokeWidth={2} aria-hidden="true" />
+                  <span className="font-tabular">{formatUsd(trip.avg_per_day_usd, "whole")}</span>
+                  {preTrip ? " previsto/día" : " por día"}
                 </span>
-                {trip?.avg_per_day_usd && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <TrendingUp size={15} strokeWidth={2} aria-hidden="true" />
-                    <span className="font-tabular">{formatUsd(trip.avg_per_day_usd, "whole")}</span>
-                    {preTrip ? " previsto/día" : " por día"}
-                  </span>
-                )}
-              </div>
-              {/* El total incluye reservas futuras; el balance de abajo no. Sin
-                  decirlo, la diferencia entre las dos cifras no se explica. */}
-              {unsettled.count > 0 && (
-                <p className="mt-3 text-xs text-white/70">
-                  Incluye {unsettled.count} {unsettled.count === 1 ? "gasto" : "gastos"} por confirmar ·{" "}
-                  <span className="font-tabular font-semibold">{formatUsd(String(unsettled.usd))}</span>
-                </p>
               )}
             </div>
-          </Card>
+            {/* El total incluye reservas futuras; el balance de abajo no. Sin
+                decirlo, la diferencia entre las dos cifras no se explica. */}
+            {unsettled.count > 0 && (
+              <p className="mt-3 text-xs text-white/70">
+                Incluye {unsettled.count} {unsettled.count === 1 ? "gasto" : "gastos"} por confirmar ·{" "}
+                <span className="font-tabular font-semibold">{formatUsd(String(unsettled.usd))}</span>
+              </p>
+            )}
+          </Hero>
           )}
         </Slot>
       </div>

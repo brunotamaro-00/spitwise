@@ -9,6 +9,7 @@ import BudgetCategoryMix from "@/components/BudgetCategoryMix";
 import BudgetTargetDialog from "@/components/BudgetTargetDialog";
 import Flag from "@/components/Flag";
 import AnimatedUsd from "@/components/ui/AnimatedUsd";
+import Hero from "@/components/ui/Hero";
 import Badge from "@/components/ui/Badge";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
@@ -53,16 +54,15 @@ function CurrentHero({ c }: { c: CurrentCityBudget }) {
   const plan = bandText(c.target_min_usd, c.target_max_usd);
 
   return (
-    <Card className="relative overflow-hidden p-6 text-white hero-gradient soft-hero lg:p-7">
-      <div className="spit-dots absolute inset-0" aria-hidden="true" />
-      <div className="hero-sheen absolute inset-0" aria-hidden="true" />
-      <div className="relative">
-        <p className="flex items-center gap-2 text-meta font-semibold uppercase tracking-eyebrow text-white/70">
+    <Hero
+      eyebrow={
+        <>
           {c.country_flag && <Flag flag={c.country_flag} className="text-sm leading-none" />}
           {c.city_name} · {stayProgress(c.lived_nights, c.total_nights)}
-        </p>
-
-        {verdict.kind === "no_target" ? (
+        </>
+      }
+    >
+      {verdict.kind === "no_target" ? (
           <>
             <p className="mt-2 font-display text-5xl leading-none tracking-display font-tabular">
               <AnimatedUsd value={c.living_usd} />
@@ -120,8 +120,7 @@ function CurrentHero({ c }: { c: CurrentCityBudget }) {
             </p>
           </div>
         )}
-      </div>
-    </Card>
+    </Hero>
   );
 }
 
@@ -133,14 +132,8 @@ function PlanHero({ plan, finished }: { plan: TripPlan; finished: boolean }) {
   const total = bandText(plan.living_budget_min_usd, plan.living_budget_max_usd);
 
   return (
-    <Card className="relative overflow-hidden p-6 text-white hero-gradient soft-hero lg:p-7">
-      <div className="spit-dots absolute inset-0" aria-hidden="true" />
-      <div className="hero-sheen absolute inset-0" aria-hidden="true" />
-      <div className="relative">
-        <p className="text-meta font-semibold uppercase tracking-eyebrow text-white/70">
-          {finished ? "El plan · viaje terminado" : "El plan"}
-        </p>
-        {total ? (
+    <Hero eyebrow={finished ? "El plan · viaje terminado" : "El plan"}>
+      {total ? (
           <>
             <p className="mt-2 font-display text-4xl leading-none tracking-display font-tabular lg:text-5xl">
               {total}
@@ -189,8 +182,7 @@ function PlanHero({ plan, finished }: { plan: TripPlan; finished: boolean }) {
         {!cov.complete && plan.budget_nights > 0 && (
           <p className="mt-3 text-xs text-white/70">{cov.text}</p>
         )}
-      </div>
-    </Card>
+    </Hero>
   );
 }
 

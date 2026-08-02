@@ -11,6 +11,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import { Field, Input, Select } from "@/components/ui/Field";
+import Hero from "@/components/ui/Hero";
 import Kpi from "@/components/ui/Kpi";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Skeleton from "@/components/ui/Skeleton";
@@ -110,6 +111,18 @@ export default function Preview() {
           <Kpi icon={Landmark} tint="teal" label="Actividades" value="USD 561,88" badge={<DeltaBadge pct={-12} compact />} />
           <Kpi icon={Coffee} tint="amber" label="Cafetería" value="USD 305" />
         </div>
+      </Section>
+
+      <Section title="Hero — normal / loading">
+        <Hero eyebrow="Mis gastos · todo el viaje">
+          <p className="mt-2 font-display text-6xl leading-none tracking-display font-tabular">
+            USD 9.447
+          </p>
+          <p className="mt-3 text-sm text-white/85">207 movimientos · USD 120 por día</p>
+        </Hero>
+        <Hero eyebrow="Cargando" loading>
+          <span />
+        </Hero>
       </Section>
 
       <Section title="Formulario">

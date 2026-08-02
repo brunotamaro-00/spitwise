@@ -21,6 +21,7 @@ import Card from "@/components/ui/Card";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
+import Hero from "@/components/ui/Hero";
 import Kpi from "@/components/ui/Kpi";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Skeleton from "@/components/ui/Skeleton";
@@ -218,10 +219,7 @@ export default function Cities() {
       </SkeletonReveal>
 
       {/* Header / hero de la selección */}
-      <Card className="animate-rise-in stagger-1 relative overflow-hidden p-5 text-white hero-gradient soft-hero">
-        <div className="spit-dots absolute inset-0" aria-hidden="true" />
-        <div className="hero-sheen absolute inset-0" aria-hidden="true" />
-        <div className="relative">
+      <Hero padding="md" className="animate-rise-in stagger-1">
           <div className="flex items-center gap-3">
             {flag ? (
               <Flag flag={flag} className="text-3xl leading-none" />
@@ -262,8 +260,7 @@ export default function Cities() {
               </p>
             </div>
           </div>
-        </div>
-      </Card>
+      </Hero>
 
       {/* KPIs: con una ciudad seleccionada, el modelo prorrateado (ritmo,
           dormir/noche, vivir/día); si no, los agregados de la selección. */}
