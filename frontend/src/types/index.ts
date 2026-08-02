@@ -121,6 +121,11 @@ export type CategoryMix = {
   trip_share_pct: number | null;
   /** share de la parada / share del viaje. >1 = acá se te va más en esto. */
   ratio: number | null;
+  /** La misma comparación en plata: $/día acá, $/día promedio del viaje, y la
+   *  diferencia con signo. El ratio dice si el desvío existe; esto, cuánto es. */
+  per_day_usd: string | null;
+  trip_per_day_usd: string | null;
+  delta_per_day_usd: string | null;
 };
 
 export type CurrentCityBudget = {
