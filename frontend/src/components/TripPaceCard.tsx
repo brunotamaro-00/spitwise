@@ -2,7 +2,7 @@ import { Gauge } from "lucide-react";
 
 import AnimatedUsd from "@/components/ui/AnimatedUsd";
 import Card from "@/components/ui/Card";
-import { Label } from "@/components/ui/Field";
+import SectionHeader from "@/components/ui/SectionHeader";
 import { formatUsd, isZeroMoney } from "@/lib/format";
 import type { TripPace } from "@/types";
 
@@ -24,12 +24,16 @@ export default function TripPaceCard({ pace }: { pace: TripPace }) {
 
   return (
     <Card className="flex flex-col gap-3 p-5">
-      <div className="flex items-center justify-between">
-        <Label>Ritmo del viaje</Label>
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brick-bg text-brick">
-          <Gauge size={16} strokeWidth={2} aria-hidden="true" />
-        </span>
-      </div>
+      <SectionHeader
+        quiet
+        action={
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brick-bg text-brick">
+            <Gauge size={16} strokeWidth={2} aria-hidden="true" />
+          </span>
+        }
+      >
+        Ritmo del viaje
+      </SectionHeader>
 
       <div>
         <div className="flex items-baseline gap-2">

@@ -22,6 +22,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import Kpi from "@/components/ui/Kpi";
+import SectionHeader from "@/components/ui/SectionHeader";
 import Skeleton from "@/components/ui/Skeleton";
 import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { useToast } from "@/components/ui/Toast";
@@ -296,7 +297,7 @@ export default function Cities() {
 
       {/* Detalle de movimientos */}
       <div>
-        <h2 className="mb-2 px-1 text-sm font-bold text-ink">Detalle de movimientos</h2>
+        <SectionHeader className="mb-2 px-1">Detalle de movimientos</SectionHeader>
         <SkeletonReveal
           ready={!loadingMovs}
           skeleton={

@@ -11,7 +11,7 @@ import {
 } from "recharts";
 
 import Card from "@/components/ui/Card";
-import { Label } from "@/components/ui/Field";
+import SectionHeader from "@/components/ui/SectionHeader";
 import { formatAmount, formatUsd, parseMoney } from "@/lib/format";
 import { ACCENT, FALLBACK_SERIES, TICK } from "@/lib/chartTheme";
 import DeltaBadge from "@/components/DeltaBadge";
@@ -108,14 +108,19 @@ export default function CityPaceChart({
 
   return (
     <Card className="flex h-full flex-col p-5">
-      <div className="mb-4 flex items-baseline justify-between gap-2">
-        <Label>{title} ($/día)</Label>
-        {showAvg && (
-          <span className="text-meta font-medium text-ink-3">
-            promedio <span className="font-tabular font-semibold">{formatUsd(trip.avg_per_day_usd!)}</span>
-          </span>
-        )}
-      </div>
+      <SectionHeader
+        quiet
+        className="mb-4"
+        hint={
+          showAvg ? (
+            <>
+              promedio <span className="font-tabular font-semibold">{formatUsd(trip.avg_per_day_usd!)}</span>
+            </>
+          ) : undefined
+        }
+      >
+        {title} ($/día)
+      </SectionHeader>
       {/* relative + hijo absoluto: el 100% del ResponsiveContainer necesita una
           altura definida; min-height sola no la da y el chart colapsa a 0. */}
       <div

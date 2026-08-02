@@ -13,6 +13,7 @@ import Badge from "@/components/ui/Badge";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
+import SectionHeader from "@/components/ui/SectionHeader";
 import Skeleton from "@/components/ui/Skeleton";
 import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import {
@@ -343,12 +344,9 @@ function ProjectionCard({ b }: { b: BudgetAnalysis }) {
 
   return (
     <Card className="p-5">
-      <h2 className="flex items-center gap-2 text-sm font-bold text-ink">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-teal-bg text-accent-teal">
-          <TrendingUp size={15} strokeWidth={2} aria-hidden="true" />
-        </span>
+      <SectionHeader icon={TrendingUp} iconTone="teal">
         Proyección del viaje
-      </h2>
+      </SectionHeader>
 
       {total && p.projected_living_usd ? (
         <>
@@ -422,7 +420,7 @@ function FixedCard({ b }: { b: BudgetAnalysis }) {
 
   return (
     <Card className="p-5">
-      <h2 className="text-sm font-bold text-ink">Fijos</h2>
+      <SectionHeader>Fijos</SectionHeader>
       <p className="mt-0.5 text-meta font-medium text-ink-3">
         Fuera del plan de vivir: ya están comprometidos.
       </p>
@@ -528,15 +526,9 @@ function BudgetBody({
 
       <div className="animate-rise-in stagger-3">
         <Card className="px-5 py-1">
-          <div className="flex items-center gap-2 py-3">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brick-bg text-brick">
-              <Target size={15} strokeWidth={2} aria-hidden="true" />
-            </span>
-            <h2 className="text-sm font-bold text-ink">Por ciudad</h2>
-            <span className="ml-auto text-meta font-medium text-ink-3">
-              real vs plan · por persona
-            </span>
-          </div>
+          <SectionHeader className="py-3" icon={Target} hint="real vs plan · por persona">
+            Por ciudad
+          </SectionHeader>
           {cities.map((c, i) => (
             <div key={c.stop_slug}>
               {i === firstFuture && i > 0 && (

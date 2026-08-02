@@ -19,6 +19,7 @@ import AnimatedUsd from "@/components/ui/AnimatedUsd";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
+import SectionHeader from "@/components/ui/SectionHeader";
 import Skeleton from "@/components/ui/Skeleton";
 import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { capitalize, formatUsd } from "@/lib/format";
@@ -167,16 +168,20 @@ export default function Dashboard() {
       {lastMovs.length > 0 && (
         <div className="animate-rise-in stagger-5">
           <Card className="px-5 py-1">
-            <div className="flex items-center justify-between py-3">
-              <h2 className="text-sm font-bold text-ink">Últimos movimientos</h2>
-              <Link
-                to="/movimientos"
-                className="flex items-center gap-1 text-xs font-semibold text-brick transition-colors hover:text-brick-hover focus-ring rounded-lg"
-              >
-                Ver todos
-                <ArrowRight size={13} strokeWidth={2.25} aria-hidden="true" />
-              </Link>
-            </div>
+            <SectionHeader
+              className="py-3"
+              action={
+                <Link
+                  to="/movimientos"
+                  className="flex items-center gap-1 text-xs font-semibold text-brick transition-colors hover:text-brick-hover focus-ring rounded-lg"
+                >
+                  Ver todos
+                  <ArrowRight size={13} strokeWidth={2.25} aria-hidden="true" />
+                </Link>
+              }
+            >
+              Últimos movimientos
+            </SectionHeader>
             {lastMovs.map((m) => (
               <MovementRow
                 key={m.id}

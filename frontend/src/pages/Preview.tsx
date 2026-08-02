@@ -12,6 +12,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import { Field, Input, Select } from "@/components/ui/Field";
 import Kpi from "@/components/ui/Kpi";
+import SectionHeader from "@/components/ui/SectionHeader";
 import Skeleton from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 
@@ -85,6 +86,20 @@ export default function Preview() {
             <CountBadge count={12} size="sm" aria-label="12 por confirmar" />
             <CountBadge count={3} tone="brick" size="sm" aria-label="3 filtros activos" />
           </div>
+        </Card>
+      </Section>
+
+      <Section title="SectionHeader — variantes">
+        <Card className="flex flex-col gap-4 p-5">
+          <SectionHeader>Título simple</SectionHeader>
+          <SectionHeader icon={Wallet}>Con ícono brick</SectionHeader>
+          <SectionHeader icon={Landmark} iconTone="teal" hint="real vs plan · por persona">
+            Ícono teal + hint
+          </SectionHeader>
+          <SectionHeader action={<Button variant="ghost" size="sm">Ver todos</Button>}>
+            Con acción
+          </SectionHeader>
+          <SectionHeader quiet hint="últimos 30 días">Quiet (título de chart)</SectionHeader>
         </Card>
       </Section>
 

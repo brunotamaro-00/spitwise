@@ -1,7 +1,7 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import Card from "@/components/ui/Card";
-import { Label } from "@/components/ui/Field";
+import SectionHeader from "@/components/ui/SectionHeader";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { formatUsd, parseMoney } from "@/lib/format";
 import { categoryBg, categoryColor } from "@/lib/chartTheme";
@@ -53,10 +53,9 @@ export default function CategoryDonut({
 
   return (
     <Card className="flex h-full flex-col p-5">
-      <div className="mb-4 flex items-baseline justify-between gap-2">
-        <Label className="block">{title}</Label>
-        {subtitle && <span className="text-meta text-ink-faint">{subtitle}</span>}
-      </div>
+      <SectionHeader quiet className="mb-4" hint={subtitle}>
+        {title}
+      </SectionHeader>
       <div
         className={
           sideBySide

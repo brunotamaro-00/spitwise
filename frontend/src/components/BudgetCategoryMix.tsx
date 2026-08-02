@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listCategories } from "@/api/categories";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import SectionHeader from "@/components/ui/SectionHeader";
 import { categoryBg, categoryColor, categoryIcon } from "@/lib/chartTheme";
 import { formatUsd } from "@/lib/format";
 import type { CategoryMix, CurrentCityBudget } from "@/types";
@@ -47,7 +48,7 @@ export default function BudgetCategoryMix({ c }: { c: CurrentCityBudget }) {
 
   return (
     <Card className="p-5">
-      <h2 className="text-sm font-bold text-ink">En qué se te va</h2>
+      <SectionHeader>En qué se te va</SectionHeader>
       <p className="mt-0.5 text-meta font-medium text-ink-3">
         Vivir en {c.city_name}, sin alojamiento · tu parte
       </p>
