@@ -1,5 +1,17 @@
 import httpx
 
+# Límites reales de la Cloud API. Pasarse es un 400 de Graph: el usuario se
+# queda sin respuesta aunque el gasto ya esté guardado. Truncar es feo pero
+# recuperable; perder la respuesta, no.
+_TEXT_LIMIT = 4096
+_BUTTONS_BODY_LIMIT = 1024
+
+
+def _clip(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit - 1] + "…"
+
 
 class MetaClient:
     def __init__(self, access_token: str, phone_number_id: str, graph_version: str = "v21.0") -> None:
@@ -33,7 +45,7 @@ class MetaClient:
     async def send_text(self, wa_id: str, text: str) -> None:
         await self._post({
             "messaging_product": "whatsapp", "to": wa_id, "type": "text",
-            "text": {"body": text},
+            "text": {"body": _clip(text, _TEXT_LIMIT)},
         })
 
     async def send_buttons(self, wa_id: str, text: str, buttons: list[tuple[str, str]]) -> None:
@@ -41,7 +53,7 @@ class MetaClient:
             "messaging_product": "whatsapp", "to": wa_id, "type": "interactive",
             "interactive": {
                 "type": "button",
-                "body": {"text": text},
+                "body": {"text": _clip(text, _BUTTONS_BODY_LIMIT)},
                 "action": {"buttons": [
                     {"type": "reply", "reply": {"id": bid, "title": label[:20]}}
                     for bid, label in buttons[:3]
