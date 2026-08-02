@@ -4,6 +4,7 @@ import {
   bandGeometry,
   bandLabel,
   bandLevel,
+  categoryPerDay,
   levelTone,
   coverageLine,
   currentVerdict,
@@ -108,6 +109,34 @@ describe("bandLevel / levelTone / bandLabel", () => {
 
   it("pasado sin % no queda con un '+0%' vacío", () => {
     expect(bandLabel("over", null)).toBe("pasado");
+  });
+});
+
+describe("categoryPerDay", () => {
+  const row = (per: string | null, delta: string | null) => ({
+    per_day_usd: per,
+    delta_per_day_usd: delta,
+  });
+
+  it("todo rubro con gasto lleva su comparación, no solo los desviados", () => {
+    expect(categoryPerDay(row("25.00", "10.40"))?.delta).toBe("+USD 10 vs tu promedio");
+    expect(categoryPerDay(row("8.00", "-2.10"))?.delta).toBe("−USD 2 vs tu promedio");
+  });
+
+  it("un delta que redondea a cero se dice con palabras, no como '+USD 0'", () => {
+    expect(categoryPerDay(row("8.00", "0.37"))?.delta).toBe("igual que tu promedio");
+    expect(categoryPerDay(row("8.00", "-0.40"))?.delta).toBe("igual que tu promedio");
+  });
+
+  it("sin días vividos no hay $/día que inventar", () => {
+    expect(categoryPerDay(row(null, null))).toBeNull();
+  });
+
+  it("sin promedio del viaje se muestra el ritmo solo", () => {
+    expect(categoryPerDay(row("25.00", null))).toEqual({
+      rate: "USD 25/día",
+      delta: null,
+    });
   });
 });
 

@@ -5,7 +5,8 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import SectionHeader from "@/components/ui/SectionHeader";
 import { categoryBg, categoryColor, categoryIcon } from "@/lib/chartTheme";
-import { formatUsd, parseMoney } from "@/lib/format";
+import { categoryPerDay } from "@/lib/budget";
+import { formatUsd } from "@/lib/format";
 import type { CategoryMix, CurrentCityBudget } from "@/types";
 
 const TOP = 5;
@@ -26,21 +27,6 @@ function mixChip(m: CategoryMix): string | null {
   return `×${n} vs lo normal`;
 }
 
-/** Abajo del cual el delta contra el promedio es ruido y no se dice: con pocos
- *  días en una ciudad, medio café mueve el $/día. */
-const MIN_DELTA_USD = 2;
-
-/** La misma comparación del chip, pero en plata: "×1,7 de lo normal" no dice
- *  si son USD 3 o USD 30 por día, y eso es lo único con lo que se decide algo.
- *  Sin días vividos no hay $/día que inventar. */
-function perDayLine(m: CategoryMix): { rate: string; delta: string | null } | null {
-  if (m.per_day_usd == null) return null;
-  const rate = `${formatUsd(m.per_day_usd, "whole")}/día`;
-  const d = m.delta_per_day_usd == null ? null : parseMoney(m.delta_per_day_usd);
-  if (d == null || Math.abs(d) < MIN_DELTA_USD) return { rate, delta: null };
-  const signo = d > 0 ? "+" : "−";
-  return { rate, delta: `${signo}${formatUsd(String(Math.abs(d)), "whole")} vs tu promedio` };
-}
 
 /** En qué se va el "vivir" de la parada en curso.
  *
@@ -78,7 +64,7 @@ export default function BudgetCategoryMix({ c }: { c: CurrentCityBudget }) {
           const Icon = categoryIcon(name);
           const color = categoryColor(name);
           const chip = mixChip(m);
-          const perDay = perDayLine(m);
+          const perDay = categoryPerDay(m);
           return (
             <li key={m.category_id ?? "none"} className="flex items-center gap-3">
               <span

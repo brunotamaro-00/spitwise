@@ -1,5 +1,5 @@
 import type { BadgeTone } from "@/components/ui/Badge";
-import { parseMoney } from "@/lib/format";
+import { formatUsd, parseMoney } from "@/lib/format";
 import type { BandPosition, CurrentCityBudget, TripCushion } from "@/types";
 
 /** Qué dice el bloque focal de la ciudad en curso.
@@ -121,6 +121,32 @@ export function bandGeometry(min: number, max: number, value: number | null) {
     value: value == null ? null : pct(value),
     overCap: value != null && value >= BAR_MAX_USD,
     bandClipped: max > BAR_MAX_USD,
+  };
+}
+
+/* ------------------------------------------- en qué se te va (mezcla) ---- */
+
+/** El $/día de un rubro y cómo se compara con el promedio del viaje.
+ *
+ *  Es la magnitud que le falta al chip de proporción: "×1,7 de lo normal" no
+ *  dice si son USD 3 o USD 30 por día, y eso es lo único con lo que se decide
+ *  algo. Va en **todos** los rubros con gasto, no solo en los desviados: una
+ *  fila sin cola se leía como "acá falta un dato" y no como "acá no pasa nada".
+ *  Cuando el delta redondea a cero se dice con palabras — un "+USD 0" es peor
+ *  que no decir nada. Sin días vividos no hay $/día que inventar. */
+export function categoryPerDay(m: {
+  per_day_usd: string | null;
+  delta_per_day_usd: string | null;
+}): { rate: string; delta: string | null } | null {
+  if (m.per_day_usd == null) return null;
+  const rate = `${formatUsd(m.per_day_usd, "whole")}/día`;
+  const d = m.delta_per_day_usd == null ? null : parseMoney(m.delta_per_day_usd);
+  if (d == null) return { rate, delta: null };
+  if (Math.round(Math.abs(d)) === 0) return { rate, delta: "igual que tu promedio" };
+  const signo = d > 0 ? "+" : "−";
+  return {
+    rate,
+    delta: `${signo}${formatUsd(String(Math.abs(d)), "whole")} vs tu promedio`,
   };
 }
 
