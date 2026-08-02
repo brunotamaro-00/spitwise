@@ -30,9 +30,12 @@ SOMETHING_FAILED = (
     f"{H_WARN} Se me trabó procesando eso. Probá de nuevo, "
     "y si sigue, reformulalo un poco (ej: _cena 20 euros_)."
 )
+# Falla al ENVIAR la respuesta: en ese punto no hay señal confiable de si hubo
+# escritura (pudo ser una pregunta, o un gasto ya guardado). Afirmar "lo
+# procesé" mandaba a buscar en la app algo que quizá no existe.
 SAVED_BUT_UNCONFIRMED = (
-    f"{H_WARN} Lo procesé, pero no pude confirmarte por WhatsApp. "
-    "Revisá la app por las dudas."
+    f"{H_WARN} Se me cortó al mandarte la respuesta. Puede que igual lo haya "
+    "procesado: revisá la app por las dudas."
 )
 EMPTY_MESSAGE = "Mandame un gasto, ej: _cena 20 euros_."
 # Etapas declaradas que no cierran: no se guarda nada. Guardar el total como un
