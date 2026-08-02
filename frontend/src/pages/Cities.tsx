@@ -12,6 +12,7 @@ import { deleteMovement } from "@/api/movements";
 import AddMovementDialog from "@/components/AddMovementDialog";
 import CategoryDonut from "@/components/CategoryDonut";
 import DeltaBadge from "@/components/DeltaBadge";
+import DayHeader from "@/components/DayHeader";
 import Flag from "@/components/Flag";
 import MovementRow from "@/components/MovementRow";
 import MovementSheet from "@/components/MovementSheet";
@@ -311,15 +312,7 @@ export default function Cities() {
           <div className="flex flex-col gap-4">
             {groups.map((g) => (
               <section key={g.date}>
-                <h3 className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
-                  <span className="text-meta font-semibold uppercase tracking-caps text-ink-3">
-                    {formatDayHeader(g.date)}
-                  </span>
-                  {/* Los headers de día van sobre canvas, afuera del Card: ink-3. */}
-                  <span className="font-tabular text-meta font-semibold text-ink-3">
-                    {formatUsd(String(me ? dayTotalShare(g.items, me.id) : 0))}
-                  </span>
-                </h3>
+                <DayHeader as="h3" date={g.date} totalUsd={me ? dayTotalShare(g.items, me.id) : 0} />
                 <Card className="px-5">
                   {g.items.map((m) => (
                     <MovementRow

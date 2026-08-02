@@ -13,6 +13,7 @@ import MovementFiltersSheet, {
   NO_CITY,
   NO_CITY_LABEL,
 } from "@/components/MovementFiltersSheet";
+import DayHeader from "@/components/DayHeader";
 import MovementRow from "@/components/MovementRow";
 import MovementSheet from "@/components/MovementSheet";
 import PendingConfirmBanner from "@/components/PendingConfirmBanner";
@@ -27,7 +28,7 @@ import { Input } from "@/components/ui/Field";
 import Skeleton from "@/components/ui/Skeleton";
 import SkeletonReveal from "@/components/ui/SkeletonReveal";
 import { useToast } from "@/components/ui/Toast";
-import { formatAmount, formatDayHeader, formatShortDate, formatUsd } from "@/lib/format";
+import { formatAmount, formatShortDate, formatUsd } from "@/lib/format";
 import { createdDayKey, dayTotalShare, dayTotalUsd, groupByDay } from "@/lib/groupByDay";
 import { invalidateLedger } from "@/lib/queryClient";
 import { involvesMe, myShare, needsConfirmation } from "@/lib/share";
@@ -337,17 +338,10 @@ export default function Movements() {
         <div key={JSON.stringify(f)} className="animate-fade-in flex flex-col gap-4">
           {groups.map((g) => (
             <section key={g.date}>
-              <h2 className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
-                <span className="text-meta font-semibold uppercase tracking-caps text-ink-3">
-                  {formatDayHeader(g.date)}
-                </span>
-                {/* Los headers de día van sobre canvas, afuera del Card: ink-3. */}
-                <span className="font-tabular text-meta font-semibold text-ink-3">
-                  {formatUsd(String(
-                    f.onlyMine && me ? dayTotalShare(g.items, me.id) : dayTotalUsd(g.items),
-                  ))}
-                </span>
-              </h2>
+              <DayHeader
+                date={g.date}
+                totalUsd={f.onlyMine && me ? dayTotalShare(g.items, me.id) : dayTotalUsd(g.items)}
+              />
               <Card className="px-5">
                 {g.items.map((m) => (
                   <MovementRow key={m.id} mv={m} myId={me?.id}

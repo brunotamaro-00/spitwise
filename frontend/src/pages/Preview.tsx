@@ -14,7 +14,9 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import Hero from "@/components/ui/Hero";
 import Kpi from "@/components/ui/Kpi";
 import SectionHeader from "@/components/ui/SectionHeader";
+import Segmented from "@/components/ui/Segmented";
 import Skeleton from "@/components/ui/Skeleton";
+import Switch from "@/components/ui/Switch";
 import { useToast } from "@/components/ui/Toast";
 
 /** Kitchen-sink dev-only (`/preview`): cada primitivo con TODOS sus estados.
@@ -37,6 +39,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function Preview() {
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
+  const [split, setSplit] = useState("shared");
+  const [onlyMine, setOnlyMine] = useState(true);
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8 p-4 pb-24 lg:max-w-3xl">
@@ -58,6 +62,7 @@ export default function Preview() {
               <Button variant={v}>{v}</Button>
               <Button variant={v} size="sm">sm</Button>
               <Button variant={v} disabled>disabled</Button>
+              <Button variant={v} loading loadingLabel="Guardando…">Guardar</Button>
             </div>
           ))}
         </Card>
@@ -136,6 +141,24 @@ export default function Preview() {
               <option value="transporte">Transporte</option>
             </Select>
           </Field>
+        </Card>
+      </Section>
+
+      <Section title="Controles — Segmented / Switch">
+        <Card className="flex flex-col gap-4 p-5">
+          <Segmented
+            options={[
+              { value: "shared", label: "Compartido" },
+              { value: "payer_only", label: "Solo pagador" },
+              { value: "other_only", label: "Solo del otro" },
+            ]}
+            value={split}
+            onChange={setSplit}
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-ink">Solo mis gastos</span>
+            <Switch checked={onlyMine} onChange={setOnlyMine} label="Solo mis gastos" />
+          </div>
         </Card>
       </Section>
 
