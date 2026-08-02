@@ -64,18 +64,6 @@ async def test_split_edit_via_natural_language(db_session):
     assert bal.amount_usd == Decimal("0")  # solo mío => nadie debe
 
 
-async def test_legacy_split_button_still_works(db_session):
-    u1, u2 = await _two_users(db_session)
-    db_session.add(Movement(type="expense", amount=Decimal("100"), currency="USD",
-                            amount_usd=Decimal("100"), fx_rate=Decimal("1"), fx_source="frankfurter",
-                            paid_by=u1.id, split="shared",  created_by=u1.id))
-    await db_session.commit()
-    mv = (await db_session.execute(select(Movement))).scalar_one()
-    await handle_interactive(db_session, u1, "549111", f"split_mine:{mv.id}", date(2026, 8, 6))
-    await db_session.refresh(mv)
-    assert mv.split == "payer_only"
-
-
 async def test_borrar_command_confirms_then_deletes(db_session):
     u1, u2 = await _two_users(db_session)
     db_session.add(Movement(type="expense", amount=Decimal("20"), currency="USD",

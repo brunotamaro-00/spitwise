@@ -4,13 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.capture import apply_category_pick
-from app.bot.render import BotReply, deleted_card, movement_summary, text_reply
-from app.db.models import Category, Movement, User
-
-
-# Legacy: botones de split de la versión anterior (pueden quedar en el historial del chat).
-_SPLIT_MAP = {"split_shared": "shared", "split_mine": "payer_only", "split_theirs": "other_only"}
-_SPLIT_LABEL = {"shared": "compartido", "payer_only": "solo tuyo", "other_only": "solo del otro"}
+from app.bot.render import BotReply, deleted_card, text_reply
+from app.db.models import Movement, User
 
 
 def _token_and_id(interactive_id: str, prefix: str) -> tuple[str, int]:
@@ -60,16 +55,6 @@ async def _handle_interactive(session: AsyncSession, user: User, wa_id: str, int
         from app.bot.editor import apply_delete_pick
         token, mid = _token_and_id(interactive_id, "del_pick:")
         return await apply_delete_pick(session, user, token, mid)
-
-    for prefix, split_val in _SPLIT_MAP.items():
-        if interactive_id.startswith(prefix + ":"):
-            mid = int(interactive_id.split(":", 1)[1])
-            mv = (await session.execute(select(Movement).where(Movement.id == mid))).scalar_one_or_none()
-            if mv is None:
-                return text_reply("⚠️ No encontrado: ese movimiento ya no existe.")
-            mv.split = split_val
-            await session.commit()
-            return text_reply(f"✅ División actualizada: {_SPLIT_LABEL[split_val]}.")
 
     if interactive_id.startswith("qa_del:"):
         from app.bot.pending import close_pending, load_pending
