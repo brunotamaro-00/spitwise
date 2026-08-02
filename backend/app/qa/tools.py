@@ -304,123 +304,6 @@ async def get_itinerary(session: AsyncSession) -> dict:
     return {"stops": rows, "note": "days = noches en la parada (departure - arrival)"}
 
 
-def _pct(v) -> float | None:
-    return None if v is None else round(float(v), 1)
-
-
-async def budget_status(session: AsyncSession, asker: User, *, today: date,
-                        cities=None) -> dict:
-    """¿El gasto de "vivir" va contra el plan? Solo lectura.
-
-    Mismo camino que GET /budget: `build_trip_pace` + las bandas, y de ahí
-    `build_budget`. No re-agrega nada por su cuenta — el prorrateo de
-    alojamiento, la exclusión de generales y `user_share` viven en un solo lugar.
-    """
-    from app.analytics import build_trip_pace
-    from app.bot import copy
-    from app.budget import Band, build_budget
-    from app.db.models import StopBudget
-
-    stops = list((await session.execute(select(Stop))).scalars().all())
-    movements = list((await session.execute(
-        select(Movement).where(Movement.type == "expense")
-    )).scalars().all())
-    lodging_id = (await session.execute(
-        select(Category.id).where(Category.name == "Alojamiento")
-    )).scalar_one_or_none()
-
-    pace = build_trip_pace(
-        stops, movements, lodging_category_id=lodging_id,
-        user_id=asker.id, username=asker.username, today=today,
-    )
-    rows = list((await session.execute(select(StopBudget))).scalars().all())
-    data = build_budget(
-        pace,
-        {r.stop_slug: Band(r.daily_min_usd, r.daily_max_usd) for r in rows},
-        {r.stop_slug: r.note for r in rows if r.note},
-    )
-
-    def _row(c: dict) -> dict:
-        return {
-            "city": c["city_name"],
-            "slug": c["stop_slug"],
-            "status": c["status"],
-            "nights": c["nights"],
-            "elapsed_nights": c["elapsed_nights"],
-            "plan_min_daily_usd": None if c["target_min_usd"] is None else _money(c["target_min_usd"]),
-            "plan_max_daily_usd": None if c["target_max_usd"] is None else _money(c["target_max_usd"]),
-            "living_usd": _money(c["living_usd"]),
-            "living_per_day_usd": None if c["living_per_day_usd"] is None else _money(c["living_per_day_usd"]),
-            "band": c["band_position"],
-            "edge_delta_pct": _pct(c["edge_delta_pct"]),
-            "delta_pct": _pct(c["delta_pct"]),
-        }
-
-    if cities:
-        wanted = {_fold(c) for c in cities}
-        picked = [
-            c for c in data["cities"]
-            if _fold(c["city_name"]) in wanted or _fold(c["stop_slug"]) in wanted
-        ]
-        if not picked:
-            raise ValueError(
-                "ciudad desconocida; las paradas válidas son: "
-                + ", ".join(c["stop_slug"] for c in data["cities"])
-            )
-        selected = picked
-    else:
-        selected = [c for c in data["cities"] if c["status"] != "future"]
-
-    cur = data["current"]
-    cush = data["cushion"]
-    proj = data["projection"]
-    return {
-        "cities": [_row(c) for c in selected],
-        "current_city": None if cur is None else {
-            "city": cur["city_name"],
-            "elapsed_nights": cur["lived_nights"],
-            "nights": cur["total_nights"],
-            "remaining_days": cur["remaining_days"],
-            "plan_min_daily_usd": None if cur["target_min_usd"] is None else _money(cur["target_min_usd"]),
-            "plan_max_daily_usd": None if cur["target_max_usd"] is None else _money(cur["target_max_usd"]),
-            "living_usd": _money(cur["living_usd"]),
-            "living_per_day_usd": None if cur["living_per_day_usd"] is None else _money(cur["living_per_day_usd"]),
-            # Negativo = ya se pasaron del presupuesto de la parada.
-            "remaining_daily_usd": None if cur["remaining_daily_usd"] is None else _money(cur["remaining_daily_usd"]),
-            "band": cur["band_position"],
-            "edge_delta_pct": _pct(cur["edge_delta_pct"]),
-            "delta_pct": _pct(cur["delta_pct"]),
-        },
-        "trip": {
-            "budget_usd": None if proj["living_budget_usd"] is None else _money(proj["living_budget_usd"]),
-            "spent_usd": _money(proj["living_to_date_usd"]),
-            "projected_usd": None if proj["projected_living_usd"] is None else _money(proj["projected_living_usd"]),
-            # Positivo = vienen ahorrando contra el plan; negativo = van arriba.
-            "cushion_usd": None if cush["cushion_usd"] is None else _money(cush["cushion_usd"]),
-            "needed_daily_usd": None if cush["needed_daily_usd"] is None else _money(cush["needed_daily_usd"]),
-            "coverage_pct": _pct(proj["coverage_pct"]),
-            "uncovered_slugs": proj["uncovered_slugs"],
-        },
-        "app_link": copy.link_budget(),
-        "note": (
-            "'vivir' = todo menos alojamiento y generales (vuelos, pases, seguros), "
-            "en USD por persona. El plan de cada parada es un RANGO cargado A MANO en "
-            "la web, no un límite ni un dato de Andiamo: plan_min/plan_max por día. "
-            "El TECHO es el límite y el centro del rango el objetivo. `band` dice "
-            "dónde cae el ritmo real: 'under' = gastando menos del piso (les sobra), "
-            "'in' = dentro del plan (está bien, no hace falta ajustar), 'over' = "
-            "arriba del techo. edge_delta_pct mide contra el borde que se pasó y es "
-            "null cuando están adentro del rango; delta_pct mide contra el centro. "
-            "Una parada sin plan no tiene con qué compararse y NO se estima. "
-            "remaining_daily_usd = cuánto queda por día hasta el check-out (negativo "
-            "= ya se pasaron). cushion_usd = colchón acumulado del viaje y "
-            "needed_daily_usd = a cuánto por día hay que ir en lo que queda para "
-            "cerrar en plan. coverage_pct dice qué parte del itinerario tiene plan. "
-            "Los planes se editan en app_link, el bot no los cambia."
-        ),
-    }
-
-
 async def edit_movement(session: AsyncSession, users: list[User], today: date,
                         asker: User | None = None, *, movement_id,
                         ctx: "ActionContext | None" = None, **new_fields) -> dict:
@@ -548,11 +431,6 @@ def build_tools(session: AsyncSession, users: list[User], asker: User, *,
     async def _itinerary(**kw):
         return await get_itinerary(session)
 
-    async def _budget(**kw):
-        # Sin tz_name: `today` ya viene resuelto en la tz del viaje y el
-        # presupuesto no mira `created_at`, así que no hay segundo "hoy".
-        return await budget_status(session, asker, today=today, **kw)
-
     async def _edit(**kw):
         return await edit_movement(session, users, today, asker, ctx=ctx, **kw)
 
@@ -615,27 +493,6 @@ def build_tools(session: AsyncSession, users: list[User], asker: User, *,
                          "resolver países/fechas y para promedios por día (días del itinerario, no días con gastos)."),
             input_schema={"type": "object", "properties": {}, "additionalProperties": False},
             handler=_itinerary,
-        ),
-        ToolSpec(
-            name="budget_status",
-            description=(
-                "¿Vamos bien de plata? Compara el gasto diario real de 'vivir' (todo menos "
-                "alojamiento y generales) contra el RANGO planeado de cada parada. Usala "
-                "para '¿vamos bien en Viena?', '¿nos estamos pasando?', '¿cuánto podemos "
-                "gastar por día lo que queda acá?', '¿podemos salir a comer?', '¿cuánto "
-                "llevamos ahorrado?'. Sin 'cities' devuelve las paradas ya vividas + la "
-                "ciudad en curso + el total del viaje. NO carga ni edita planes: eso se "
-                "hace en la web."
-            ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "cities": {"type": "array", "items": {"type": "string"},
-                               "description": "Ciudades o slugs a mirar. Si se omite, todo el viaje."},
-                },
-                "additionalProperties": False,
-            },
-            handler=_budget,
         ),
         ToolSpec(
             name="edit_movement",

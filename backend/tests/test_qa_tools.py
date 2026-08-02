@@ -3,11 +3,9 @@ from decimal import Decimal
 
 from app.api.auth import hash_password
 from app.db.models import Movement, Stop, User
-import pytest
 
 from app.qa.tools import (
     aggregate_expenses,
-    budget_status,
     get_balance,
     get_itinerary,
     list_movements,
@@ -149,112 +147,3 @@ async def test_get_itinerary_days(db_session):
     assert rows["edimburgo"]["country"] == "Escocia"
     # días de Escocia (para el promedio) = 5
     assert sum(s["days"] for s in got["stops"] if s["country"] == "Escocia") == 5
-
-
-async def _with_budgets(db_session, plans: dict[str, str | tuple]):
-    """Un escalar arma una banda de ancho cero: se comporta igual que el target
-    de un solo número de antes, así que los tests viejos siguen valiendo."""
-    from app.db.models import StopBudget
-
-    def band(v):
-        lo, hi = v if isinstance(v, tuple) else (v, v)
-        return Decimal(lo), Decimal(hi)
-
-    db_session.add_all([
-        StopBudget(stop_slug=slug, daily_min_usd=band(v)[0], daily_max_usd=band(v)[1])
-        for slug, v in plans.items()
-    ])
-    await db_session.commit()
-
-
-async def test_budget_status_compares_against_target(db_session):
-    """Edimburgo: 3 noches, vivir de bruno = 50 (mitad de la cena) => 16,67/día
-    contra un target de 20 => -16,7%."""
-    u1, u2 = await _setup(db_session)
-    await _with_budgets(db_session, {"edimburgo": "20", "glasgow": "20"})
-
-    got = await budget_status(db_session, u1, today=date(2026, 8, 10))
-    rows = {c["slug"]: c for c in got["cities"]}
-    assert rows["edimburgo"]["plan_max_daily_usd"] == "20.00"
-    assert rows["edimburgo"]["living_usd"] == "50.00"
-    assert rows["edimburgo"]["living_per_day_usd"] == "16.67"
-    assert rows["edimburgo"]["delta_pct"] == -16.7
-    # El alojamiento no es vivir y los targets no se inventan.
-    assert "roma" not in rows  # futura: fuera del default
-    assert got["app_link"] is None or got["app_link"].endswith("/presupuesto")
-
-
-async def test_budget_status_current_city_remaining_daily(db_session):
-    u1, u2 = await _setup(db_session)
-    await _with_budgets(db_session, {"edimburgo": "30"})
-
-    got = await budget_status(db_session, u1, today=date(2026, 8, 2))  # día 2 de 3
-    cur = got["current_city"]
-    assert cur["city"] == "Edimburgo"
-    assert (cur["elapsed_nights"], cur["nights"]) == (2, 3)
-    assert cur["remaining_days"] == 2          # 3 - 2 + 1: hoy cuenta
-    assert cur["remaining_daily_usd"] == "20.00"  # (30*3 - 50) / 2
-
-
-async def test_budget_status_without_target_says_so(db_session):
-    """Una parada sin target no se compara ni se estima: baja la cobertura."""
-    u1, u2 = await _setup(db_session)
-    await _with_budgets(db_session, {"edimburgo": "20"})
-
-    got = await budget_status(db_session, u1, today=date(2026, 8, 10))
-    glasgow = next(c for c in got["cities"] if c["slug"] == "glasgow")
-    assert glasgow["plan_min_daily_usd"] is None
-    assert glasgow["delta_pct"] is None
-    assert "glasgow" in got["trip"]["uncovered_slugs"]
-    assert got["trip"]["coverage_pct"] is not None and got["trip"]["coverage_pct"] < 100
-    assert "A MANO" in got["note"]
-
-
-async def test_budget_status_unknown_city_raises(db_session):
-    u1, u2 = await _setup(db_session)
-    await _with_budgets(db_session, {"edimburgo": "20"})
-
-    with pytest.raises(ValueError) as exc:
-        await budget_status(db_session, u1, today=date(2026, 8, 10), cities=["Narnia"])
-    assert "edimburgo" in str(exc.value)  # le devuelve los slugs válidos al modelo
-
-
-async def test_budget_status_is_read_only(db_session):
-    from sqlalchemy import func, select
-
-    u1, u2 = await _setup(db_session)
-    await _with_budgets(db_session, {"edimburgo": "20"})
-    before = (await db_session.execute(select(func.count()).select_from(Movement))).scalar_one()
-
-    await budget_status(db_session, u1, today=date(2026, 8, 10))
-
-    after = (await db_session.execute(select(func.count()).select_from(Movement))).scalar_one()
-    assert after == before
-
-
-async def test_budget_status_speaks_bands_and_cushion(db_session):
-    """Edimburgo: 3 noches, vivir de bruno = 50 => 16,67/día. Contra un plan de
-    12–20 cae adentro, y el colchón del viaje sale positivo."""
-    u1, u2 = await _setup(db_session)
-    await _with_budgets(db_session, {"edimburgo": ("12", "20"), "glasgow": ("12", "20")})
-
-    got = await budget_status(db_session, u1, today=date(2026, 8, 10))
-    edi = next(c for c in got["cities"] if c["slug"] == "edimburgo")
-    assert (edi["plan_min_daily_usd"], edi["plan_max_daily_usd"]) == ("12.00", "20.00")
-    assert edi["band"] == "in"
-    assert edi["edge_delta_pct"] is None      # adentro del rango no hay desvío
-
-    assert got["trip"]["cushion_usd"] is not None
-    # El note tiene que explicarle al modelo qué significa cada estado.
-    for token in ("RANGO", "under", "'in'", "over", "cushion_usd"):
-        assert token in got["note"], token
-
-
-async def test_budget_status_flags_over_the_ceiling(db_session):
-    u1, u2 = await _setup(db_session)
-    await _with_budgets(db_session, {"edimburgo": ("5", "10")})
-
-    got = await budget_status(db_session, u1, today=date(2026, 8, 10))
-    edi = next(c for c in got["cities"] if c["slug"] == "edimburgo")
-    assert edi["band"] == "over"
-    assert edi["edge_delta_pct"] == 66.7      # 16,67/día contra un techo de 10

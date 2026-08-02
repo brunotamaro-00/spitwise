@@ -91,7 +91,7 @@ from app.bot.render import BotReply  # noqa: E402
 from app.categories.seed import seed_categories  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.db.models import (  # noqa: E402
-    Base, Category, FxRate, GuideDoc, Movement, Stop, StopBudget, StopGuide, TripNote, User,
+    Base, Category, FxRate, GuideDoc, Movement, Stop, StopGuide, TripNote, User,
 )
 from app.due import ensure_due_settled  # noqa: E402
 from scripts.scenario_lib import (  # noqa: E402
@@ -504,20 +504,23 @@ async def _chk_promedio_dia(ctx: CheckCtx) -> list[str]:
     return e
 
 async def _chk_presupuesto(ctx: CheckCtx) -> list[str]:
-    """'¿Vamos bien acá?' se contesta con el rango planeado de la parada, no con
-    el promedio del viaje. Y la tool es de solo lectura."""
+    """El presupuesto salió del bot: '¿vamos bien?' se deflecta a la app, nunca
+    se estima con el promedio del viaje. Y no toca nada."""
     e = Errors()
-    e.want(ctx.channels() == ["qa", "qa"], f"canal financiero en los dos turnos, fue {ctx.channels()}")
-    e.want("budget_status" in ctx.tools_used(),
-           f"la comparación contra el plan exige budget_status, se usaron {sorted(ctx.tools_used())}")
+    e.want(ctx.channels() == ["qa"], f"canal financiero, fue {ctx.channels()}")
+    e.want("budget_status" not in ctx.tools_used(),
+           f"budget_status ya no existe, se usaron {sorted(ctx.tools_used())}")
+    text = " ".join(ctx.replies).casefold()
+    e.want("presupuesto" in text,
+           f"tiene que mandarlo a la sección Presupuesto de la app, dijo: {ctx.replies}")
     movs = await load_movements(ctx.session)
     e.want(len(movs) == SEED_MOVEMENTS,
-           f"budget_status es solo lectura: quedaron {len(movs)} movimientos, esperaba {SEED_MOVEMENTS}")
+           f"una pregunta no escribe: quedaron {len(movs)} movimientos, esperaba {SEED_MOVEMENTS}")
     return e
 
 
 FINANCE_TOOLS = {"aggregate_expenses", "list_movements", "get_balance", "get_itinerary",
-                 "budget_status", "edit_movement", "delete_movements"}
+                 "edit_movement", "delete_movements"}
 TRIP_TOOLS = {"search_guides", "list_guides", "read_guide_doc", "list_notes"}
 SEED_MOVEMENTS = 4  # movimientos que deja `seed()` antes de cada conversación
 
@@ -976,31 +979,26 @@ CONVERSATIONS_EXTRA += [
         fix_in="bot/qa.py (semántica del promedio) · qa/tools.py get_itinerary",
     ),
     Conversation(
-        name="Presupuesto de la ciudad",
-        id="presupuesto-ciudad",
+        name="Presupuesto: deflección a la app",
+        id="presupuesto-deflect",
         check=_chk_presupuesto,
-        goal="'¿Vamos bien acá?' se responde contra el RANGO planeado de la parada, no "
-             "contra el promedio del viaje; y una parada sin plan se dice, no se estima.",
+        goal="El presupuesto no vive en el bot: '¿vamos bien?' se deriva a la sección "
+             "Presupuesto de la web en una línea, sin estimar nada.",
         turns=[
-            Turn(BRUNO_WA, "¿vamos bien de guita en Lisboa?", note="rango vs real"),
-            # Vocabulario de plata explícito a propósito. Dos formas que NO
-            # funcionan y no se arreglan acá: el elíptico "¿y en Interlaken?"
-            # (el parser lo manda a guías por el nombre de ciudad) y la palabra
-            # "presupuesto" sola (Andiamo tiene una guía `presupuesto.md`, así
-            # que es ambigua de verdad). En los dos casos el canal de viaje
-            # deriva bien al contador; arreglar el ruteo es tocar el prompt del
-            # parser, fuera del alcance de este escenario.
-            Turn(BRUNO_WA, "¿y en Interlaken cuánto podemos gastar por día?",
-                 note="parada sin plan"),
+            # Vocabulario de plata explícito a propósito: el elíptico "¿y en
+            # Interlaken?" el parser lo manda a guías por el nombre de ciudad, y
+            # la palabra "presupuesto" sola es ambigua de verdad (Andiamo tiene
+            # una guía `presupuesto.md`). Los dos casos derivan bien igual.
+            Turn(BRUNO_WA, "¿vamos bien de guita en Lisboa?", note="deflecta a la app"),
         ],
         expect_hints=[
-            "Turno 1: debe llamar budget_status y comparar contra el rango de Lisboa "
-            "(USD 34–46/día). FAIL: contesta con aggregate_expenses y el promedio del viaje",
-            "Turno 2: Interlaken NO tiene plan cargado. Tiene que decirlo. "
-            "FAIL: inventa un rango o lo deriva del promedio de las otras paradas",
-            "Ninguno de los dos turnos puede crear ni tocar movimientos",
+            "Tiene que decir en una línea que el presupuesto se mira en la app "
+            "(sección Presupuesto). FAIL: estima un rango o contesta con el "
+            "promedio del viaje, que es justo el número equivocado",
+            "No puede quedar ninguna tool de presupuesto: budget_status ya no existe",
+            "Una pregunta no crea ni toca movimientos",
         ],
-        fix_in="qa/tools.py budget_status · bot/qa.py (prompt) · app/budget.py",
+        fix_in="bot/qa.py (_render_system → budget_link_rule) · bot/copy.py link_budget",
     ),
 ]
 
@@ -1038,17 +1036,9 @@ async def seed(session: AsyncSession) -> None:
              departure_date=date(2026, 9, 18), currency_code="GBP", timezone="Europe/London"),
     ])
 
-    # Bandas de presupuesto. Interlaken queda SIN banda a propósito: el
-    # escenario `presupuesto-ciudad` también verifica la negativa honesta
-    # ("esa parada no tiene plan cargado") en vez de un número inventado.
-    session.add_all([
-        StopBudget(stop_slug="lisboa", daily_min_usd=Decimal("34"),
-                   daily_max_usd=Decimal("46")),
-        StopBudget(stop_slug="paris", daily_min_usd=Decimal("46"),
-                   daily_max_usd=Decimal("64")),
-        StopBudget(stop_slug="roma", daily_min_usd=Decimal("42"),
-                   daily_max_usd=Decimal("58")),
-    ])
+    # Sin `StopBudget`: los planes son de la web y el bot no los mira. Si el
+    # sembrado volviera, un escenario podría "pasar" apoyándose en un dato que
+    # el bot de producción no tiene.
 
     # Cache de guías/notas para los escenarios de trip_question. synced_at
     # queda "ahora" → ensure_content_fresh nunca fetchea durante la corrida.

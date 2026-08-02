@@ -212,8 +212,8 @@ def link_city(slug: str | None) -> str | None:
 
 
 def link_budget() -> str | None:
-    """Deep-link a /presupuesto. Es donde se cargan y editan los targets: el
-    bot los lee pero no los escribe."""
+    """Deep-link a /presupuesto. El presupuesto vive solo en la web: el bot no
+    lo lee ni lo escribe, deflecta acá."""
     base = _base_url()
     return f"{base}/presupuesto" if base else None
 
