@@ -5,6 +5,9 @@ import { createPortal } from "react-dom";
 
 import { DURATION } from "@/lib/motion";
 
+// Spring gestual: comparte física con el drag-to-dismiss (el sheet que soltás
+// vuelve con la misma inercia con la que entró). Deliberadamente fuera de la
+// escala de motion — ver la nota de SPRING_* en lib/motion.ts.
 const SPRING = { type: "spring", stiffness: 420, damping: 38 } as const;
 
 /** Cuántos diálogos hay abiertos ahora mismo.

@@ -2,6 +2,7 @@ import { useReducedMotion } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
+import { DURATION } from "@/lib/motion";
 
 /** Envuelve el patrón `{data ? <Contenido/> : <Skeleton/>}` para que, cuando la
  *  data llega, el skeleton se desvanezca + difumine y el contenido entre
@@ -35,7 +36,9 @@ export default function SkeletonReveal({ ready, skeleton, children }: {
   // Asienta a `done` (desmonta el skeleton) al terminar el reveal (~--duration-slow).
   useEffect(() => {
     if (phase !== "revealing" || !lit) return;
-    const t = setTimeout(() => setPhase("done"), 420);
+    // +20ms de colchón sobre --duration-slow: desmontar el skeleton justo al
+    // borde del tween cortaba el último frame del cross-blur.
+    const t = setTimeout(() => setPhase("done"), DURATION.slow * 1000 + 20);
     return () => clearTimeout(t);
   }, [phase, lit]);
 

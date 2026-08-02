@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { SPRING_POP } from "@/lib/motion";
+
 type Kind = "success" | "error";
 type Toast = { id: number; kind: Kind; text: string };
 
@@ -56,7 +58,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 initial={{ opacity: 0, y: 14, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.97 }}
-                transition={{ type: "spring", stiffness: 500, damping: 32 }}
+                transition={SPRING_POP}
                 // rounded-2xl y no rounded-full: un error puede ocupar dos o
                 // tres líneas (ver el span de abajo) y la píldora deja de ser
                 // una píldora. El éxito, de una línea, se ve igual.

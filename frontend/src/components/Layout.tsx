@@ -9,7 +9,7 @@ import { listMovements } from "@/api/movements";
 import AddMovementDialog from "@/components/AddMovementDialog";
 import { Wordmark } from "@/components/ui/Brand";
 import { capitalize } from "@/lib/format";
-import { DURATION, EASE_SMOOTH_OUT } from "@/lib/motion";
+import { DURATION, EASE_SMOOTH_OUT, SPRING_SLIDE } from "@/lib/motion";
 import { needsConfirmation } from "@/lib/share";
 import { useTripToday } from "@/lib/useTripToday";
 import { useMe } from "@/lib/useMe";
@@ -176,6 +176,8 @@ export default function Layout() {
         aria-label="Agregar movimiento"
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.9 }}
+        // Spring gestual (respuesta al dedo): deliberadamente fuera de la
+        // escala de motion — ver la nota de SPRING_* en lib/motion.ts.
         transition={{ type: "spring", stiffness: 500, damping: 26 }}
         className="brick-gradient focus-ring-inverse fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-(--z-fab) flex h-14 w-14 cursor-pointer items-center justify-center rounded-full text-white soft-hero lg:bottom-8 lg:right-8"
       >
@@ -207,7 +209,7 @@ export default function Layout() {
                     {isActive && (
                       <motion.span
                         layoutId="nav-pill"
-                        transition={{ type: "spring", stiffness: 480, damping: 36 }}
+                        transition={SPRING_SLIDE}
                         className="absolute inset-0 rounded-full bg-brick-bg"
                         aria-hidden="true"
                       />

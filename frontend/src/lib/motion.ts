@@ -21,3 +21,10 @@ export const DURATION = {
  *  Es el cubic-bezier que ya usaba toda la app. Tuple mutable para que
  *  `motion/react` lo acepte como BezierDefinition. */
 export const EASE_SMOOTH_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+/** Springs de SUPERFICIE (no gestuales): presets nombrados para que toast,
+ *  pills y layout-ids compartan física. Los springs de gesto (drag del Modal,
+ *  whileTap/whileHover del FAB) siguen inline en su componente — son física de
+ *  interacción, no transición de superficie, y no pertenecen a esta escala. */
+export const SPRING_POP = { type: "spring", stiffness: 500, damping: 32 } as const; // entrada de toast/badge
+export const SPRING_SLIDE = { type: "spring", stiffness: 480, damping: 36 } as const; // pill de nav, layoutId

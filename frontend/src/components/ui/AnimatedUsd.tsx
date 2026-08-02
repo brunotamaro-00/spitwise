@@ -2,7 +2,7 @@ import { animate, useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
 
 import { formatUsd, type MoneyPrecision, parseMoney } from "@/lib/format";
-import { EASE_SMOOTH_OUT } from "@/lib/motion";
+import { DURATION, EASE_SMOOTH_OUT } from "@/lib/motion";
 
 /** Monto USD con count-up al montar/cambiar. Anima solo el texto (sin relayout:
  *  usar junto con font-tabular). Con reduced-motion muestra el valor directo.
@@ -26,7 +26,9 @@ export default function AnimatedUsd({ value, className, precision = "whole" }: {
       return;
     }
     const controls = animate(last.current, target, {
-      duration: 0.7,
+      // verySlow: momento de énfasis (tope de la escala) — el 0.7 anterior
+      // vivía fuera del vocabulario de motion.
+      duration: DURATION.verySlow,
       ease: EASE_SMOOTH_OUT,
       onUpdate: (v) => { el.textContent = formatUsd(String(v), precision); },
     });

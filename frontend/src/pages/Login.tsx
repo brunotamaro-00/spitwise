@@ -171,7 +171,7 @@ export default function Login() {
                       e.preventDefault();
                       void choose(username);
                     }}
-                    className="flex min-h-[56px] items-center justify-center rounded-xl border-2 border-border bg-surface-2 text-sm font-extrabold uppercase tracking-caps text-ink transition-all duration-150 hover:border-brick hover:bg-brick-bg hover:text-brick-ink active:translate-y-px disabled:opacity-50 focus-ring"
+                    className="flex min-h-[56px] items-center justify-center rounded-xl border-2 border-border bg-surface-2 text-sm font-extrabold uppercase tracking-caps text-ink transition-[border-color,background-color,color,transform] hover:border-brick hover:bg-brick-bg hover:text-brick-ink active:translate-y-px disabled:opacity-50 focus-ring"
                   >
                     {busy === username ? "Entrando…" : label}
                   </button>
