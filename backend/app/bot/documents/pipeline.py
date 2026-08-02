@@ -228,7 +228,7 @@ async def maybe_apply_correction(session: AsyncSession, user: User, wa_id: str, 
 
 async def confirm_doc_upload(session: AsyncSession, user: User, token: str, *,
                              meta_client=None, http_client=None) -> BotReply:
-    data = await load_pending(session, token, owner=user.username)
+    data = await load_pending(session, token, owner=user.username, kind="doc_upload")
     if data is None:
         return text_reply("⚠️ Expiró: ese documento ya no está disponible. Reenviá el archivo.")
 

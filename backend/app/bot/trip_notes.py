@@ -59,7 +59,7 @@ async def handle_note_capture(session: AsyncSession, user: User, parsed, today) 
 
 async def confirm_note(session: AsyncSession, user: User, token: str, *,
                        http_client=None) -> BotReply:
-    data = await load_pending(session, token, owner=user.username)
+    data = await load_pending(session, token, owner=user.username, kind="note_create")
     if data is None:
         return text_reply("⚠️ Expiró: esa nota ya no está disponible. Dictámela de nuevo.")
 

@@ -529,7 +529,7 @@ async def _repriced_pending(session, data: dict, amount: Decimal, cb_kind, cb_va
 
 async def apply_category_pick(session, user: User, token: str, category_id: int,
                               today: date | None = None) -> BotReply:
-    data = await load_pending(session, token, owner=user.username)
+    data = await load_pending(session, token, owner=user.username, kind="cat_pick")
     if data is None:
         return text_reply("⚠️ Expiró: ese pending ya no está disponible.")
     payer_id = int(data.get("paid_by") or user.id)
