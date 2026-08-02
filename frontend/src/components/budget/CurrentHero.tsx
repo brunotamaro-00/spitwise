@@ -2,7 +2,7 @@ import BandBadge from "@/components/BandBadge";
 import Flag from "@/components/Flag";
 import AnimatedUsd from "@/components/ui/AnimatedUsd";
 import Hero from "@/components/ui/Hero";
-import { stayEnvelope, stayProgress, todayRead } from "@/lib/budget";
+import { stayEnvelope, stayProgress } from "@/lib/budget";
 import { formatUsd, parseMoney } from "@/lib/format";
 import type { CurrentCityBudget } from "@/types";
 
@@ -17,9 +17,8 @@ import StayEnvelopeBar from "./StayEnvelopeBar";
  *  con el "podés gastar" del colchón. El pote es estable, se lee como una
  *  billetera y sirve igual al llegar a la parada, cerrando el día y de control.
  *
- *  Debajo, dos lecturas de ese mismo pote: cuánto va gastado del plan de la
- *  ciudad y cómo cerró hoy. Las tres cifras salen de **una sola tasa**, así que
- *  cierran entre sí.
+ *  Debajo, la otra lectura del mismo pote: cuánto va gastado del plan de la
+ *  ciudad. Las dos cifras salen de **una sola tasa**, así que cierran entre sí.
  *
  *  **Está podada a propósito.** La banda por día (57–83) y el plan devengado
  *  hasta hoy eran precisos y mudos para quien entra de cero — la demo pública
@@ -29,7 +28,6 @@ import StayEnvelopeBar from "./StayEnvelopeBar";
  *  disponible más abajo, por ciudad. */
 export default function CurrentHero({ c }: { c: CurrentCityBudget }) {
   const stay = stayEnvelope(c);
-  const today = todayRead(c);
 
   return (
     <Hero
@@ -121,51 +119,6 @@ export default function CurrentHero({ c }: { c: CurrentCityBudget }) {
         </>
       )}
 
-      {today.kind !== "none" && (
-        <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-white/20 pt-3">
-          <span className="text-meta font-semibold uppercase tracking-caps text-white/70">
-            Hoy
-          </span>
-          <span className="text-sm text-white/85">
-            {today.kind === "clean" ? (
-              <>
-                todavía sin gastos ·{" "}
-                <span className="font-tabular font-semibold text-white">
-                  {formatUsd(today.leftUsd ?? "0", "whole")}
-                </span>{" "}
-                para el día
-              </>
-            ) : (
-              <>
-                <span className="font-tabular font-semibold text-white">
-                  {formatUsd(today.spentUsd, "whole")}
-                </span>{" "}
-                gastados
-                {today.leftUsd != null && (
-                  <>
-                    {" · "}
-                    {today.kind === "over" ? (
-                      <>
-                        <span className="font-tabular">
-                          {formatUsd(today.leftUsd, "whole")}
-                        </span>{" "}
-                        arriba del día
-                      </>
-                    ) : (
-                      <>
-                        quedan{" "}
-                        <span className="font-tabular font-semibold text-white">
-                          {formatUsd(today.leftUsd, "whole")}
-                        </span>
-                      </>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-          </span>
-        </div>
-      )}
     </Hero>
   );
 }

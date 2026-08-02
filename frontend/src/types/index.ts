@@ -151,10 +151,6 @@ export type CurrentCityBudget = {
   remaining_budget_usd: string | null;
   /** Puede ser negativo: ya se pasaron. Cambia el copy, no el signo. */
   remaining_daily_usd: string | null;
-  /** El día de hoy. El gasto existe siempre (es un hecho); lo que queda del día
-   *  necesita banda y puede ser negativo. */
-  spent_today_usd: string;
-  left_today_usd: string | null;
   band_position: BandPosition | null;
   edge_delta_pct: number | null;
   delta_pct: number | null;

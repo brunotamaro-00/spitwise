@@ -1,6 +1,6 @@
 """build_trip_pace: prorrateo de alojamiento, devengado y ritmo del viaje."""
 
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -21,15 +21,10 @@ def _stop(slug, order=1, arrival=None, departure=None, **kw):
     return SimpleNamespace(**base)
 
 
-def _mov(slug, usd, cat=OTHER, split="shared", paid_by=1, loaded=None):
-    """`loaded` = día de carga (`created_at`). Default: una fecha vieja, así el
-    gasto no cae "hoy" en ningún test que no lo esté probando. Mediodía UTC para
-    que la conversión a la tz del viaje no lo corra de día."""
-    day = loaded or date(2000, 1, 1)
+def _mov(slug, usd, cat=OTHER, split="shared", paid_by=1):
     return SimpleNamespace(
         type="expense", split=split, amount_usd=Decimal(usd),
         paid_by=paid_by, stop_slug=slug, category_id=cat,
-        created_at=datetime(day.year, day.month, day.day, 12, 0),
     )
 
 
@@ -234,23 +229,6 @@ def test_status_and_lived_days_helpers():
     assert lived_days(s, date(2026, 8, 1)) == 1  # día de llegada = día 1
     assert lived_days(s, date(2026, 8, 10)) == 10
     assert lived_days(s, date(2026, 12, 1)) == 10
-
-
-def test_today_spend_is_living_loaded_today():
-    """`other_today_usd` alimenta la fila HOY del hero: solo vivir, solo de esta
-    parada y solo del día de carga. Sale de este loop y no de budget.py para que
-    no haya un segundo recorrido de movimientos que pueda desincronizarse."""
-    hoy = date(2026, 8, 4)
-    stops = [_stop("roma", arrival=date(2026, 8, 1), departure=date(2026, 8, 11))]
-    movs = [
-        _mov("roma", "120", loaded=hoy),                 # cuenta: share 60
-        _mov("roma", "500", cat=LODGING, loaded=hoy),    # dormir no es vivir
-        _mov("roma", "80", loaded=date(2026, 8, 3)),     # ayer
-        _mov(None, "200", loaded=hoy),                   # general: sin parada
-    ]
-    data = _pace(stops, movs, hoy)
-
-    assert _city(data, "roma")["other_today_usd"] == Decimal("60")
 
 
 def test_living_by_category_sums_to_other():

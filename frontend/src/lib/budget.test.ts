@@ -12,7 +12,6 @@ import {
   projectionRead,
   stayEnvelope,
   stayProgress,
-  todayRead,
   tripCostRead,
 } from "@/lib/budget";
 import type { CurrentCityBudget, FixedBlock, TripCost, TripCushion } from "@/types";
@@ -37,8 +36,6 @@ const base: CurrentCityBudget = {
   envelope_max_usd: "350.00",
   remaining_budget_usd: "213.00",
   remaining_daily_usd: "71.00",
-  spent_today_usd: "0.00",
-  left_today_usd: "71.00",
   band_position: "under",
   edge_delta_pct: -39.3,
   delta_pct: -46,
@@ -79,31 +76,6 @@ describe("stayEnvelope", () => {
   it("el último día no rompe: la tasa es todo el remanente", () => {
     const v = stayEnvelope(cur({ remaining_days: 1, remaining_daily_usd: "213.00" }));
     expect(v).toMatchObject({ kind: "left", amountUsd: "213", dailyUsd: "213.00" });
-  });
-});
-
-describe("todayRead", () => {
-  it("sin gastos todavía ofrece el día entero", () => {
-    expect(todayRead(base)).toEqual({ kind: "clean", spentUsd: "0", leftUsd: "71" });
-  });
-
-  it("con gasto muestra lo gastado y lo que queda del día", () => {
-    const t = todayRead(cur({ spent_today_usd: "12.00", left_today_usd: "59.00" }));
-    expect(t).toEqual({ kind: "spent", spentUsd: "12.00", leftUsd: "59" });
-  });
-
-  it("pasarse del día se dice, y el monto va sin signo", () => {
-    const t = todayRead(cur({ spent_today_usd: "95.00", left_today_usd: "-24.00" }));
-    expect(t).toEqual({ kind: "over", spentUsd: "95.00", leftUsd: "24" });
-  });
-
-  it("sin banda el gasto de hoy sigue siendo un hecho, sin permiso al lado", () => {
-    const t = todayRead(cur({ spent_today_usd: "12.00", left_today_usd: null }));
-    expect(t).toEqual({ kind: "spent", spentUsd: "12.00", leftUsd: null });
-  });
-
-  it("sin gastos y sin banda la fila no tiene nada que decir", () => {
-    expect(todayRead(cur({ left_today_usd: null })).kind).toBe("none");
   });
 });
 

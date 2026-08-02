@@ -95,8 +95,6 @@ async def get_budget(
                 envelope_max_usd=_money_opt(cur["envelope_max_usd"]),
                 remaining_budget_usd=_money_opt(cur["remaining_budget_usd"]),
                 remaining_daily_usd=_money_opt(cur["remaining_daily_usd"]),
-                spent_today_usd=_money(cur["spent_today_usd"]),
-                left_today_usd=_money_opt(cur["left_today_usd"]),
                 band_position=cur["band_position"],
                 edge_delta_pct=cur["edge_delta_pct"],
                 delta_pct=cur["delta_pct"],

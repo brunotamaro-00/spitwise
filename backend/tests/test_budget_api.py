@@ -88,9 +88,6 @@ async def test_get_budget_serializes_money_as_string(app_client, monkeypatch):
     assert cur["envelope_usd"] == "30.00"      # centro 10 x 3 noches
     assert cur["envelope_max_usd"] == "30.00"  # banda de ancho cero
     assert cur["remaining_budget_usd"] == "15.00"
-    # Los gastos del seed se cargaron hoy de verdad, no el 6-ago congelado.
-    assert cur["spent_today_usd"] == "0.00"
-    assert cur["left_today_usd"] == cur["remaining_daily_usd"]
 
 
 async def test_current_matches_pace(app_client, monkeypatch):

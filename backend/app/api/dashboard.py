@@ -50,8 +50,7 @@ async def load_trip_pace(session: AsyncSession, user: User) -> tuple[dict, date]
     lodging_id = (
         await session.execute(select(Category.id).where(Category.name == "Alojamiento"))
     ).scalar_one_or_none()
-    tz_name = await resolve_trip_timezone(session, user.username)
-    today = today_in_tz(tz_name)
+    today = today_in_tz(await resolve_trip_timezone(session, user.username))
 
     return (
         build_trip_pace(
@@ -61,9 +60,6 @@ async def load_trip_pace(session: AsyncSession, user: User) -> tuple[dict, date]
             user_id=user.id,
             username=user.username,
             today=today,
-            # La misma tz con la que se resolvió `today`: el gasto de hoy y el
-            # hoy del itinerario no pueden salir de dos relojes distintos.
-            tz_name=tz_name,
         ),
         today,
     )

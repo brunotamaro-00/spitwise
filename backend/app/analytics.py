@@ -20,7 +20,6 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from app.spend import user_share
-from app.trip_time import day_in_tz
 
 _ZERO = Decimal("0")
 
@@ -105,20 +104,12 @@ def build_trip_pace(
     user_id: int,
     username: str | None,
     today: date,
-    tz_name: str | None = None,
 ) -> dict:
     """Arma el bloque de ritmo del viaje + una fila por ciudad.
 
     `stops` = todas las filas Stop; acá se filtra visibilidad (paradas con
     owner ajeno solo aparecen si el usuario tiene gastos imputados ahí).
     Devuelve Decimals/None crudos; el endpoint serializa.
-
-    `tz_name` es la misma tz con la que el caller resolvió `today`: se usa solo
-    para `other_today_usd` (el gasto de vivir cargado hoy), que alimenta la fila
-    HOY del hero de /presupuesto. Se agrega en este loop y no en `budget.py`
-    porque este es el único lugar que ya separó alojamiento de vivir; abrir un
-    segundo recorrido de movimientos allá es la forma garantizada de que las dos
-    páginas empiecen a discrepar.
     """
     visible = _visible(stops, username)
     by_slug = {s.slug: s for s in stops}
@@ -149,17 +140,12 @@ def build_trip_pace(
             general += share
             continue
         row = per_stop.setdefault(
-            m.stop_slug,
-            {"lodging": _ZERO, "other": _ZERO, "today": _ZERO, "count": 0, "by_cat": {}},
+            m.stop_slug, {"lodging": _ZERO, "other": _ZERO, "count": 0, "by_cat": {}}
         )
         if lodging_category_id is not None and m.category_id == lodging_category_id:
             row["lodging"] += share
         else:
             row["other"] += share
-            # Eje temporal `created_at` (el día de carga), igual que la lista y
-            # el agrupamiento por día del resto de la app — nunca `payment_date`.
-            if day_in_tz(m.created_at, tz_name) == today:
-                row["today"] += share
             # Desglose de "vivir" por categoría, agregado acá y no en budget.py:
             # este es el único loop que ya sabe qué es alojamiento y qué es
             # general, así que la suma del dict da `other_usd` por construcción.
@@ -183,8 +169,7 @@ def build_trip_pace(
     trip_by_cat_accrued: dict[int | None, Decimal] = {}
     for s in row_stops:
         agg = per_stop.get(
-            s.slug,
-            {"lodging": _ZERO, "other": _ZERO, "today": _ZERO, "count": 0, "by_cat": {}},
+            s.slug, {"lodging": _ZERO, "other": _ZERO, "count": 0, "by_cat": {}}
         )
         lodging, other = agg["lodging"], agg["other"]
         nights = stop_nights(s)
@@ -228,9 +213,6 @@ def build_trip_pace(
                 "total_usd": lodging + other,
                 "lodging_usd": lodging,
                 "other_usd": other,
-                # Vivir cargado hoy en esta parada: un hecho del día, sin
-                # comparación contra el plan (eso lo hace `budget.py`).
-                "other_today_usd": agg["today"],
                 "per_day_usd": per_day,
                 "lodging_per_night_usd": lodging_per_night,
                 "other_per_day_usd": other_per_day,

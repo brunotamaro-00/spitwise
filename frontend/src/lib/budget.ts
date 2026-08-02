@@ -50,29 +50,6 @@ export function stayEnvelope(c: CurrentCityBudget): StayEnvelope {
   };
 }
 
-/** La fila de hoy. `clean` = todavía sin gastos (no es lo mismo que no tener el
- *  dato: `none`), `over` = el día ya se pasó de la tasa.
- *
- *  Sin banda el gasto de hoy igual se muestra —es un hecho, no una
- *  comparación— pero no hay permiso del día que ofrecer. */
-export type TodayRead =
-  | { kind: "none" }
-  | { kind: "clean" | "spent" | "over"; spentUsd: string; leftUsd: string | null };
-
-export function todayRead(c: CurrentCityBudget): TodayRead {
-  const spent = parseMoney(c.spent_today_usd);
-  const left = c.left_today_usd == null ? null : parseMoney(c.left_today_usd);
-  if (spent <= 0) {
-    // Sin gastos y sin permiso que mostrar, la fila no dice nada: se oculta.
-    return left == null ? { kind: "none" } : { kind: "clean", spentUsd: "0", leftUsd: String(left) };
-  }
-  return {
-    kind: left != null && left < 0 ? "over" : "spent",
-    spentUsd: c.spent_today_usd,
-    leftUsd: left == null ? null : String(Math.abs(left)),
-  };
-}
-
 /* ------------------------------------------------------------ la banda --- */
 
 /** El 100% de cualquier barra de $/día: USD 120 por día y por persona.
