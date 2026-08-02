@@ -102,13 +102,17 @@ async def ensure_due_settled(session: AsyncSession, today: date | None = None) -
         n = await settle_due_movements(session, today)
         if n:
             logger.info("due_settled count=%d", n)
-        # Sin cron en el proyecto: la limpieza del dedupe se cuelga acá, que ya
-        # viene con throttle. Sin esto la tabla crecía para siempre.
+        # Sin cron en el proyecto: la limpieza de las tablas de servicio se
+        # cuelga acá, que ya viene con throttle. Sin esto crecían para siempre.
+        from app.bot.pending import purge_closed
         from app.whatsapp.dedupe import purge_old
 
         purged = await purge_old(session)
         if purged:
             logger.info("dedupe_purged count=%d", purged)
+        purged = await purge_closed(session)
+        if purged:
+            logger.info("pendings_purged count=%d", purged)
     except Exception:
         logger.exception("due_settle_failed")
         await session.rollback()

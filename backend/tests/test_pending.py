@@ -45,3 +45,22 @@ async def test_create_pending_accepts_a_pregenerated_token(db_session):
                          kind="del_confirm", token=t_b)
     assert (await load_pending(db_session, t_a))["siblings"] == [t_b]
     assert (await load_pending(db_session, t_b))["siblings"] == [t_a]
+
+
+async def test_purge_closed_only_takes_the_old_ones(db_session):
+    from sqlalchemy import func, select
+
+    from app.bot.pending import purge_closed
+    from app.db.models import BotPendingAction
+
+    fresh = await create_pending(db_session, owner="bruno", payload={"x": 1}, kind="cat_pick")
+    old = await create_pending(db_session, owner="bruno", payload={"x": 2}, kind="cat_pick")
+    row = (await db_session.execute(
+        select(BotPendingAction).where(BotPendingAction.token == old)
+    )).scalar_one()
+    row.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=49)
+    await db_session.commit()
+
+    assert await purge_closed(db_session) == 1
+    left = (await db_session.execute(select(BotPendingAction.token))).scalars().all()
+    assert left == [fresh]

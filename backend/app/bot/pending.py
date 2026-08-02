@@ -2,7 +2,7 @@ import json
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import BotPendingAction
@@ -61,6 +61,18 @@ async def close_pending(session: AsyncSession, token: str) -> None:
     if row is not None:
         row.confirmed_at = _utcnow_naive()
         await session.commit()
+
+
+async def purge_closed(session: AsyncSession, older_than_hours: int = 48) -> int:
+    """Limpieza de pendings viejos. Corta por `expires_at` (NOT NULL, siempre
+    created+6h): pasado ese margen la fila ya no la puede tocar nadie, esté
+    confirmada, cancelada o simplemente vencida."""
+    cutoff = _utcnow_naive() - timedelta(hours=older_than_hours)
+    res = await session.execute(
+        delete(BotPendingAction).where(BotPendingAction.expires_at < cutoff)
+    )
+    await session.commit()
+    return res.rowcount or 0
 
 
 async def cancel_pending(session: AsyncSession, token: str) -> None:
