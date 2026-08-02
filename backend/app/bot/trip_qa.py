@@ -262,7 +262,9 @@ async def handle_trip_question(session, user: User, wa_id: str, text: str, today
     # concretos que no están en el snapshot, la respuesta no se manda: se
     # devuelve una negativa grounded. Preferimos un "no lo tengo" a un precio
     # inventado con cara de guía.
-    if (not result.tool_calls and not history
+    # `successful_tools` y no `tool_calls`: una tool que explotó no trajo nada
+    # con qué fundamentar la respuesta.
+    if (not result.successful_tools and not history
             and _unverified_claims(result.text, snapshot)):
         logger.info("trip_grounding_blocked channel=trip outcome=%s", result.outcome)
         return text_reply(copy.TRIP_NO_EVIDENCE)

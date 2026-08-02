@@ -345,7 +345,7 @@ async def handle_question(session, user: User, wa_id: str, text: str, today: dat
         # trae solo los últimos 8 movimientos, así que "no hay gastos en Roma"
         # mirándolo es una afirmación que el bot no puede hacer. Se corta acá y
         # no se persiste: que la vuelva a pedir es mejor que un cero falso.
-        if _false_zero(result.text, result.tool_calls) and await _has_expenses(session):
+        if _false_zero(result.text, result.successful_tools) and await _has_expenses(session):
             trace.set_fields(outcome="unverified_zero")
             logger.info("qa_unverified_zero blocked=1")
             return text_reply(copy.QA_UNVERIFIED_ZERO)

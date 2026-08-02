@@ -86,6 +86,24 @@ class ChatResult:
         """¿Alguna tool devolvió datos en este turno? (grounding)"""
         return len(self.tool_calls) > len(self.tool_errors)
 
+    @property
+    def successful_tools(self) -> list[str]:
+        """Las tools que DEVOLVIERON datos. `tool_calls` incluye las que
+        explotaron, y una tool fallida no es evidencia de nada: sin esto, un
+        `aggregate_expenses` con error habilitaba un "no hay gastos" falso.
+        Resta de multiset — la misma tool puede llamarse varias veces y fallar
+        solo en algunas."""
+        from collections import Counter
+
+        left = Counter(self.tool_errors)
+        out = []
+        for name in self.tool_calls:
+            if left.get(name):
+                left[name] -= 1
+                continue
+            out.append(name)
+        return out
+
 
 def as_result(value) -> ChatResult:
     """Normaliza lo que devuelve un cliente de chat. Los dobles de test

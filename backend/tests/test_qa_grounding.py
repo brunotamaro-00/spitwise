@@ -22,8 +22,9 @@ TODAY = date(2026, 8, 20)
 class Chat:
     """Responde un texto fijo declarando qué tools llamó (sin llamarlas)."""
 
-    def __init__(self, text, tool_calls=()):
-        self.result = ChatResult(text=text, outcome="ok", tool_calls=list(tool_calls))
+    def __init__(self, text, tool_calls=(), tool_errors=()):
+        self.result = ChatResult(text=text, outcome="ok", tool_calls=list(tool_calls),
+                                 tool_errors=list(tool_errors))
 
     async def run(self, **kw):
         self.snapshot = kw["user_text"]
@@ -213,3 +214,36 @@ async def test_evidence_tools_are_only_the_counting_ones(db_session):
                          tool_calls=["get_itinerary"]),
     )
     assert reply.text == copy.QA_UNVERIFIED_ZERO
+
+
+async def test_failed_tool_is_not_evidence(db_session):
+    """`tool_calls` incluye las tools que explotaron. Un `aggregate_expenses`
+    con error no contó nada: no puede habilitar un "no hay gastos"."""
+    u1, _ = await _setup(db_session)
+    db_session.add(_mv(u1, description="Cena Roma", city_name="Roma"))
+    await db_session.commit()
+    reply = await handle_question(
+        db_session, u1, "549111", "cuánto gastamos en Roma?", TODAY,
+        chat_client=Chat("No hay gastos cargados para eso.",
+                         tool_calls=["aggregate_expenses"],
+                         tool_errors=["aggregate_expenses"]),
+    )
+    assert reply.text == copy.QA_UNVERIFIED_ZERO
+
+    # La misma tool llamada dos veces, fallando una: la que sí trajo datos vale.
+    reply = await handle_question(
+        db_session, u1, "549111", "cuánto gastamos en Roma?", TODAY,
+        chat_client=Chat("No hay gastos cargados para eso.",
+                         tool_calls=["aggregate_expenses", "aggregate_expenses"],
+                         tool_errors=["aggregate_expenses"]),
+    )
+    assert reply.text == "No hay gastos cargados para eso."
+
+
+def test_successful_tools_subtracts_errors_as_a_multiset():
+    from app.llm.chat import ChatResult
+
+    r = ChatResult(tool_calls=["a", "b", "a", "c"], tool_errors=["a", "c"])
+    assert r.successful_tools == ["b", "a"]
+    assert ChatResult(tool_calls=["a"], tool_errors=["a"]).successful_tools == []
+    assert ChatResult(tool_calls=["a", "b"]).successful_tools == ["a", "b"]

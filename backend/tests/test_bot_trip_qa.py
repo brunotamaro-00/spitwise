@@ -88,6 +88,39 @@ async def test_trip_agent_isolated_from_finance(db_session):
     assert "Guías de roma: roma" in call["user_text"]
 
 
+async def test_failed_tool_does_not_ground_a_trip_answer(db_session):
+    """Una tool que explotó no trajo evidencia: la guarda estructural tiene que
+    seguir bloqueando datos concretos aunque `tool_calls` no esté vacío."""
+    from app.bot import copy
+    from app.llm.chat import ChatResult
+
+    u1, _ = await _setup(db_session)
+
+    class Chat:
+        def __init__(self, result):
+            self.result = result
+
+        async def run(self, **kw):
+            return self.result
+
+    answer = "El Coliseo sale 18 euros y abre 8:30."
+    blocked = await handle_trip_question(
+        db_session, u1, "549111", "cuánto sale el coliseo?", TODAY,
+        chat_client=Chat(ChatResult(text=answer, outcome="ok",
+                                    tool_calls=["search_guides"],
+                                    tool_errors=["search_guides"])),
+    )
+    assert blocked.text == copy.TRIP_NO_EVIDENCE
+
+    # La misma tool, esta vez sin error: la respuesta pasa.
+    ok = await handle_trip_question(
+        db_session, u1, "549222", "cuánto sale el coliseo?", TODAY,
+        chat_client=Chat(ChatResult(text=answer, outcome="ok",
+                                    tool_calls=["search_guides"])),
+    )
+    assert ok.text == answer
+
+
 async def test_trip_history_key_isolated(db_session):
     u1, _ = await _setup(db_session)
     await update_state_payload(db_session, "549111", qa_history=[
