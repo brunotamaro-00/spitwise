@@ -7,7 +7,7 @@ export const QUERY_CACHE_KEY = "spitwise-query-cache";
 /** Subir cuando cambia forma/contenido de datos cacheados (ej. rename de categoría).
  *  Forma parte del `buster` de PersistQueryClient: al cambiar, se descarta la
  *  caché restaurada en todos los clientes sin pedir logout. */
-export const CACHE_SCHEMA_VERSION = "2";
+export const CACHE_SCHEMA_VERSION = "3";
 
 export const queryClient = new QueryClient({
   defaultOptions: { queries: { gcTime: PERSIST_MAX_AGE } },
