@@ -81,8 +81,8 @@ export default function SettleDialog({ balance, onClose }: {
                  value={amount} onChange={(e) => setAmount(sanitizeAmountInput(e.target.value))} />
         </Field>
         {err && <p role="alert" className="text-sm font-semibold text-danger">{err}</p>}
-        <Button type="submit" disabled={save.isPending} className="mt-1">
-          {save.isPending ? "Registrando…" : "Registrar pago"}
+        <Button type="submit" loading={save.isPending} loadingLabel="Registrando…" className="mt-1">
+          Registrar pago
         </Button>
       </form>
     </Modal>

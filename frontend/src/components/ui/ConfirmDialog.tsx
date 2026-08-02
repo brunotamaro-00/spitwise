@@ -30,10 +30,11 @@ export default function ConfirmDialog({
         <Button
           variant="danger"
           className="flex-1"
-          disabled={busy}
+          loading={busy}
+          loadingLabel="Borrando…"
           onClick={() => onConfirm()}
         >
-          {busy ? "Borrando…" : confirmLabel}
+          {confirmLabel}
         </Button>
       </div>
     </Modal>

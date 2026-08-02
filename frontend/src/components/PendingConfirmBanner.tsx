@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellRing, Check, RefreshCcw } from "lucide-react";
+import { BellRing, Check } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { errorDetail } from "@/api/client";
@@ -118,14 +118,10 @@ function PendingRow({ mv }: { mv: Movement }) {
         <Button
           size="sm"
           onClick={() => confirm.mutate()}
-          disabled={confirm.isPending}
+          loading={confirm.isPending}
           aria-label={`Confirmar gasto, pagó ${payerName}`}
         >
-          {confirm.isPending ? (
-            <RefreshCcw size={15} strokeWidth={2.25} className="animate-spin" aria-hidden="true" />
-          ) : (
-            <Check size={16} strokeWidth={2.5} aria-hidden="true" />
-          )}
+          {!confirm.isPending && <Check size={16} strokeWidth={2.5} aria-hidden="true" />}
           Confirmar
         </Button>
       </div>

@@ -1,3 +1,5 @@
+import { Loader2 } from "lucide-react";
+
 import { cn } from "@/lib/cn";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -28,16 +30,35 @@ export function buttonClasses({
   return cn(base, variants[variant], sizes[size], className);
 }
 
+/** `loading` = acción en vuelo: spinner + disabled + aria-busy, y el label
+ *  cambia a `loadingLabel` si vino ("Guardar" → "Guardando…"). Reemplaza los
+ *  ternarios manuales que cada diálogo repetía. */
 export default function Button({
   variant = "primary",
   size = "md",
+  loading = false,
+  loadingLabel,
   className,
   children,
+  disabled,
   ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: Variant;
+  size?: Size;
+  loading?: boolean;
+  loadingLabel?: React.ReactNode;
+}) {
   return (
-    <button className={cn(base, variants[variant], sizes[size], className)} {...rest}>
-      {children}
+    <button
+      className={cn(base, variants[variant], sizes[size], className)}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      {...rest}
+    >
+      {loading && (
+        <Loader2 size={size === "sm" ? 14 : 16} className="animate-spin" aria-hidden="true" />
+      )}
+      {loading && loadingLabel != null ? loadingLabel : children}
     </button>
   );
 }

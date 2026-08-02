@@ -147,8 +147,8 @@ export default function BudgetTargetDialog({ city, onClose }: {
         {err && <p className="text-sm font-medium text-danger">{err}</p>}
 
         <div className="mt-1 flex gap-2">
-          <Button type="submit" disabled={busy} className="flex-1">
-            {save.isPending ? "Guardando…" : "Guardar"}
+          <Button type="submit" disabled={busy} loading={save.isPending} loadingLabel="Guardando…" className="flex-1">
+            Guardar
           </Button>
           {city.target_daily_usd && (
             <Button
