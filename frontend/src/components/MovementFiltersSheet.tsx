@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import DateRangeField from "@/components/ui/DateRangeField";
 import { Label } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
+import Switch from "@/components/ui/Switch";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { categoryBg, categoryColor } from "@/lib/chartTheme";
 import type { Category } from "@/types";
@@ -25,33 +26,6 @@ export type CityOption = { name: string; flag: string | null };
  *  No colisiona con ningún `city_name` real (siempre derivado de un Stop). */
 export const NO_CITY = "__general__";
 export const NO_CITY_LABEL = "Sin ciudad";
-
-/** Toggle switch con el acento de marca (reemplaza al checkbox nativo). */
-function Switch({ checked, onChange, label }: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={`relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors focus-ring ${
-        checked ? "bg-brick" : "bg-border-strong"
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white soft-card transition-transform ${
-          checked ? "translate-x-5" : ""
-        }`}
-      />
-    </button>
-  );
-}
 
 const chipBase =
   "flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full border px-3 text-note font-semibold transition-colors focus-ring";
