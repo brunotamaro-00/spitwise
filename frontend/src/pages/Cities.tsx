@@ -163,7 +163,7 @@ export default function Cities() {
             <span className={`font-display text-lg leading-none font-tabular ${selected.length === 0 ? "text-white" : "text-ink"}`}>
               {pace?.trip.avg_per_day_usd ? `${formatUsd(pace.trip.avg_per_day_usd, "whole")}/día` : "—"}
             </span>
-            <span className={`text-[11px] font-medium ${selected.length === 0 ? "text-white/85" : "text-ink-3"}`}>
+            <span className={`text-meta font-medium ${selected.length === 0 ? "text-white/85" : "text-ink-3"}`}>
               {pace?.trip.status === "not_started" ? "previsto · " : ""}
               {cities.length} paradas
             </span>
@@ -206,7 +206,7 @@ export default function Cities() {
                 </span>
                 {/* ink-3, no ink-faint: los chips futuros son surface-2, donde
                     ink-faint no llega a 4.5:1. */}
-                <span className={`text-[11px] font-medium ${active ? "text-white/85" : "text-ink-3"}`}>
+                <span className={`text-meta font-medium ${active ? "text-white/85" : "text-ink-3"}`}>
                   {chipStatusLine(c)}
                 </span>
               </motion.button>
@@ -242,7 +242,7 @@ export default function Cities() {
                 href={`${andiamoUrl}/stops/${single.slug}`}
                 target="_blank"
                 rel="noopener"
-                className="focus-ring-inverse ml-auto flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-white/40 px-3 text-[11px] font-semibold uppercase tracking-wide text-white/90 transition-colors hover:bg-white/10"
+                className="focus-ring-inverse ml-auto flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-white/40 px-3 text-meta font-semibold uppercase tracking-wide text-white/90 transition-colors hover:bg-white/10"
               >
                 Andiamo
                 <ExternalLink size={12} strokeWidth={2} aria-hidden="true" />
@@ -252,7 +252,7 @@ export default function Cities() {
           <div className="mt-5 flex items-end justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-white/70">Mi gasto</p>
-              <p className="font-display text-4xl leading-none tracking-[-0.02em] font-tabular">
+              <p className="font-display text-4xl leading-none tracking-display font-tabular">
                 <AnimatedUsd value={summary?.total_usd ?? "0"} />
               </p>
               <p className="mt-1.5 text-sm text-white/80">
@@ -314,11 +314,11 @@ export default function Cities() {
             {groups.map((g) => (
               <section key={g.date}>
                 <h3 className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+                  <span className="text-meta font-semibold uppercase tracking-caps text-ink-3">
                     {formatDayHeader(g.date)}
                   </span>
                   {/* Los headers de día van sobre canvas, afuera del Card: ink-3. */}
-                  <span className="font-tabular text-[11px] font-semibold text-ink-3">
+                  <span className="font-tabular text-meta font-semibold text-ink-3">
                     {formatUsd(String(me ? dayTotalShare(g.items, me.id) : 0))}
                   </span>
                 </h3>

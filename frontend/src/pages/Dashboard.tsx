@@ -100,10 +100,10 @@ export default function Dashboard() {
             <div className="spit-dots absolute inset-0" aria-hidden="true" />
             <div className="hero-sheen absolute inset-0" aria-hidden="true" />
             <div className="relative">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+              <p className="text-meta font-semibold uppercase tracking-eyebrow text-white/70">
                 Mis gastos · todo el viaje
               </p>
-              <p className="mt-2 font-display text-6xl leading-none tracking-[-0.02em] font-tabular lg:text-7xl">
+              <p className="mt-2 font-display text-6xl leading-none tracking-display font-tabular lg:text-7xl">
                 <AnimatedUsd value={summary.data!.total_usd} />
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-white/85">
@@ -171,7 +171,7 @@ export default function Dashboard() {
               <h2 className="text-sm font-bold text-ink">Últimos movimientos</h2>
               <Link
                 to="/movimientos"
-                className="flex items-center gap-1 text-[12px] font-semibold text-brick transition-colors hover:text-brick-hover focus-ring rounded-md"
+                className="flex items-center gap-1 text-xs font-semibold text-brick transition-colors hover:text-brick-hover focus-ring rounded-md"
               >
                 Ver todos
                 <ArrowRight size={13} strokeWidth={2.25} aria-hidden="true" />

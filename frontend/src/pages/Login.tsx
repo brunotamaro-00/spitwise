@@ -85,12 +85,12 @@ export default function Login() {
                 height={56}
                 className="h-14 w-14 drop-shadow-[0_6px_16px_rgba(0,0,0,0.35)]"
               />
-              <span className="inline-flex items-center rounded-full border border-espresso-border bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-espresso-ink">
+              <span className="inline-flex items-center rounded-full border border-espresso-border bg-white/10 px-3 py-1 text-meta font-bold uppercase tracking-eyebrow text-espresso-ink">
                 Europa 2026
               </span>
             </div>
             <h1 className="mt-3">
-              <Wordmark tone="dark" className="text-[2.5rem]" />
+              <Wordmark tone="dark" className="text-splash" />
             </h1>
             <p className="mt-1 text-sm text-espresso-ink-2">
               Los gastos del viaje, divididos sin drama.
@@ -103,7 +103,7 @@ export default function Login() {
             deploy de demo este bloque sobra. */}
         {!isDemo && (
           <Card className="animate-rise-in stagger-2 p-5">
-            <p className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-3">
+            <p className="mb-1.5 text-meta font-extrabold uppercase tracking-eyebrow text-ink-3">
               ¿Venís desde mi CV o LinkedIn?
             </p>
             <p className="text-sm leading-snug text-ink-2">
@@ -113,7 +113,7 @@ export default function Login() {
             <a
               href={demoUrl}
               rel="noopener"
-              className="focus-ring mt-3.5 flex min-h-[46px] items-center justify-center gap-2 rounded-lg bg-brick px-4 text-[15px] font-semibold text-white transition-[background-color,transform] hover:bg-brick-hover active:scale-[0.98] active:bg-brick-press"
+              className="focus-ring mt-3.5 flex min-h-[46px] items-center justify-center gap-2 rounded-lg bg-brick px-4 text-entry font-semibold text-white transition-[background-color,transform] hover:bg-brick-hover active:scale-[0.98] active:bg-brick-press"
             >
               Entrar a la demo
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -124,7 +124,7 @@ export default function Login() {
         {!isDemo && (
           <div className="flex animate-rise-in items-center gap-3 stagger-3" aria-hidden="true">
             <span className="h-px flex-1 bg-border" />
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-faint">
+            <span className="text-meta font-extrabold uppercase tracking-eyebrow text-ink-faint">
               o
             </span>
             <span className="h-px flex-1 bg-border" />
@@ -157,7 +157,7 @@ export default function Login() {
             )}
 
             <fieldset>
-              <legend className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-3">
+              <legend className="mb-1.5 text-meta font-extrabold uppercase tracking-eyebrow text-ink-3">
                 ¿Quién sos?
               </legend>
               <div className="grid grid-cols-2 gap-2.5">
@@ -170,7 +170,7 @@ export default function Login() {
                       e.preventDefault();
                       void choose(username);
                     }}
-                    className="flex min-h-[56px] items-center justify-center rounded-xl border-2 border-border bg-surface-2 text-sm font-extrabold uppercase tracking-[0.08em] text-ink transition-all duration-150 hover:border-brick hover:bg-brick-bg hover:text-brick-ink active:translate-y-px disabled:opacity-50 focus-ring"
+                    className="flex min-h-[56px] items-center justify-center rounded-xl border-2 border-border bg-surface-2 text-sm font-extrabold uppercase tracking-caps text-ink transition-all duration-150 hover:border-brick hover:bg-brick-bg hover:text-brick-ink active:translate-y-px disabled:opacity-50 focus-ring"
                   >
                     {busy === username ? "Entrando…" : label}
                   </button>

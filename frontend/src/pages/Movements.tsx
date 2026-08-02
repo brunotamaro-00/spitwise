@@ -195,7 +195,7 @@ export default function Movements() {
         >
           <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
           {activeCount > 0 && (
-            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick px-1 text-[10px] font-bold text-white">
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick px-1 text-fine font-bold text-white">
               {activeCount}
             </span>
           )}
@@ -294,7 +294,7 @@ export default function Movements() {
             <span className="font-tabular text-sm font-semibold text-brick">{formatUsd(String(totals.mine))}</span>
           </span>
           {totals.unsettledCount > 0 && (
-            <span className="w-full text-[11px] text-ink-3">
+            <span className="w-full text-meta text-ink-3">
               incluye {totals.unsettledCount}{" "}
               {totals.unsettledCount === 1 ? "gasto todavía no confirmado" : "gastos todavía no confirmados"} ·{" "}
               <span className="font-tabular font-semibold">{formatUsd(String(totals.unsettled))}</span>
@@ -331,11 +331,11 @@ export default function Movements() {
           {groups.map((g) => (
             <section key={g.date}>
               <h2 className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+                <span className="text-meta font-semibold uppercase tracking-caps text-ink-3">
                   {formatDayHeader(g.date)}
                 </span>
                 {/* Los headers de día van sobre canvas, afuera del Card: ink-3. */}
-                <span className="font-tabular text-[11px] font-semibold text-ink-3">
+                <span className="font-tabular text-meta font-semibold text-ink-3">
                   {formatUsd(String(
                     f.onlyMine && me ? dayTotalShare(g.items, me.id) : dayTotalUsd(g.items),
                   ))}

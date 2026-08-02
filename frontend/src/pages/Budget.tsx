@@ -55,14 +55,14 @@ function CurrentHero({ c }: { c: CurrentCityBudget }) {
       <div className="spit-dots absolute inset-0" aria-hidden="true" />
       <div className="hero-sheen absolute inset-0" aria-hidden="true" />
       <div className="relative">
-        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+        <p className="flex items-center gap-2 text-meta font-semibold uppercase tracking-eyebrow text-white/70">
           {c.country_flag && <Flag flag={c.country_flag} className="text-sm leading-none" />}
           {c.city_name} · {stayProgress(c.lived_nights, c.total_nights)}
         </p>
 
         {verdict.kind === "no_target" ? (
           <>
-            <p className="mt-2 font-display text-5xl leading-none tracking-[-0.02em] font-tabular">
+            <p className="mt-2 font-display text-5xl leading-none tracking-display font-tabular">
               <AnimatedUsd value={c.living_usd} />
             </p>
             <p className="mt-3 text-sm text-white/85">
@@ -71,7 +71,7 @@ function CurrentHero({ c }: { c: CurrentCityBudget }) {
           </>
         ) : (
           <>
-            <p className="mt-2 font-display text-6xl leading-none tracking-[-0.02em] font-tabular lg:text-7xl">
+            <p className="mt-2 font-display text-6xl leading-none tracking-display font-tabular lg:text-7xl">
               <AnimatedUsd value={verdict.amountUsd} />
             </p>
             <p className="mt-3 text-sm text-white/85">
@@ -113,7 +113,7 @@ function CurrentHero({ c }: { c: CurrentCityBudget }) {
                 label={c.city_name}
               />
             </div>
-            <p className="mt-2 text-[11px] font-medium text-white/70">
+            <p className="mt-2 text-meta font-medium text-white/70">
               Plan <span className="font-tabular">{plan}</span> por día · la marca es el objetivo
             </p>
           </div>
@@ -135,12 +135,12 @@ function PlanHero({ plan, finished }: { plan: TripPlan; finished: boolean }) {
       <div className="spit-dots absolute inset-0" aria-hidden="true" />
       <div className="hero-sheen absolute inset-0" aria-hidden="true" />
       <div className="relative">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+        <p className="text-meta font-semibold uppercase tracking-eyebrow text-white/70">
           {finished ? "El plan · viaje terminado" : "El plan"}
         </p>
         {total ? (
           <>
-            <p className="mt-2 font-display text-4xl leading-none tracking-[-0.02em] font-tabular lg:text-5xl">
+            <p className="mt-2 font-display text-4xl leading-none tracking-display font-tabular lg:text-5xl">
               {total}
             </p>
             <p className="mt-3 text-sm text-white/85">
@@ -153,7 +153,7 @@ function PlanHero({ plan, finished }: { plan: TripPlan; finished: boolean }) {
           </>
         ) : (
           <>
-            <p className="mt-2 font-display text-4xl leading-none tracking-[-0.02em]">
+            <p className="mt-2 font-display text-4xl leading-none tracking-display">
               Sin plan
             </p>
             <p className="mt-3 text-sm text-white/85">
@@ -220,11 +220,11 @@ function CushionCard({ b }: { b: BudgetAnalysis }) {
           <PiggyBank size={18} strokeWidth={2} aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-3">
+          <p className="text-meta font-semibold uppercase tracking-caps text-ink-3">
             {ahead ? "Colchón del viaje" : "Arriba del plan"}
           </p>
           <p
-            className={`mt-0.5 font-display text-3xl leading-none tracking-[-0.02em] font-tabular ${
+            className={`mt-0.5 font-display text-3xl leading-none tracking-display font-tabular ${
               ahead ? "text-accent-teal-ink" : "text-accent-amber-ink"
             }`}
           >
@@ -247,9 +247,9 @@ function CushionCard({ b }: { b: BudgetAnalysis }) {
           <span className="text-right">
             <span className="font-tabular text-lg font-bold text-ink">
               {formatUsd(needed, "whole")}
-              <span className="font-sans text-[11px] font-medium text-ink-3">/día</span>
+              <span className="font-sans text-meta font-medium text-ink-3">/día</span>
             </span>
-            <span className="block text-[11px] font-medium text-ink-3">
+            <span className="block text-meta font-medium text-ink-3">
               en las {read.remainingNights} noches que quedan
               {avg && <> · plan {formatUsd(avg, "whole")}</>}
             </span>
@@ -282,12 +282,12 @@ function CityRow({ c, onEdit }: { c: CityBudget; onEdit: () => void }) {
             {c.country_flag && <Flag flag={c.country_flag} className="shrink-0 text-sm leading-none" />}
             <span className="min-w-0 truncate">{c.city_name}</span>
             {c.status === "current" && (
-              <span className="shrink-0 rounded-full bg-brick-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brick-ink">
+              <span className="shrink-0 rounded-full bg-brick-bg px-2 py-0.5 text-fine font-bold uppercase tracking-wide text-brick-ink">
                 hoy
               </span>
             )}
           </p>
-          <p className="mt-0.5 text-[11px] font-medium text-ink-3">
+          <p className="mt-0.5 text-meta font-medium text-ink-3">
             {c.nights} noche{c.nights === 1 ? "" : "s"}
             {plan ? <> · plan <span className="font-tabular">{plan}</span></> : <> · sin plan</>}
             {c.note && <> · {c.note}</>}
@@ -296,17 +296,17 @@ function CityRow({ c, onEdit }: { c: CityBudget; onEdit: () => void }) {
 
         <div className="flex shrink-0 flex-col items-end gap-1">
           {!hasPlan ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-brick-bg px-2 py-1 text-[11px] font-bold text-brick-ink">
+            <span className="inline-flex items-center gap-1 rounded-full bg-brick-bg px-2 py-1 text-meta font-bold text-brick-ink">
               <Plus size={11} strokeWidth={2.5} aria-hidden="true" />
               definir
             </span>
           ) : value && !isZeroMoney(value) ? (
             <span className="font-tabular text-sm font-bold text-ink">
               {formatUsd(value, "whole")}
-              <span className="font-sans text-[11px] font-medium text-ink-3">/día</span>
+              <span className="font-sans text-meta font-medium text-ink-3">/día</span>
             </span>
           ) : (
-            <span className="text-[11px] font-medium text-ink-faint">
+            <span className="text-meta font-medium text-ink-faint">
               {future ? "por venir" : "—"}
             </span>
           )}
@@ -353,7 +353,7 @@ function ProjectionCard({ b }: { b: BudgetAnalysis }) {
         <>
           <dl className="mt-4 grid grid-cols-2 gap-3">
             <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+              <dt className="text-meta font-semibold uppercase tracking-wide text-ink-3">
                 Plan
               </dt>
               <dd className="font-display text-xl leading-none text-ink font-tabular">
@@ -361,7 +361,7 @@ function ProjectionCard({ b }: { b: BudgetAnalysis }) {
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+              <dt className="text-meta font-semibold uppercase tracking-wide text-ink-3">
                 Proyectado
               </dt>
               <dd className="font-display text-xl leading-none text-ink font-tabular">
@@ -400,7 +400,7 @@ function ProjectionCard({ b }: { b: BudgetAnalysis }) {
       {/* La cobertura va SIEMPRE debajo de la varianza: un presupuesto parcial
           comparado contra una proyección de noches completas es mentir. */}
       <p
-        className={`mt-3 border-t border-border pt-3 text-[11px] font-medium ${
+        className={`mt-3 border-t border-border pt-3 text-meta font-medium ${
           cov.complete ? "text-ink-3" : "text-accent-amber-ink"
         }`}
       >
@@ -422,7 +422,7 @@ function FixedCard({ b }: { b: BudgetAnalysis }) {
   return (
     <Card className="p-5">
       <h2 className="text-sm font-bold text-ink">Fijos</h2>
-      <p className="mt-0.5 text-[11px] font-medium text-ink-3">
+      <p className="mt-0.5 text-meta font-medium text-ink-3">
         Fuera del plan de vivir: ya están comprometidos.
       </p>
       <div className="mt-3 flex flex-col">
@@ -436,7 +436,7 @@ function FixedCard({ b }: { b: BudgetAnalysis }) {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-ink-2">{label}</span>
-              <span className="block text-[11px] font-medium text-ink-faint">{hint}</span>
+              <span className="block text-meta font-medium text-ink-faint">{hint}</span>
             </span>
             <span className="shrink-0 font-tabular text-sm font-bold text-ink">
               {formatUsd(usd, "whole")}
@@ -445,7 +445,7 @@ function FixedCard({ b }: { b: BudgetAnalysis }) {
         ))}
       </div>
       {f.per_night_usd && !isZeroMoney(f.per_night_usd) && (
-        <p className="mt-3 text-[11px] font-medium text-ink-3">
+        <p className="mt-3 text-meta font-medium text-ink-3">
           Alojamiento ={" "}
           <span className="font-tabular">{formatUsd(f.per_night_usd, "whole")}</span> por noche.
         </p>
@@ -532,14 +532,14 @@ function BudgetBody({
               <Target size={15} strokeWidth={2} aria-hidden="true" />
             </span>
             <h2 className="text-sm font-bold text-ink">Por ciudad</h2>
-            <span className="ml-auto text-[11px] font-medium text-ink-3">
+            <span className="ml-auto text-meta font-medium text-ink-3">
               real vs plan · por persona
             </span>
           </div>
           {cities.map((c, i) => (
             <div key={c.stop_slug}>
               {i === firstFuture && i > 0 && (
-                <p className="border-b border-border bg-surface-2/50 -mx-5 px-5 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3">
+                <p className="border-b border-border bg-surface-2/50 -mx-5 px-5 py-1.5 text-fine font-bold uppercase tracking-caps text-ink-3">
                   Por venir
                 </p>
               )}

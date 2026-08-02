@@ -41,9 +41,9 @@ export default function Preview() {
 
       <Section title="Marca">
         <Card className="flex flex-col items-start gap-3 p-5">
-          <Wordmark className="text-[1.8rem]" />
+          <Wordmark className="text-wordmark" />
           <span className="espresso-panel rounded-xl px-4 py-2">
-            <Wordmark tone="dark" className="text-[1.8rem]" />
+            <Wordmark tone="dark" className="text-wordmark" />
           </span>
         </Card>
       </Section>
