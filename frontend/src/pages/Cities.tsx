@@ -341,7 +341,7 @@ export default function Cities() {
           apila donut → detalle de categorías → movimientos. */}
       {byCat.length > 0 && (
         <div className="animate-rise-in stagger-3">
-          <CategoryDonut data={byCat} sideBySide />
+          <CategoryDonut data={byCat} totalUsd={summary?.total_usd} sideBySide />
         </div>
       )}
 

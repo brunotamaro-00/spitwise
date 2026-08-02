@@ -149,7 +149,13 @@ export default function Dashboard() {
       <div className="animate-rise-in stagger-4 grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
         <div className="lg:col-span-5">
           <AsyncSection query={byCat} skeleton={<Skeleton className="h-64" />}>
-            {() => <CategoryDonut data={byCat.data!} subtitle="Todo el viaje" />}
+            {() => (
+              <CategoryDonut
+                data={byCat.data!}
+                totalUsd={summary.data?.total_usd}
+                subtitle="Todo el viaje"
+              />
+            )}
           </AsyncSection>
         </div>
         <div className="lg:col-span-7">

@@ -29,6 +29,10 @@ export default function CategoryDonut({
   data,
   title = "Gasto por categoría",
   subtitle,
+  /** Total canónico (p. ej. `summary.total_usd` del hero). Sin esto, el centro
+   *  redondea la suma de categorías a dólares enteros por separado del hero y
+   *  pueden diferir en USD 1 (mitades de centavo del split + round por gajo). */
+  totalUsd,
   /** En /ciudades: desktop pone el detalle a la derecha; mobile lo apila
    *  debajo del donut (como antes). */
   sideBySide = false,
@@ -36,9 +40,13 @@ export default function CategoryDonut({
   data: CategorySpend[];
   title?: string;
   subtitle?: string;
+  totalUsd?: string;
   sideBySide?: boolean;
 }) {
-  const total = data.reduce((acc, c) => acc + parseMoney(c.total_usd), 0);
+  // Denominador de %: lo que está en el gráfico. El rótulo del centro usa
+  // `totalUsd` cuando viene del mismo summary que el hero.
+  const slicesTotal = data.reduce((acc, c) => acc + parseMoney(c.total_usd), 0);
+  const displayTotal = totalUsd ?? slicesTotal.toFixed(2);
   const rows: Row[] = data.map((c) => {
     const usd = parseMoney(c.total_usd);
     return {
@@ -46,7 +54,7 @@ export default function CategoryDonut({
       usd,
       total: c.total_usd,
       color: categoryColor(c.name),
-      pct: total > 0 ? (usd / total) * 100 : 0,
+      pct: slicesTotal > 0 ? (usd / slicesTotal) * 100 : 0,
     };
   });
   if (rows.length === 0) return null;
@@ -70,13 +78,13 @@ export default function CategoryDonut({
               : "relative h-56"
           }
           role="img"
-          aria-label={`${title}: total ${formatUsd(total.toFixed(2))} en ${rows.length} categorías`}
+          aria-label={`${title}: total ${formatUsd(displayTotal)} en ${rows.length} categorías`}
         >
           {/* Total detrás del chart para que el tooltip quede por encima */}
           <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
             <span className="text-meta font-medium uppercase tracking-wide text-ink-3">Total</span>
             <span className="font-display text-2xl leading-none text-ink font-tabular">
-              {formatUsd(total.toFixed(2), "whole")}
+              {formatUsd(displayTotal, "whole")}
             </span>
           </div>
           <div className="relative z-10 h-full w-full">
