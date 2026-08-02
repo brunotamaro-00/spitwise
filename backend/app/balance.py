@@ -1,10 +1,12 @@
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 # Estados que todavía NO liquidaron: no generan deuda entre los dos ni aparecen
 # en las líneas "le debe". `pending` = fecha de pago futura (TC proxy);
 # `awaiting` = fecha alcanzada y TC lockeado, esperando confirmación manual.
 UNSETTLED = frozenset({"pending", "awaiting"})
+
+_CENTS = Decimal("0.01")
 
 
 @dataclass
@@ -59,8 +61,16 @@ def compute_balance(movements, user_a: int, user_b: int) -> Balance:
         else:
             net += share
 
+    # A centavos, UNA sola vez y al final: la mitad de un gasto de centavos
+    # impares deja medios centavos (43.61/2 = 21.805) que se acumulan en el neto.
+    # El saldo es plata que alguien transfiere de verdad, así que no puede tener
+    # una precisión que ninguna transferencia puede pagar: el prefill de "Saldar"
+    # ofrecía USD 2.686,315 y, al registrarlo, dejaba una deuda residual eterna
+    # de medio centavo. Redondear al final (y no cada share) no pierde exactitud.
+    net = net.quantize(_CENTS, rounding=ROUND_HALF_UP)
+
     if net > 0:
         return Balance(debtor_id=user_a, creditor_id=user_b, amount_usd=net)
     if net < 0:
         return Balance(debtor_id=user_b, creditor_id=user_a, amount_usd=-net)
-    return Balance(debtor_id=None, creditor_id=None, amount_usd=Decimal("0"))
+    return Balance(debtor_id=None, creditor_id=None, amount_usd=Decimal("0.00"))

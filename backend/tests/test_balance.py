@@ -52,3 +52,21 @@ def test_mixed_nets_out():
     # Neto: B debe 50 - 20 + 10 = 40 a A
     bal = compute_balance(movements, A, B)
     assert (bal.debtor_id, bal.creditor_id, bal.amount_usd) == (B, A, Decimal("40"))
+
+
+def test_net_is_quantized_to_cents():
+    """El saldo es plata que alguien transfiere: nunca medios centavos.
+
+    La mitad de un gasto de centavos impares deja 21.805, y esos restos se
+    acumulaban en el neto. El diálogo "Saldar" prellenaba USD 2.686,315 y, al
+    registrarlo, la deuda quedaba con un residuo imposible de pagar.
+    """
+    movements = [mv("expense", "shared", A, "43.61")] * 3
+    bal = compute_balance(movements, A, B)
+    assert bal.amount_usd == Decimal("65.42")  # 21.805 * 3 = 65.415 -> 65.42
+    assert bal.amount_usd.as_tuple().exponent == -2
+
+
+def test_quantize_does_not_drift_on_exact_cents():
+    bal = compute_balance([mv("expense", "shared", A, "100")], A, B)
+    assert bal.amount_usd == Decimal("50.00")
