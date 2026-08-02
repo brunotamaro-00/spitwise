@@ -139,13 +139,25 @@ export default function Cities() {
         : `${selected.length} ciudades`;
   const flag = single?.country_flag ?? singlePace?.country_flag;
 
+  // Vista compuesta de UNA selección (no secciones independientes como el
+  // Dashboard): si falla cualquiera de los 4 queries, la página parcial no
+  // sirve — error de página completa con retry, igual que /presupuesto.
+  if (cityError) {
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="animate-rise-in">
+          <PageTitle>Ciudades</PageTitle>
+        </div>
+        <ErrorState onRetry={retryCity} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div className="animate-rise-in">
         <PageTitle>Ciudades</PageTitle>
       </div>
-
-      {cityError && <ErrorState onRetry={retryCity} />}
 
       {/* Itinerario: una tarjeta por parada, en el orden del viaje, con su
           $/día (alojamiento prorrateado) — comparable entre estadías. */}
@@ -252,38 +264,62 @@ export default function Cities() {
           <div className="mt-5 flex items-end justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-white/70">Mi gasto</p>
-              <p className="font-display text-4xl leading-none tracking-display font-tabular">
-                <AnimatedUsd value={summary?.total_usd ?? "0"} />
-              </p>
-              <p className="mt-1.5 text-sm text-white/80">
-                {summary?.movement_count ?? 0} movimiento{(summary?.movement_count ?? 0) === 1 ? "" : "s"} ·{" "}
-                {summary?.days ?? 0} noche{(summary?.days ?? 0) === 1 ? "" : "s"}
-              </p>
+              {/* Nunca "USD 0" como placeholder: hasta que el summary llegue va
+                  un skeleton sobre el gradiente (regla de system.md). */}
+              {summary ? (
+                <>
+                  <p className="font-display text-4xl leading-none tracking-display font-tabular">
+                    <AnimatedUsd value={summary.total_usd} />
+                  </p>
+                  <p className="mt-1.5 text-sm text-white/80">
+                    {summary.movement_count} movimiento{summary.movement_count === 1 ? "" : "s"} ·{" "}
+                    {summary.days} noche{summary.days === 1 ? "" : "s"}
+                  </p>
+                </>
+              ) : (
+                <div aria-busy="true">
+                  <span role="status" className="sr-only">Cargando…</span>
+                  <div className="animate-skeleton mt-1 h-9 w-36 rounded-lg bg-white/20" />
+                  <div className="animate-skeleton mt-2 h-4 w-44 rounded bg-white/15" />
+                </div>
+              )}
             </div>
           </div>
       </Hero>
 
       {/* KPIs: con una ciudad seleccionada, el modelo prorrateado (ritmo,
-          dormir/noche, vivir/día); si no, los agregados de la selección. */}
-      {singlePace && singlePace.nights > 0 ? (
-        <div className="animate-rise-in stagger-2 grid grid-cols-3 gap-3">
-          <Kpi
-            icon={TrendingUp}
-            tint="brick"
-            label={singlePace.status === "current" ? "$/día · hoy" : "$/día"}
-            value={formatUsd(singlePace.per_day_usd ?? "0", "whole")}
-            badge={<DeltaBadge pct={singlePace.delta_vs_trip_pct} compact />}
-          />
-          <Kpi icon={BedDouble} tint="blue" label="Dormir /noche" value={formatUsd(singlePace.lodging_per_night_usd ?? "0", "whole")} />
-          <Kpi icon={UtensilsCrossed} tint="teal" label="Vivir /día" value={formatUsd(singlePace.other_per_day_usd ?? "0", "whole")} />
-        </div>
-      ) : (
-        <div className="animate-rise-in stagger-2 grid grid-cols-3 gap-3">
-          <Kpi icon={Receipt} tint="blue" label="Movimientos" value={String(summary?.movement_count ?? 0)} />
-          <Kpi icon={BedDouble} tint="teal" label="Noches" value={String(summary?.days ?? 0)} />
-          <Kpi icon={TrendingUp} tint="amber" label="Prom./día" value={formatUsd(summary?.avg_per_day_usd ?? "0", "whole")} />
-        </div>
-      )}
+          dormir/noche, vivir/día); si no, los agregados de la selección.
+          Skeleton hasta tener data real: los "0" de antes eran datos falsos. */}
+      <div className="animate-rise-in stagger-2">
+        <SkeletonReveal
+          ready={selected.length === 1 ? !!singlePace : !!summary}
+          skeleton={
+            <div className="grid grid-cols-3 gap-3">
+              {[0, 1, 2].map((i) => <Skeleton key={i} className="h-24" />)}
+            </div>
+          }
+        >
+          {() => singlePace && singlePace.nights > 0 ? (
+          <div className="grid grid-cols-3 gap-3">
+            <Kpi
+              icon={TrendingUp}
+              tint="brick"
+              label={singlePace.status === "current" ? "$/día · hoy" : "$/día"}
+              value={formatUsd(singlePace.per_day_usd ?? "0", "whole")}
+              badge={<DeltaBadge pct={singlePace.delta_vs_trip_pct} compact />}
+            />
+            <Kpi icon={BedDouble} tint="blue" label="Dormir /noche" value={formatUsd(singlePace.lodging_per_night_usd ?? "0", "whole")} />
+            <Kpi icon={UtensilsCrossed} tint="teal" label="Vivir /día" value={formatUsd(singlePace.other_per_day_usd ?? "0", "whole")} />
+          </div>
+          ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <Kpi icon={Receipt} tint="blue" label="Movimientos" value={String(summary?.movement_count ?? 0)} />
+            <Kpi icon={BedDouble} tint="teal" label="Noches" value={String(summary?.days ?? 0)} />
+            <Kpi icon={TrendingUp} tint="amber" label="Prom./día" value={formatUsd(summary?.avg_per_day_usd ?? "0", "whole")} />
+          </div>
+          )}
+        </SkeletonReveal>
+      </div>
 
       {/* Donut a ancho completo: desktop con detalle a la derecha; mobile
           apila donut → detalle de categorías → movimientos. */}

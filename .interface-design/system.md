@@ -62,9 +62,13 @@ espresso. Firma de marca: el "trail" de puntitos del escupitajo del logo (`.spit
 
 - Primitivos en `components/ui/*`; lógica de feature fuera de ui/.
 - `cn()` = clsx + tailwind-merge: los overrides por `className` son confiables.
-- Estados de datos: skeleton por sección (`SkeletonReveal`) + error inline por sección
-  con retry + empty con acción — patrón `Slot`/`AsyncSection` (F4). Nunca un dato falso
-  como placeholder (el flash "USD 0" fue bug).
+- Estados de datos — dos patrones, elegidos por la forma de la página:
+  - **Secciones independientes** (Dashboard): `ui/AsyncSection` por sección —
+    skeleton + error inline con retry; una caída no esconde lo que sí cargó.
+  - **Vista compuesta de un solo estado** (Presupuesto, Ciudades): error de
+    página completa con retry + skeleton global; la página parcial no sirve.
+  - Empty siempre con salida (`EmptyState` + acción). Nunca un dato falso como
+    placeholder (el flash "USD 0" fue bug) — skeleton hasta tener data real.
 - Botón primario = `ui/Button` (también para links con apariencia de botón). Cualquier
   forma pill con texto chico = `ui/Badge` (F3).
 - Kitchen-sink dev-only en `/preview` (`pages/Preview.tsx`): todo primitivo nuevo se
