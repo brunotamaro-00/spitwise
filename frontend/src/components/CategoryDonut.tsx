@@ -2,9 +2,9 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import Card from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
-import { categoryIcon } from "@/lib/categoryIcons";
+import { categoryBg, categoryColor, categoryIcon } from "@/lib/chartTheme";
 import { formatUsd, parseMoney } from "@/lib/format";
-import { categoryBg, categoryColor } from "@/lib/chartTheme";
+import { DURATION } from "@/lib/motion";
 import type { CategorySpend } from "@/types";
 
 type Row = { name: string; usd: number; total: string; color: string; pct: number };
@@ -94,7 +94,7 @@ export default function CategoryDonut({
                   strokeWidth={3}
                   startAngle={90}
                   endAngle={-270}
-                  animationDuration={650}
+                  animationDuration={DURATION.verySlow * 1000}
                 >
                   {rows.map((r) => (
                     <Cell key={r.name} fill={r.color} />

@@ -13,6 +13,7 @@ import {
 import Card from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import { formatAmount, formatUsd, parseMoney } from "@/lib/format";
+import { DURATION } from "@/lib/motion";
 import { ACCENT, FALLBACK_SERIES, TICK } from "@/lib/chartTheme";
 import DeltaBadge from "@/components/DeltaBadge";
 import type { CityPace, TripBlock } from "@/types";
@@ -161,7 +162,7 @@ export default function CityPaceChart({
                 {showAvg && (
                   <ReferenceLine x={avg} stroke={FALLBACK_SERIES} strokeDasharray="4 4" />
                 )}
-                <Bar dataKey="perDay" radius={[6, 6, 6, 6]} maxBarSize={26} animationDuration={600}>
+                <Bar dataKey="perDay" radius={[6, 6, 6, 6]} maxBarSize={26} animationDuration={DURATION.verySlow * 1000}>
                   {rows.map((r) => (
                     <Cell
                       key={r.name}

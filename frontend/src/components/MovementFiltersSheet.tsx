@@ -7,8 +7,7 @@ import DateRangeField from "@/components/ui/DateRangeField";
 import { Label } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
 import Switch from "@/components/ui/Switch";
-import { categoryIcon } from "@/lib/categoryIcons";
-import { categoryBg, categoryColor } from "@/lib/chartTheme";
+import { categoryBg, categoryColor, categoryIcon } from "@/lib/chartTheme";
 import type { Category } from "@/types";
 
 export type MovementFilters = {
