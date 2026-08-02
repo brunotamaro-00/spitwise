@@ -14,7 +14,7 @@ export default function DemoBanner() {
   return (
     <div
       role="status"
-      className="sticky top-0 z-30 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-b-2 border-ink/15 bg-gold px-4 py-2 text-ink"
+      className="sticky top-0 z-(--z-banner) flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-b-2 border-ink/15 bg-gold px-4 py-2 text-ink"
     >
       <FlaskConical size={13} strokeWidth={2.5} aria-hidden="true" className="shrink-0" />
       <span className="text-xs font-extrabold uppercase tracking-caps">Demo pública</span>

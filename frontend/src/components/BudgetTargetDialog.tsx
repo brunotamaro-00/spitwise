@@ -133,7 +133,7 @@ export default function BudgetTargetDialog({ city, onClose }: {
               {" · "}
               <Link
                 to={`/ciudades?c=${city.stop_slug}`}
-                className="focus-ring inline-flex items-center gap-1 rounded-md font-semibold text-brick transition-colors hover:text-brick-hover"
+                className="focus-ring inline-flex items-center gap-1 rounded-lg font-semibold text-brick transition-colors hover:text-brick-hover"
               >
                 {city.movement_count === 1
                   ? "Ver el gasto"

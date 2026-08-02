@@ -44,7 +44,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       createPortal(
         <div
           aria-live="polite"
-          className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-50 flex flex-col items-center gap-2 px-4 lg:bottom-8"
+          className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-(--z-toast) flex flex-col items-center gap-2 px-4 lg:bottom-8"
         >
           <AnimatePresence>
             {toasts.map((t) => (

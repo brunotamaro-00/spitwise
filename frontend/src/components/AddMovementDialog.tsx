@@ -100,10 +100,11 @@ function Segmented({ options, value, onChange, labelledBy }: {
       aria-labelledby={labelledBy}
       className="relative flex rounded-lg bg-surface-2 p-0.5 ring-1 ring-inset ring-border"
     >
+      {/* rounded-md deliberado: radio concéntrico (contenedor lg 8px − inset 2px = 6px). */}
       <span
         ref={pillRef}
         aria-hidden="true"
-        className="seg-pill pointer-events-none absolute bottom-0.5 left-0 top-0.5 w-0 rounded-md bg-surface shadow-sm"
+        className="seg-pill pointer-events-none absolute bottom-0.5 left-0 top-0.5 w-0 rounded-md bg-surface soft-card"
       />
       {options.map((o, i) => {
         const active = value === o.value;

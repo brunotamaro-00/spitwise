@@ -110,6 +110,9 @@
   --color-success: #2F7D4F;
   --color-success-bg: #E4F0E9;
   --color-danger: #C13515;
+  /* danger-bg == brick-bg a propósito: en este mundo el peligro comparte el
+     tinte de marca (el texto danger/brick encima es quien distingue). Son dos
+     tokens para poder separarlos el día que un contexto lo necesite. */
   --color-danger-bg: #FBEAE4;
 
   --font-display: "Anton", sans-serif;
@@ -163,6 +166,18 @@
 
 /* Gradientes de marca (no son tokens de color de Tailwind: se usan por clase). */
 :root {
+  /* ── Escala z-index de superficies GLOBALES (fixed/sticky de viewport) ──
+     Se consumen como `z-(--z-nav)`. Contextos de apilado locales (tooltip de
+     un chart, pill de un segmented) siguen con z-10/z-20 relativos a su padre.
+     El modal tiene que tapar banner y FAB; el toast tapa todo. */
+  --z-nav: 10;      /* header mobile + bottom nav */
+  --z-sidebar: 20;  /* sidebar desktop */
+  --z-banner: 30;   /* DemoBanner */
+  --z-fab: 30;      /* FAB global (nunca convive con el banner en la misma esquina) */
+  --z-overlay: 40;  /* overlay + sheet del Modal */
+  --z-toast: 50;
+
+
   --gradient-hero: linear-gradient(135deg, #C44428 0%, #B0491F 45%, #A67F2A 100%);
   --gradient-brick: linear-gradient(135deg, #C44428 0%, #9A341D 100%);
   --gradient-plum: linear-gradient(135deg, #8E3D88 0%, #5C2A70 100%);

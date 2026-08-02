@@ -171,7 +171,7 @@ export default function Dashboard() {
               <h2 className="text-sm font-bold text-ink">Últimos movimientos</h2>
               <Link
                 to="/movimientos"
-                className="flex items-center gap-1 text-xs font-semibold text-brick transition-colors hover:text-brick-hover focus-ring rounded-md"
+                className="flex items-center gap-1 text-xs font-semibold text-brick transition-colors hover:text-brick-hover focus-ring rounded-lg"
               >
                 Ver todos
                 <ArrowRight size={13} strokeWidth={2.25} aria-hidden="true" />

@@ -53,7 +53,7 @@ export default function Layout() {
   return (
     <div className="min-h-dvh lg:flex">
       {/* Sidebar (desktop) */}
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-border bg-surface px-4 py-6 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-(--z-sidebar) hidden w-60 flex-col border-r border-border bg-surface px-4 py-6 lg:flex">
         <NavLink
           to="/"
           end
@@ -107,7 +107,7 @@ export default function Layout() {
       </aside>
 
       {/* Header (mobile) */}
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-md lg:hidden">
+      <header className="sticky top-0 z-(--z-nav) flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-md lg:hidden">
         <NavLink
           to="/"
           end
@@ -177,7 +177,7 @@ export default function Layout() {
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.9 }}
         transition={{ type: "spring", stiffness: 500, damping: 26 }}
-        className="brick-gradient focus-ring-inverse fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full text-white soft-hero lg:bottom-8 lg:right-8"
+        className="brick-gradient focus-ring-inverse fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-(--z-fab) flex h-14 w-14 cursor-pointer items-center justify-center rounded-full text-white soft-hero lg:bottom-8 lg:right-8"
       >
         <Plus size={26} strokeWidth={2} aria-hidden="true" />
       </motion.button>
@@ -185,7 +185,7 @@ export default function Layout() {
       {/* Bottom nav (mobile) */}
       <nav
         aria-label="Navegación inferior"
-        className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-(--z-nav) border-t border-border bg-surface/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
       >
         <div className="mx-auto flex max-w-lg">
           {TABS.map(({ to, label, Icon }) => (

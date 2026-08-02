@@ -45,7 +45,7 @@ function Switch({ checked, onChange, label }: {
     >
       <span
         aria-hidden="true"
-        className={`absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${
+        className={`absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white soft-card transition-transform ${
           checked ? "translate-x-5" : ""
         }`}
       />

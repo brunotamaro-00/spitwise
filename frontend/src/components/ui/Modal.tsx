@@ -114,7 +114,7 @@ export default function Modal({ title, onClose, children, size = "md", locked = 
     <AnimatePresence onExitComplete={onClose}>
       {open && (
         <motion.div
-          className="fixed inset-0 z-30 flex items-end justify-center bg-ink/40 backdrop-blur-[2px] sm:items-center"
+          className="fixed inset-0 z-(--z-overlay) flex items-end justify-center bg-ink/40 backdrop-blur-[2px] sm:items-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
