@@ -68,7 +68,7 @@ export default function Layout() {
           aria-label="Ir al dashboard"
           className="flex items-center gap-3 rounded-lg px-2 transition-opacity hover:opacity-80 focus-ring"
         >
-          <img src="/brand/mark-tile.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 object-contain drop-shadow-sm" />
+          <img src="/brand/mark-tile-192.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 object-contain drop-shadow-sm" />
           <div>
             <Wordmark className="text-wordmark" />
             <p className="mt-0.5 text-meta font-semibold uppercase tracking-eyebrow text-ink-faint">
@@ -121,7 +121,7 @@ export default function Layout() {
           aria-label="Ir al dashboard"
           className="flex items-center gap-2.5 rounded-lg transition-opacity hover:opacity-80 focus-ring"
         >
-          <img src="/brand/mark-tile.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain drop-shadow-sm" />
+          <img src="/brand/mark-tile-192.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain drop-shadow-sm" />
           <Wordmark className="text-wordmark" />
         </NavLink>
         <div className="flex items-center gap-2">

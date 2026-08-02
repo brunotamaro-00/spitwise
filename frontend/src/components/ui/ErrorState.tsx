@@ -19,7 +19,7 @@ export default function ErrorState({
     <Card className="relative overflow-hidden">
       <div className="spit-dots-ink pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="relative flex flex-col items-center gap-3 px-6 py-12 text-center">
-        <img src="/brand/mark.png" alt="" width={52} height={52} className="object-contain opacity-90" />
+        <img src="/brand/mark-128.png" alt="" width={52} height={52} className="object-contain opacity-90" />
         <p className="font-semibold text-ink">{title}</p>
         <p className="max-w-[30ch] text-sm text-ink-3">{description}</p>
         {onRetry && (

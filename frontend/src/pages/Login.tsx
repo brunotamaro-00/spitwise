@@ -80,7 +80,7 @@ export default function Login() {
           <div className="relative flex flex-col items-start">
             <div className="flex w-full items-center justify-between gap-3">
               <img
-                src="/brand/mark-tile.png"
+                src="/brand/mark-tile-192.png"
                 alt=""
                 width={56}
                 height={56}
