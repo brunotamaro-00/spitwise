@@ -115,6 +115,38 @@
   --font-display: "Anton", sans-serif;
   --font-sans: "Hanken Grotesk", system-ui, sans-serif;
 
+  /* ── Escala tipográfica del ledger ──────────────────────────────────────
+     Micro-escala UI (complementa la default de Tailwind: xs=12 y sm=14 siguen
+     vigentes). Nombres por rol en el ledger, no por tamaño — el token test de
+     interface-design: leer los tokens debería evocar ESTE producto.
+       fine  = la letra chica (sellos, sufijos, badges de conteo)
+       meta  = metadata de un movimiento/card (el caballo de batalla)
+       note  = notas y subtítulos
+       entry = cuerpo de una entrada: controles, botones, mensajes
+     Display (Anton): wordmark en los shells, título de página, splash del login. */
+  --text-fine: 0.625rem;              /* 10px */
+  --text-fine--line-height: 1.5;
+  --text-meta: 0.6875rem;             /* 11px */
+  --text-meta--line-height: 1.5;
+  --text-note: 0.8125rem;             /* 13px */
+  --text-note--line-height: 1.5;
+  --text-entry: 0.9375rem;            /* 15px */
+  --text-entry--line-height: 1.5;
+  --text-wordmark: 1.8rem;
+  --text-wordmark--line-height: 1;
+  --text-title: 1.9rem;
+  --text-title--line-height: 1;
+  --text-splash: 2.5rem;
+  --text-splash--line-height: 1;
+
+  /* Tracking: tres roles. Anton grande se aprieta (optical sizing); las
+     mayúsculas se abren según jerarquía — caps para metadata inline,
+     eyebrow para kickers de hero/sección. El -0.035em del Wordmark es spec
+     del logo y vive en Brand.tsx, no acá. */
+  --tracking-display: -0.02em;
+  --tracking-caps: 0.08em;
+  --tracking-eyebrow: 0.14em;
+
   /* Escala de radios del sistema (fija el estándar: controles = lg,
      paneles/inputs grandes = xl, cards = 2xl, chips = full). */
   --radius-lg: 0.5rem;
