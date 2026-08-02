@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 export function Wordmark({ className, tone = "light" }: { className?: string; tone?: "light" | "dark" }) {
   // Sobre espresso, `wise` en tinta desaparece: usamos crema, y un terracota
   // más claro para `spit` que mantiene contraste AA.
-  const spit = tone === "dark" ? "text-[#E68A5C]" : "text-brick";
+  const spit = tone === "dark" ? "text-brick-soft" : "text-brick";
   const wise = tone === "dark" ? "text-espresso-ink" : "text-ink";
   return (
     <span

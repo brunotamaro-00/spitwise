@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { listCategories } from "@/api/categories";
 import Card from "@/components/ui/Card";
-import { categoryColor, categoryIcon } from "@/lib/chartTheme";
+import { categoryBg, categoryColor, categoryIcon } from "@/lib/chartTheme";
 import { formatUsd } from "@/lib/format";
 import type { CategoryMix, CurrentCityBudget } from "@/types";
 
@@ -61,7 +61,7 @@ export default function BudgetCategoryMix({ c }: { c: CurrentCityBudget }) {
             <li key={m.category_id ?? "none"} className="flex items-center gap-3">
               <span
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                style={{ backgroundColor: `${color}1F`, color }}
+                style={{ backgroundColor: categoryBg(name), color }}
               >
                 <Icon size={15} strokeWidth={2} aria-hidden="true" />
               </span>

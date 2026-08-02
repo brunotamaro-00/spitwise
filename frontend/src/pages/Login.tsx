@@ -4,6 +4,7 @@ import { Navigate } from "react-router-dom";
 
 import { isAuthenticated, loginAs } from "@/api/auth";
 import { Wordmark } from "@/components/ui/Brand";
+import { buttonClasses } from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Field";
 import { usePublicConfig } from "@/lib/useConfig";
@@ -83,7 +84,7 @@ export default function Login() {
                 alt=""
                 width={56}
                 height={56}
-                className="h-14 w-14 drop-shadow-[0_6px_16px_rgba(0,0,0,0.35)]"
+                className="h-14 w-14 drop-shadow-[0_6px_16px_rgb(28_15_5/0.5)]"
               />
               <span className="inline-flex items-center rounded-full border border-espresso-border bg-white/10 px-3 py-1 text-meta font-bold uppercase tracking-eyebrow text-espresso-ink">
                 Europa 2026
@@ -113,7 +114,7 @@ export default function Login() {
             <a
               href={demoUrl}
               rel="noopener"
-              className="focus-ring mt-3.5 flex min-h-[46px] items-center justify-center gap-2 rounded-lg bg-brick px-4 text-entry font-semibold text-white transition-[background-color,transform] hover:bg-brick-hover active:scale-[0.98] active:bg-brick-press"
+              className={buttonClasses({ className: "mt-3.5 flex min-h-[46px] w-full" })}
             >
               Entrar a la demo
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />

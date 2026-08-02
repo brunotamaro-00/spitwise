@@ -18,6 +18,16 @@ const sizes: Record<Size, string> = {
   sm: "min-h-[36px] px-3 text-sm",
 };
 
+/** Apariencia de botón para elementos que no son `<button>` (links con rol de
+ *  CTA). Evita reimplementar las variantes a mano en el call site. */
+export function buttonClasses({
+  variant = "primary",
+  size = "md",
+  className,
+}: { variant?: Variant; size?: Size; className?: string } = {}) {
+  return cn(base, variants[variant], sizes[size], className);
+}
+
 export default function Button({
   variant = "primary",
   size = "md",

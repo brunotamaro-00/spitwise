@@ -64,6 +64,9 @@
   /* Variante de TEXTO sobre brick-bg: el brick puro daba 4.28:1 (pill de filtro,
      item de nav activo). */
   --color-brick-ink: #BE4227;
+  /* Terracota claro para texto de marca sobre espresso (el "spit" del wordmark
+     en tone=dark): el brick puro desaparece contra el marrón oscuro. */
+  --color-brick-soft: #E68A5C;
 
   /* Espresso — marrón profundo del tile del logo. Superficie de marca oscura
      (hero, login, splash). Muestreado del master: #342112. */
