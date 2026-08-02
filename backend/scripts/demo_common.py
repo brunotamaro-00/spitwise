@@ -92,10 +92,9 @@ REGION_BY_SLUG = {
     "estrasburgo": "west", "colmar": "west", "friburgo": "west",
     "interlaken": "ch", "grindelwald": "ch", "lauterbrunnen": "ch",
     "innsbruck": "east", "viena": "east", "praga": "east", "cracovia": "east",
-    "budapest": "east", "liubliana": "east",
+    "budapest": "east", "liubliana": "east", "bled": "east", "bovec": "east",
     "florencia": "south", "roma": "south", "napoles": "south",
     "puglia": "south", "calabria": "south", "sicilia": "south",
-    "sur-italia": "south", "margen-flex": "south",
     "barcelona": "south", "madrid": "south",
 }
 

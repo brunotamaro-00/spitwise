@@ -1,9 +1,9 @@
 """Seed de datos dummy para el demo local (SQLite).
 
 Construye una DB lista para navegar la app "como si estuvieras en el medio del
-viaje": un itinerario de 108 noches donde HOY cae en el día 40 (faltan 68).
-Las fechas se calculan desde `date.today()`, así que la demo siempre luce
-mid-trip sin importar cuándo se corra.
+viaje": un itinerario de 108 noches (espejo de Andiamo prod) donde HOY cae en
+el día 40 (faltan 68). Las fechas se calculan desde `date.today()`, así que la
+demo siempre luce mid-trip sin importar cuándo se corra.
 
 Montos alineados a Itinerary/PRESUPUESTO.md (confirmados Spitwise + ritmo
 diario $/pp). Alojamiento usa los totales reales del hogar; comida/transporte/
@@ -43,9 +43,10 @@ from demo_common import (  # noqa: F401
 )
 
 TODAY = date.today()
-# HOY = día 40 (la llegada a la 1.ª parada es el día 1). Alineado a Andiamo /
-# PRESUPUESTO: 108 noches (5 ago → 21 nov): paradas fechadas + Sur Italia 10n
-# + margen flex 3n. Pititas es paralelo (no suma).
+# HOY = día 40 (la llegada a la 1.ª parada es el día 1). Alineado a Andiamo
+# prod: 108 noches (5 ago → 21 nov) con Puglia 5n + Sicilia 8n. Pititas es
+# paralelo (no suma). Las candidatas de Andiamo (Bled/Bovec/Calabria/…) no
+# entran acá: el seed local solo necesita paradas con noches para el ledger.
 START = TODAY - timedelta(days=39)
 # Día del viaje en el que cae HOY (1-indexed). Mantener mid-trip ~Alsacia.
 TODAY_TRIP_DAY = 40
@@ -85,12 +86,11 @@ ITINERARY = [
     ("florencia", "Florencia", "Italia", "🇮🇹", "EUR", 5, 440.00, "shared"),
     ("roma", "Roma", "Italia", "🇮🇹", "EUR", 7, 616.00, "shared"),
     ("napoles", "Nápoles", "Italia", "🇮🇹", "EUR", 2, 176.00, "shared"),
-    # Sur de Italia (Puglia/Sicilia tentativo) — cierra el hueco Nápoles→Bcn.
-    ("sur-italia", "Sur de Italia", "Italia", "🇮🇹", "EUR", 10, 880.00, "shared"),
+    # Sur (Andiamo prod): Puglia 5n + Sicilia 8n = 13n hasta Barcelona.
+    ("puglia", "Puglia", "Italia", "🇮🇹", "EUR", 5, 440.00, "shared"),
+    ("sicilia", "Sicilia", "Italia", "🇮🇹", "EUR", 8, 704.00, "shared"),
     ("barcelona", "Barcelona", "España", "🇪🇸", "EUR", 5, 390.00, "shared"),
     ("madrid", "Madrid", "España", "🇪🇸", "EUR", 5, 390.00, "shared"),
-    # Colchón del PRESUPUESTO (ubicación TBD) — is_flex_margin en el Stop.
-    ("margen-flex", "Margen flex", None, None, "EUR", 3, 234.00, "shared"),
 ]
 
 TOTAL_NIGHTS = sum(row[5] for row in ITINERARY)
@@ -130,25 +130,24 @@ async def main() -> None:
             cursor = departure
             stop_dates[slug] = (arrival, departure)
             owner = "bruno" if slug in ("lisboa", "porto") else None
-            is_flex = slug == "margen-flex"
+            # Sicilia sin banda a propósito: es el hueco de cobertura parcial de
+            # /presupuesto en la demo local (Sur todavía tentativo en el plan).
+            skip_band = slug == "sicilia"
             stop = Stop(
                 slug=slug, order=order, name=name, country=country, country_flag=flag,
                 arrival_date=arrival, departure_date=departure, currency_code=cur,
                 timezone="Europe/London", is_transit=slug.endswith("-2"),
-                is_flex_margin=is_flex, owner_username=owner,
+                owner_username=owner,
             )
             s.add(stop)
-            # El margen flex queda SIN banda a propósito: es el único hueco de
-            # cobertura de la demo local, y sin un hueco el estado "cobertura
-            # parcial" de /presupuesto no se ve nunca al desarrollar.
-            band = None if is_flex else budget_band_for(stop)
+            band = None if skip_band else budget_band_for(stop)
             if band is not None:
                 s.add(StopBudget(stop_slug=slug,
                                  daily_min_usd=band[0], daily_max_usd=band[1]))
 
             past_or_current = arrival <= TODAY
             payer = bruno
-            # Portugal: solo Bruno. Resto shared. Flex: solo la reserva (pending).
+            # Portugal: solo Bruno. Resto shared. Futuro: reserva pending.
             if past_or_current:
                 _add_mov(s, cats["Alojamiento"], cur, lodging,
                          arrival - timedelta(days=30), slug, name, payer, split,
@@ -178,10 +177,8 @@ async def main() -> None:
                      lis_arr - timedelta(days=30), "pititas", "Pititas", katia,
                      "payer_only", "Hospedaje Pititas")
 
-        # --- Gastos diarios (solo hasta HOY; sin margen flex) ---
+        # --- Gastos diarios (solo hasta HOY) ---
         for slug, name, _country, _flag, cur, nights, _lodging, _split in ITINERARY:
-            if slug == "margen-flex":
-                continue
             arrival, _dep = stop_dates[slug]
             region = REGION_BY_SLUG[slug]
             for i in range(nights):
@@ -238,6 +235,13 @@ async def main() -> None:
                  "lisboa", "Lisboa", bruno, "payer_only", "Vuelo París→Lisboa")
         _add_mov(s, cats["Transporte"], "USD", 90.00, stop_dates["porto"][0] + timedelta(days=2),
                  "porto", "Porto", bruno, "payer_only", "Vuelo Porto→Estrasburgo")
+        # Sur → España (pending: se decide cerca de la fecha).
+        _add_mov(s, cats["Transporte"], "EUR", 180.00, TODAY, "sicilia", "Sicilia", bruno,
+                 "shared", "Vuelo Catania/Palermo → BCN",
+                 payment_date=stop_dates["sicilia"][1] - timedelta(days=1), status="pending")
+        _add_mov(s, cats["Actividades"], "PLN", 180.00, TODAY, "cracovia", "Cracovia",
+                 bruno, "shared", "Auschwitz + traslado",
+                 payment_date=stop_dates["cracovia"][0] + timedelta(days=1), status="pending")
         # Actividades ya compradas.
         _add_mov(s, cats["Actividades"], "USD", 138.19, stop_dates["londres"][0] + timedelta(days=2),
                  "londres", "Londres", bruno, "shared", "Tour Harry Potter")
@@ -314,7 +318,7 @@ async def main() -> None:
             f"HOY={TODAY} · inicio={START} · fin={START + timedelta(days=TOTAL_NIGHTS)} "
             f"(día {TODAY_TRIP_DAY}/{TOTAL_NIGHTS})\n"
             f"targets: {len(budgets)}/{len(ITINERARY) + 1} paradas "
-            f"(margen-flex queda sin target a propósito)\n"
+            f"(sicilia queda sin target a propósito)\n"
             f"TOTAL USD {total.quantize(Decimal('0.1'))}"
         )
         for name, amt in sorted(by_cat.items(), key=lambda x: -x[1]):

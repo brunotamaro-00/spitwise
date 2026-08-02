@@ -179,7 +179,7 @@ previas. Scopealo por un marcador propio del escenario (ver `note_check`).
 
 `backend/scripts/seed_demo_data.py` construye una DB SQLite local lista para
 navegar la app **como si estuvieras en el medio del viaje**: itinerario de **108
-noches** (alineado a Andiamo/PRESUPUESTO: paradas + Sur Italia 10n + margen flex 3n)
+noches** (alineado a Andiamo prod: paradas confirmadas incl. Puglia 5n + Sicilia 8n)
 donde **HOY cae en el día 40** (faltan 68). Las fechas se
 derivan de `date.today()`, así que siempre luce mid-trip. Es self-bootstrapping
 (crea tablas + siembra categorías y usuarios), idempotente, y deja `backend/demo.db`

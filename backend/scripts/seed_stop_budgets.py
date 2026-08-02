@@ -115,7 +115,6 @@ BLOQUE_POR_PAIS = {
 BLOQUE_POR_SLUG = {
     "paris": "paris",          # París tiene su propio bloque en el doc
     "pititas": "pititas",      # parada local de Katia
-    "margen-flex": "italia",   # colchón pensado para el sur; sin país propio
 }
 
 
