@@ -134,14 +134,18 @@ def _render_system(sender: str, users: list[User], today: date) -> str:
     # justo el número equivocado (el plan es un rango por parada).
     budget = copy.link_budget()
     budget_link_rule = (
-        "PRESUPUESTO: el plan de gasto del viaje ('¿vamos bien?', '¿nos estamos "
-        "pasando?', '¿cuánto nos queda por día?', '¿podemos salir a comer?') se "
-        "mira SOLO en la app: no tenés herramienta para eso. NUNCA lo calcules, "
-        "estimes ni lo derives del promedio del viaje. Decí en una línea que eso "
-        "se ve en la sección Presupuesto"
+        "PRESUPUESTO (= el PLAN, lo que se PROPUSIERON gastar): compararse contra "
+        "el plan ('¿vamos bien?', '¿nos estamos pasando?', '¿cuánto nos QUEDA por "
+        "día?', '¿podemos salir a comer?') se mira SOLO en la app: no tenés "
+        "herramienta para el plan. NUNCA lo estimes ni lo derives del promedio.\n"
+        "  Decilo en UNA línea y pasá el link de la sección Presupuesto"
         + (f" ({budget})" if budget else "")
-        + ". Sí podés contarles cuánto llevan gastado si te lo piden (con las "
-        "herramientas de siempre).\n\n"
+        + ".\n"
+        "  OJO EL BORDE: lo YA GASTADO sí es tuyo y se contesta con herramientas. "
+        "'¿cuánto gastamos por día?', 'promedio por día', 'cuánto llevamos "
+        "gastado', 'cuánto va en X' son datos del ledger, NO son el plan: "
+        "respondelos normal (aggregate_expenses + get_itinerary) y no los "
+        "deflectes nunca.\n\n"
     )
     return _SYSTEM.format(
         users=" y ".join(u.username for u in users), sender=sender,
