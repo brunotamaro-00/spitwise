@@ -12,8 +12,16 @@ def _utcnow_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-async def create_pending(session: AsyncSession, owner: str, payload: dict, kind: str) -> str:
-    token = secrets.token_urlsafe(18)
+def new_token() -> str:
+    return secrets.token_urlsafe(18)
+
+
+async def create_pending(session: AsyncSession, owner: str, payload: dict, kind: str,
+                         token: str | None = None) -> str:
+    """`token` pre-generado sirve para pendings HERMANOS que tienen que
+    referenciarse entre sí (borrar el batch entero vs. solo el último): cada
+    payload puede llevar el token del otro antes de que existan las filas."""
+    token = token or new_token()
     session.add(BotPendingAction(
         token=token, channel="whatsapp", owner=owner, action_type=kind,
         payload_json=json.dumps(payload),
@@ -25,7 +33,11 @@ async def create_pending(session: AsyncSession, owner: str, payload: dict, kind:
 
 async def load_pending(
     session: AsyncSession, token: str, *, owner: str | None = None,
+    kind: str | None = None,
 ) -> dict | None:
+    """`kind` es el tipo que el handler ESPERA: un token de otra clase de pending
+    (un `doc_upload` llegando al handler de borrado) devuelve None en vez de que
+    el handler interprete un payload que no es suyo."""
     row = (await session.execute(
         select(BotPendingAction).where(BotPendingAction.token == token)
     )).scalar_one_or_none()
@@ -37,9 +49,9 @@ async def load_pending(
         return None
     if owner is not None and row.owner != owner:
         return None
-    data = json.loads(row.payload_json)
-    data["_action_type"] = row.action_type
-    return data
+    if kind is not None and row.action_type != kind:
+        return None
+    return json.loads(row.payload_json)
 
 
 async def close_pending(session: AsyncSession, token: str) -> None:

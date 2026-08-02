@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.api.auth import hash_password
 from app.bot.capture import handle_capture
-from app.bot.dispatcher import _handle_delete_command
+from app.bot.editor import handle_delete_command
 from app.bot.interactive import handle_interactive
 from app.db.models import Movement, User
 
@@ -141,7 +141,7 @@ async def test_batch_cap_at_ten(db_session):
 async def test_borrar_after_batch_offers_whole_batch(db_session):
     bruno, _ = await _users(db_session)
     await _capture_three(db_session, bruno)
-    reply = await _handle_delete_command(db_session, bruno)
+    reply = await handle_delete_command(db_session, bruno)
     assert len(reply.buttons) == 3
     labels = [b[1] for b in reply.buttons]
     assert labels[0] == "Borrar los 3 🗑️"
@@ -156,19 +156,93 @@ async def test_borrar_after_batch_offers_whole_batch(db_session):
 async def test_borrar_after_batch_only_last(db_session):
     bruno, _ = await _users(db_session)
     await _capture_three(db_session, bruno)
-    reply = await _handle_delete_command(db_session, bruno)
+    reply = await handle_delete_command(db_session, bruno)
     done = await handle_interactive(db_session, bruno, "549110", reply.buttons[1][0], TODAY)
     movs = (await db_session.execute(select(Movement))).scalars().all()
     assert len(movs) == 2
     assert "Helado" in (done.text or "")  # movement_summary capitaliza
 
 
-async def test_borrar_single_keeps_legacy_flow(db_session):
+async def test_borrar_single_offers_confirm_and_cancel(db_session):
     bruno, _ = await _users(db_session)
     fake = FakeLLM(_payload(amount="20", currency="USD", description="taxi", category="Transporte"))
     await handle_capture(db_session, bruno, "549110", "taxi 20", TODAY, llm_client=fake)
-    reply = await _handle_delete_command(db_session, bruno)
+    reply = await handle_delete_command(db_session, bruno)
     assert len(reply.buttons) == 2  # Borrar / Cancelar, como siempre
+
+
+async def test_borrar_only_offers_the_senders_own(db_session):
+    """Son dos chats contra el mismo ledger: `borrar` de Katia nunca puede
+    agarrar lo último que cargó Bruno (mismo criterio que `recent_movement`)."""
+    bruno, katia = await _users(db_session)
+    await handle_capture(db_session, bruno, "549110", "taxi 20", TODAY,
+                         llm_client=FakeLLM(_payload(amount="20", currency="USD",
+                                                     description="taxi",
+                                                     category="Transporte")))
+    reply = await handle_delete_command(db_session, katia)
+    assert not reply.buttons and "no hay movimientos cargados por vos" in reply.text
+
+    await handle_capture(db_session, katia, "549111", "cafe 5", TODAY,
+                         llm_client=FakeLLM(_payload(amount="5", currency="USD",
+                                                     description="cafe",
+                                                     category="Cafetería")))
+    reply = await handle_delete_command(db_session, katia)
+    assert "Cafe" in reply.text and "Taxi" not in reply.text
+
+
+async def test_confirming_one_branch_kills_the_sibling_token(db_session):
+    """Confirmar "los 3" tiene que matar el token de "solo el último": si no,
+    re-tocar el otro botón borraba de nuevo con el pending todavía vivo."""
+    bruno, _ = await _users(db_session)
+    await _capture_three(db_session, bruno)
+    reply = await handle_delete_command(db_session, bruno)
+    all_btn, last_btn = reply.buttons[0][0], reply.buttons[1][0]
+
+    await handle_interactive(db_session, bruno, "549110", all_btn, TODAY)
+    assert (await db_session.execute(select(Movement))).scalars().all() == []
+    again = await handle_interactive(db_session, bruno, "549110", last_btn, TODAY)
+    assert "Expiró" in again.text
+
+
+async def test_cancel_kills_the_token_and_its_sibling(db_session):
+    """Antes solo contestaba "Cancelado." y el pending seguía vivo 6h."""
+    bruno, _ = await _users(db_session)
+    await _capture_three(db_session, bruno)
+    reply = await handle_delete_command(db_session, bruno)
+    all_btn, last_btn, cancel_btn = (b[0] for b in reply.buttons)
+
+    cancelled = await handle_interactive(db_session, bruno, "549110", cancel_btn, TODAY)
+    assert "Cancelado" in cancelled.text
+    for btn in (all_btn, last_btn):
+        assert "Expiró" in (await handle_interactive(db_session, bruno, "549110", btn, TODAY)).text
+    assert len((await db_session.execute(select(Movement))).scalars().all()) == 3
+
+
+async def test_numeric_del_confirm_no_longer_deletes(db_session):
+    """Los cards viejos llevaban el id crudo en el botón: sin TTL ni dueño,
+    re-tocarlos meses después borraba de verdad."""
+    bruno, _ = await _users(db_session)
+    await _capture_three(db_session, bruno)
+    movs = (await db_session.execute(select(Movement).order_by(Movement.id))).scalars().all()
+    reply = await handle_interactive(db_session, bruno, "549110",
+                                     f"del_confirm:{movs[0].id}", TODAY)
+    assert "Expiró" in reply.text
+    assert len((await db_session.execute(select(Movement))).scalars().all()) == 3
+
+
+async def test_pending_token_of_another_kind_is_rejected(db_session):
+    """Un token de `cat_pick` llegando al handler de borrado no puede
+    interpretarse como un payload de ids."""
+    from app.bot.pending import create_pending
+
+    bruno, _ = await _users(db_session)
+    await _capture_three(db_session, bruno)
+    token = await create_pending(db_session, owner="bruno",
+                                 payload={"ids": [1, 2, 3]}, kind="cat_pick")
+    reply = await handle_interactive(db_session, bruno, "549110",
+                                     f"del_confirm:{token}", TODAY)
+    assert "Expiró" in reply.text
+    assert len((await db_session.execute(select(Movement))).scalars().all()) == 3
 
 
 async def test_edit_by_reference_matches_only_named_item(db_session):

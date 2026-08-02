@@ -8,10 +8,10 @@ from app.bot import copy
 from app.bot.capture import (
     _category_id, _map_source, other_user, owner_split, resolve_place, user_by_username,
 )
-from app.bot.pending import close_pending, create_pending, load_pending
+from app.bot.pending import close_pending, create_pending, load_pending, new_token
 from app.bot.render import (
     BotReply, ar_number, buttons_reply, cashback_text, cat_label, edit_card, fmt_date,
-    movement_summary, split_label, text_reply,
+    fmt_money, movement_summary, split_label, text_reply,
 )
 from app.cashback import net_amount, normalize_cashback
 from app.config import get_settings
@@ -21,6 +21,72 @@ from app.fx import fx_reference_date, reprice_movement
 from app.textnorm import fold, load_proper_nouns, normalize_description
 
 _SEARCH_LIMIT = 50  # movimientos recientes donde buscar referencias
+
+
+async def summary_lines(session: AsyncSession, movements: list[Movement]) -> str:
+    """Desglose de los movimientos (para confirmar qué se borró), antes de borrarlos."""
+    users = {u.id: u.username for u in (await session.execute(select(User))).scalars().all()}
+    cats = {c.id: c.name for c in (await session.execute(select(Category))).scalars().all()}
+    return "\n".join(
+        movement_summary(m, cats.get(m.category_id), users.get(m.paid_by, "?"))
+        for m in movements
+    )
+
+
+async def handle_delete_command(session: AsyncSession, user: User) -> BotReply:
+    """Fast path `borrar`: ofrece el último movimiento DEL REMITENTE con
+    confirmación. Filtra por `created_by` igual que `recent_movement`: son dos
+    chats contra el mismo ledger y "borrar" nunca puede agarrar lo del otro."""
+    last = (await session.execute(
+        select(Movement).where(Movement.created_by == user.id).order_by(Movement.id.desc())
+    )).scalars().first()
+    if last is None:
+        return text_reply(f"{copy.H_WARN} Nada que borrar: no hay movimientos cargados por vos.")
+
+    # "borrar" justo después de un mensaje multi-gasto casi siempre significa
+    # "me equivoqué con ese mensaje" → ofrecer el batch entero (con confirmación).
+    if last.batch_key:
+        siblings = (await session.execute(
+            select(Movement).where(Movement.batch_key == last.batch_key).order_by(Movement.id)
+        )).scalars().all()
+        if len(siblings) > 1:
+            # Tokens pre-generados: cada pending lleva el del otro para que
+            # confirmar uno (o cancelar) mate también al hermano — si no, el
+            # token no usado seguía vivo y un re-tap borraba de nuevo.
+            t_all, t_last = new_token(), new_token()
+            summary = await summary_lines(session, siblings)
+            await create_pending(
+                session, owner=user.username,
+                payload={"ids": [m.id for m in siblings], "siblings": [t_last]},
+                kind="del_confirm", token=t_all,
+            )
+            await create_pending(
+                session, owner=user.username,
+                payload={"ids": [last.id], "siblings": [t_all]},
+                kind="del_confirm", token=t_last,
+            )
+            return buttons_reply(
+                f"{copy.H_WARN} Eso entró como *{len(siblings)} gastos juntos*. "
+                f"¿Borrar? Es irreversible.\n{summary}",
+                [
+                    (f"del_confirm:{t_all}", f"Borrar los {len(siblings)} 🗑️"),
+                    (f"del_confirm:{t_last}", "Solo el último"),
+                    (f"del_cancel:{t_all}", "Cancelar"),
+                ],
+            )
+
+    # Rama single: también por pending, nunca con el id crudo en el botón. Un
+    # `del_confirm:<id>` no tiene TTL ni dueño: cualquier card viejo del
+    # historial borraba de verdad al re-tocarlo meses después.
+    token = await create_pending(
+        session, owner=user.username, payload={"ids": [last.id]}, kind="del_confirm",
+    )
+    desc = last.description or last.type
+    return buttons_reply(
+        f"{copy.H_WARN} ¿Borrar *{desc}* ({fmt_money(last.amount, last.currency, last.amount_usd)})?\n"
+        "Es irreversible.",
+        [(f"del_confirm:{token}", "Borrar 🗑️"), (f"del_cancel:{token}", "Cancelar")],
+    )
 
 
 async def recent_movement(session: AsyncSession, *, ttl_minutes: int,
@@ -424,7 +490,7 @@ async def handle_delete(session, user: User, wa_id: str, parsed, today: date) ->
     )
     return buttons_reply(
         f"{copy.H_WARN} ¿Borrar este movimiento? Es irreversible.\n{movement_summary(mv, cat, payer)}",
-        [(f"del_confirm:{token}", "Borrar 🗑️"), ("del_cancel:0", "Cancelar")],
+        [(f"del_confirm:{token}", "Borrar 🗑️"), (f"del_cancel:{token}", "Cancelar")],
     )
 
 
@@ -448,7 +514,7 @@ def _deserialize_changes(raw: dict) -> dict:
 
 
 async def apply_edit_pick(session, user: User, token: str, movement_id: int, today: date) -> BotReply:
-    data = await load_pending(session, token, owner=user.username)
+    data = await load_pending(session, token, owner=user.username, kind="edit_pick")
     if data is None:
         return text_reply("⚠️ Expiró: ese pending ya no está disponible.")
     mv = (await session.execute(select(Movement).where(Movement.id == movement_id))).scalar_one_or_none()
@@ -460,7 +526,7 @@ async def apply_edit_pick(session, user: User, token: str, movement_id: int, tod
 
 
 async def apply_delete_pick(session, user: User, token: str, movement_id: int) -> BotReply:
-    data = await load_pending(session, token, owner=user.username)
+    data = await load_pending(session, token, owner=user.username, kind="del_pick")
     if data is None:
         return text_reply("⚠️ Expiró: ese pending ya no está disponible.")
     mv = (await session.execute(select(Movement).where(Movement.id == movement_id))).scalar_one_or_none()
@@ -474,5 +540,5 @@ async def apply_delete_pick(session, user: User, token: str, movement_id: int) -
     )
     return buttons_reply(
         f"{copy.H_WARN} ¿Borrar este movimiento? Es irreversible.\n{movement_summary(mv, cat, payer)}",
-        [(f"del_confirm:{confirm_token}", "Borrar 🗑️"), ("del_cancel:0", "Cancelar")],
+        [(f"del_confirm:{confirm_token}", "Borrar 🗑️"), (f"del_cancel:{confirm_token}", "Cancelar")],
     )

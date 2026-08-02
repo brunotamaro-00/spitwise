@@ -378,7 +378,7 @@ async def delete_movements(session: AsyncSession, users: list[User], asker: User
             else f"⚠️ ¿Borrar estos {n} movimientos? Es irreversible.")
     label = "Borrar 🗑️" if n == 1 else f"Borrar los {n} 🗑️"
     ctx.reply = buttons_reply(f"{head}\n{lines}",
-                              [(f"qa_del:{token}", label), ("del_cancel:0", "Cancelar")])
+                              [(f"qa_del:{token}", label), (f"del_cancel:{token}", "Cancelar")])
     return {
         "status": "confirmacion_pendiente",
         "note": ("El usuario ya ve la tarjeta con los botones de confirmación; "

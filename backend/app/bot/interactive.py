@@ -8,16 +8,6 @@ from app.bot.render import BotReply, deleted_card, movement_summary, text_reply
 from app.db.models import Category, Movement, User
 
 
-async def _summary_lines(session: AsyncSession, movements: list[Movement]) -> str:
-    """Desglose de los movimientos (para confirmar qué se borró), antes de borrarlos."""
-    users = {u.id: u.username for u in (await session.execute(select(User))).scalars().all()}
-    cats = {c.id: c.name for c in (await session.execute(select(Category))).scalars().all()}
-    return "\n".join(
-        movement_summary(m, cats.get(m.category_id), users.get(m.paid_by, "?"))
-        for m in movements
-    )
-
-
 # Legacy: botones de split de la versión anterior (pueden quedar en el historial del chat).
 _SPLIT_MAP = {"split_shared": "shared", "split_mine": "payer_only", "split_theirs": "other_only"}
 _SPLIT_LABEL = {"shared": "compartido", "payer_only": "solo tuyo", "other_only": "solo del otro"}
@@ -30,10 +20,12 @@ def _token_and_id(interactive_id: str, prefix: str) -> tuple[str, int]:
 
 
 async def _delete_by_ids(session: AsyncSession, user: User, ids: list[int], expected: int | None = None) -> BotReply:
+    from app.bot.editor import summary_lines
+
     movements = (await session.execute(
         select(Movement).where(Movement.id.in_(ids))
     )).scalars().all()
-    summary = await _summary_lines(session, movements)
+    summary = await summary_lines(session, movements)
     for mv in movements:
         await session.delete(mv)
     await session.commit()
@@ -82,7 +74,7 @@ async def _handle_interactive(session: AsyncSession, user: User, wa_id: str, int
     if interactive_id.startswith("qa_del:"):
         from app.bot.pending import close_pending, load_pending
         token = interactive_id[len("qa_del:"):]
-        data = await load_pending(session, token, owner=user.username)
+        data = await load_pending(session, token, owner=user.username, kind="qa_del")
         if data is None:
             return text_reply("⚠️ Expiró: esa confirmación ya no está disponible.")
         ids = [int(i) for i in data.get("ids") or []]
@@ -92,21 +84,41 @@ async def _handle_interactive(session: AsyncSession, user: User, wa_id: str, int
         return reply
 
     if interactive_id.startswith("del_confirm:"):
-        from app.bot.pending import close_pending, load_pending
+        from app.bot.pending import cancel_pending, close_pending, load_pending
+        # Sin rama legacy de id numérico: un `del_confirm:<id>` no tenía TTL ni
+        # dueño, así que un card viejo del historial borraba de verdad meses
+        # después. Ahora cae en load_pending → None → "Expiró".
         rest = interactive_id.split(":", 1)[1]
-        # Nuevo: token de pending. Legacy: id numérico sin TTL.
-        if rest.isdigit():
-            mid = int(rest)
-            return await _delete_by_ids(session, user, [mid])
-        data = await load_pending(session, rest, owner=user.username)
+        data = await load_pending(session, rest, owner=user.username, kind="del_confirm")
         if data is None:
             return text_reply("⚠️ Expiró: esa confirmación ya no está disponible.")
         ids = [int(i) for i in data.get("ids") or []]
         reply = await _delete_by_ids(session, user, ids, expected=len(ids))
         await close_pending(session, rest)
+        # El hermano ("Solo el último" vs "Borrar los N") ya no tiene sentido:
+        # sus ids acaban de irse o son un subconjunto de lo borrado.
+        for sib in data.get("siblings") or []:
+            await cancel_pending(session, sib)
         return reply
 
     if interactive_id.startswith("del_cancel:"):
+        from app.bot.pending import cancel_pending, load_pending
+        token = interactive_id[len("del_cancel:"):]
+        # "0" = cards viejos sin token; no hay nada que cancelar. Con token, se
+        # cierra de verdad: antes solo contestaba "Cancelado." y el pending
+        # quedaba vivo 6h, así que re-tocar Borrar borraba igual.
+        if token and token != "0":
+            # Los dos kinds que ofrecen este botón: el fast path `borrar` /
+            # intent delete (`del_confirm`) y la tool del agente (`qa_del`).
+            data = None
+            for kind in ("del_confirm", "qa_del"):
+                data = await load_pending(session, token, owner=user.username, kind=kind)
+                if data is not None:
+                    break
+            if data is not None:  # ajeno, vencido o ya cerrado: nada que tocar
+                await cancel_pending(session, token)
+                for sib in data.get("siblings") or []:
+                    await cancel_pending(session, sib)
         return text_reply("Cancelado.")
 
     if interactive_id.startswith("doc_save:"):
