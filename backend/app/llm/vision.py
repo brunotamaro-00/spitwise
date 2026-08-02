@@ -163,11 +163,14 @@ class OpenAIVision:
 
     async def classify_correction(self, text: str, extraction_summary: str, *, today: date,
                                   stops: list[dict], kinds: dict[str, str]) -> dict:
-        # Clasificación liviana sin el archivo: alcanza con el resumen del preview.
+        # Clasificación liviana sin el archivo: alcanza con el resumen del
+        # preview. Timeout propio y corto — el de `extract` (90s) es para subir
+        # un PDF, y acá está atravesado el camino financiero de cualquier texto
+        # con un preview fresco a la vista.
         extra: dict = {}
         if self._model.startswith(("gpt-5", "o1", "o3", "o4")):
             extra["reasoning_effort"] = "minimal"
-        resp = await self._client.chat.completions.parse(
+        resp = await self._client.with_options(timeout=15.0).chat.completions.parse(
             model=self._model,
             **extra,
             messages=[

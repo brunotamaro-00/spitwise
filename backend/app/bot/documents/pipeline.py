@@ -196,9 +196,17 @@ async def maybe_apply_correction(session: AsyncSession, user: User, wa_id: str, 
     if vision is None:
         from app.llm.vision import make_vision_llm
         vision = make_vision_llm()
-    correction = await vision.classify_correction(
-        text, _extraction_summary(payload, stop_name), today=today, stops=stops, kinds=DOC_KINDS,
-    )
+    # Esta rama está atravesada en el camino financiero: con un preview fresco,
+    # TODO texto pasa por acá. Si Vision se cae, "cena 20 euros" tiene que
+    # seguir de largo al parser y guardarse — nunca voltear la carga del gasto.
+    try:
+        correction = await vision.classify_correction(
+            text, _extraction_summary(payload, stop_name), today=today, stops=stops,
+            kinds=DOC_KINDS,
+        )
+    except Exception:
+        logger.exception("doc_classify_correction_failed owner=%s", user.username)
+        return None
     if not correction.get("is_correction"):
         return None
 

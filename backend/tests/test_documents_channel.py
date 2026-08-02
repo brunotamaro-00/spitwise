@@ -202,6 +202,53 @@ async def test_non_correction_falls_through(db_session, monkeypatch):
     assert vision.correction_calls == 1
 
 
+async def test_vision_failure_does_not_break_the_finance_path(db_session, monkeypatch):
+    """Con un preview fresco a la vista, TODO texto pasa por classify_correction.
+    Si Vision se cae, el gasto tiene que guardarse igual por el parser."""
+    from sqlalchemy import select
+
+    from app.bot.dispatcher import dispatch
+    from app.db.models import Movement
+
+    class FakeLLM:
+        def __init__(self, payload):
+            self.payload = payload
+
+        async def parse(self, text, **kwargs):
+            return self.payload
+
+    monkeypatch.setattr(get_settings(), "andiamo_url", "http://andiamo.test")
+    u = await _seed(db_session)
+    # El camino financiero exige los dos usuarios (invariante 1) y categorías.
+    db_session.add(User(username="katia", password_hash=hash_password("pw"),
+                        whatsapp_wa_id="549222"))
+    from app.categories.seed import seed_categories
+    await seed_categories(db_session)
+    await db_session.commit()
+    await handle_document_media(db_session, u, "549110", _media(), TODAY,
+                                vision_client=FakeVision(_extraction()), meta_client=FakeMeta())
+
+    class BoomVision(FakeVision):
+        async def classify_correction(self, text, extraction_summary, **kwargs):
+            self.correction_calls += 1
+            raise RuntimeError("openai down")
+
+    vision = BoomVision()
+    assert await maybe_apply_correction(db_session, u, "549110", "cena 20 euros", TODAY,
+                                        vision_client=vision) is None
+    assert vision.correction_calls == 1
+
+    llm = FakeLLM({"intent": "expense", "amount": "20", "currency": "EUR",
+                   "description": "Cena", "category": "Comida", "split": "shared",
+                   "paid_by": None, "date": None, "city": None,
+                   "confidence": 0.9, "candidates": []})
+    reply = await dispatch(db_session, "549110", "text", "cena 20 euros", None, TODAY,
+                           llm_client=llm, vision_client=BoomVision())
+    assert "Cena" in reply.text
+    movs = (await db_session.execute(select(Movement))).scalars().all()
+    assert len(movs) == 1 and movs[0].description == "Cena"
+
+
 # --- dispatcher: ruteo lateral ---
 
 async def test_dispatch_routes_media_and_unsupported(db_session, monkeypatch):
