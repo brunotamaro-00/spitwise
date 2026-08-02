@@ -534,11 +534,12 @@ def trip_cost(projection: dict, fixed: dict) -> dict:
       el universo de `fixed_block`, y cruzar los dos daría noches faltantes
       negativas o infladas. No "arreglarlo" unificándolos.
 
-    Nota de coherencia: el Dashboard muestra `trip.projected_total_usd`
-    (`analytics._project`: generales + noches × ritmo all-in de las cerradas),
-    que **ignora las reservas futuras ya cargadas**. Este total da distinto a
-    propósito — usa el alojamiento real reservado y estima solo lo que falta.
-    Unificar los dos números es una decisión de producto aparte.
+    Nota de coherencia: este es **el** total del viaje de la app (Dashboard y
+    `/presupuesto` muestran el mismo bloque). `analytics._project`
+    (`trip.projected_total_usd`: generales + noches × ritmo all-in de las
+    cerradas) sigue en el payload de `/dashboard/pace` pero ya no se renderiza:
+    ignora las reservas futuras ya cargadas, y tener dos totales distintos en
+    dos pantallas era la forma garantizada de contradecirse.
     """
     total_nights = fixed["total_nights"]
     booked_nights = fixed["booked_nights"]

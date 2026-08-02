@@ -3,18 +3,19 @@ import { ArrowRight, Receipt, TrendingUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { getBudget } from "@/api/budget";
 import { listCategories } from "@/api/categories";
 import { getStops } from "@/api/cities";
 import { listUsers } from "@/api/users";
 import { getBalance, getByCategory, getPace, getSummary } from "@/api/dashboard";
 import { listMovements } from "@/api/movements";
 import BalanceHero from "@/components/BalanceHero";
+import TripCostCard from "@/components/budget/TripCostCard";
 import CategoryDonut from "@/components/CategoryDonut";
 import CityPaceChart from "@/components/CityPaceChart";
 import MovementRow from "@/components/MovementRow";
 import MovementSheet from "@/components/MovementSheet";
 import SettleDialog from "@/components/SettleDialog";
-import TripPaceCard from "@/components/TripPaceCard";
 import AnimatedUsd from "@/components/ui/AnimatedUsd";
 import { PageTitle } from "@/components/ui/Brand";
 import Card from "@/components/ui/Card";
@@ -35,6 +36,9 @@ export default function Dashboard() {
   const summary = useQuery({ queryKey: ["dashboard", "summary"], queryFn: getSummary });
   const byCat = useQuery({ queryKey: ["dashboard", "cat"], queryFn: getByCategory });
   const pace = useQuery({ queryKey: ["dashboard", "pace"], queryFn: getPace });
+  // Misma key que /presupuesto: el costo del viaje se calcula en un solo lugar
+  // y navegar entre las dos páginas no lo vuelve a pedir.
+  const budget = useQuery({ queryKey: ["budget"], queryFn: getBudget });
   const users = useQuery({ queryKey: ["users"], queryFn: listUsers, staleTime: Infinity });
   const recent = useQuery({ queryKey: ["movements"], queryFn: listMovements });
   const categories = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: Infinity });
@@ -131,9 +135,12 @@ export default function Dashboard() {
         </AsyncSection>
       </div>
 
+      {/* El mismo bloque que cierra /presupuesto: cuánto sale el viaje entero.
+          Acá va sin el veredicto contra la banda — ese es el trabajo de esa
+          página, y el Dashboard no tiene el resto del contexto que lo sostiene. */}
       <div className="animate-rise-in stagger-3">
-        <AsyncSection query={pace} skeleton={<Skeleton className="h-40" />}>
-          {() => <TripPaceCard pace={pace.data!} />}
+        <AsyncSection query={budget} skeleton={<Skeleton className="h-56" />}>
+          {() => <TripCostCard cost={budget.data!.cost} fixed={budget.data!.fixed} />}
         </AsyncSection>
       </div>
 
