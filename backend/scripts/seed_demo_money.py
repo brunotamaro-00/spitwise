@@ -45,6 +45,8 @@ from demo_common import (
     _created,
     _seed_day,
     budget_band_for,
+    ensure_cities_in_plan,
+    ensure_cities_over,
     region_for,
 )
 
@@ -198,6 +200,12 @@ async def main() -> None:
 
         _seed_prepaid(s, cats, bruno, katia, stops)
         _seed_edge_cases(s, cats, bruno, katia, stops)
+        pushed = await ensure_cities_over(s, today=TODAY, bruno=bruno, cats=cats)
+        if pushed:
+            print(f"overspend forzado: {', '.join(pushed)}")
+        lifted = await ensure_cities_in_plan(s, today=TODAY, bruno=bruno, cats=cats)
+        if lifted:
+            print(f"en plan forzado: {', '.join(lifted)}")
 
         # Validar antes de commitear: si algo no cierra, el rollback deja la
         # demo de ayer —que estaba bien— en vez de publicar una rota.

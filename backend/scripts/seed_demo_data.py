@@ -40,6 +40,8 @@ from demo_common import (  # noqa: F401
     _created,
     _seed_day,
     budget_band_for,
+    ensure_cities_in_plan,
+    ensure_cities_over,
 )
 
 TODAY = date.today()
@@ -130,9 +132,6 @@ async def main() -> None:
             cursor = departure
             stop_dates[slug] = (arrival, departure)
             owner = "bruno" if slug in ("lisboa", "porto") else None
-            # Sicilia sin banda a propósito: es el hueco de cobertura parcial de
-            # /presupuesto en la demo local (Sur todavía tentativo en el plan).
-            skip_band = slug == "sicilia"
             stop = Stop(
                 slug=slug, order=order, name=name, country=country, country_flag=flag,
                 arrival_date=arrival, departure_date=departure, currency_code=cur,
@@ -140,10 +139,14 @@ async def main() -> None:
                 owner_username=owner,
             )
             s.add(stop)
-            band = None if skip_band else budget_band_for(stop)
-            if band is not None:
-                s.add(StopBudget(stop_slug=slug,
-                                 daily_min_usd=band[0], daily_max_usd=band[1]))
+            band = budget_band_for(stop)
+            if band is None:
+                raise SystemExit(
+                    f"Parada sin banda de presupuesto: {slug} ({country}). "
+                    "Mapeala en scripts/seed_stop_budgets.py."
+                )
+            s.add(StopBudget(stop_slug=slug,
+                             daily_min_usd=band[0], daily_max_usd=band[1]))
 
             past_or_current = arrival <= TODAY
             payer = bruno
@@ -301,6 +304,13 @@ async def main() -> None:
                  cur_slug, cur_city, bruno, "shared", "Tren — saldo (2/2)",
                  payment_date=TODAY + timedelta(days=1), status="pending")
 
+        pushed = await ensure_cities_over(s, today=TODAY, bruno=bruno, cats=cats)
+        if pushed:
+            print(f"overspend forzado: {', '.join(pushed)}")
+        lifted = await ensure_cities_in_plan(s, today=TODAY, bruno=bruno, cats=cats)
+        if lifted:
+            print(f"en plan forzado: {', '.join(lifted)}")
+
         await s.commit()
         movs = (await s.execute(select(Movement))).scalars().all()
         budgets = (await s.execute(select(StopBudget))).scalars().all()
@@ -318,7 +328,7 @@ async def main() -> None:
             f"HOY={TODAY} · inicio={START} · fin={START + timedelta(days=TOTAL_NIGHTS)} "
             f"(día {TODAY_TRIP_DAY}/{TOTAL_NIGHTS})\n"
             f"targets: {len(budgets)}/{len(ITINERARY) + 1} paradas "
-            f"(sicilia queda sin target a propósito)\n"
+            f"(cobertura completa desde PRESUPUESTO.md)\n"
             f"TOTAL USD {total.quantize(Decimal('0.1'))}"
         )
         for name, amt in sorted(by_cat.items(), key=lambda x: -x[1]):
