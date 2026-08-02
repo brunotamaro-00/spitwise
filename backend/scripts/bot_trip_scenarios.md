@@ -1,6 +1,6 @@
 # Escenarios bot — canal VIAJE (guías + notas)
 
-Corrida: **2026-08-01 20:29** · hoy ficticio `2026-09-25` (Viena) · suite: suite viaje (16)
+Corrida: **2026-08-01 23:52** · hoy ficticio `2026-09-25` (Viena) · suite: suite viaje (16)
 
 Seed: **96** guide docs desde `andiamo/content/guides` · **9** notas · **7** stops.
 
@@ -25,19 +25,19 @@ Seed: **96** guide docs desde `andiamo/content/guides` · **9** notas · **7** s
 **→** che, ¿qué hacemos mañana acá que valga la pena?
 *deíctico → viena/actividades*
 
-⏱ dispatch `12.3s` · total `12.3s`
+⏱ dispatch `22.3s` · total `22.3s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
 
 ```
-Dale — para mañana (estamos en Viena) te tiro un día que mezcla lo mejor sin matarnos:
+Perfecto — para mañana en Viena tenés opciones según onda:
 
-- Mañana: **Schönbrunn — jardines + subir a la Gloriette (gratis)** o si preferís centro, **Stephansdom** temprano para la foto sin gente.  
-- Media mañana/tarde: **Naschmarkt Flohmarkt** (es sábado 26 — mejor ir antes de las 10:00) para comida y cosas locas.  
-- Tarde: pasear la **Ringstrasse** y/o **Belvedere** (si querés ver *El Beso*).  
-- Noche: si hay función, **Staatsoper standing €18** (llegar con tiempo) o ir a un **heuriger** (Stammersdorf/Oberlaa mejor que Grinzing) para probar *Sturm* y vinos locales.  
+- Mañana: **Schönbrunn — jardines + subir a la Gloriette (GRATIS)** o temprano **Stephansdom** y subir a la Torre Sur (**€6**) para fotos sin gente.  
+- Mediodía: almuerzo en **Naschmarkt** (puestos y opciones rápidas).  
+- Tarde: **Belvedere** si querés ver *El Beso* (**€19.50** online) o subir a **Kahlenberg** y bajar a un heuriger (ojo: **muchos heuriger cierran entre semana**, fijate el calendario "ausg'steckt").  
+- Noche: si pinta música, **Staatsoper standing parterre €18** (ir con tiempo) o un café histórico tipo **Café Central / Sacher** para cerrar.
 
-📖 Más: guía de actividades de Viena — http://localhost:3000/guias/viena/actividades
+📖 Más: http://localhost:3000/guias/viena/actividades
 ```
 
 ### bruno
@@ -45,16 +45,16 @@ Dale — para mañana (estamos en Viena) te tiro un día que mezcla lo mejor sin
 **→** ¿y qué dice el doc de desvíos cercanos de Viena? algún day trip decente?
 *follow-up → viena/desvios-cercanos*
 
-⏱ dispatch `8.7s` · total `8.7s`
+⏱ dispatch `13.8s` · total `13.8s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
 
 ```
-Buena — el doc de *Desvíos cercanos* tiene esto claro:
+Perfecto — lo que dice el doc "Desvíos cercanos" de Viena:
 
-- **El mejor day trip: Wachau (Melk + Dürnstein + crucero por el Danubio)** — tren a Melk ~1h + barco DDSG (estacional) y pueblos/viñedos; día completo.  
-- **Alternativa corta: Bratislava** — ~1h en tren (EURegio Ticket €18 ida/vta) o Twin City Liner en barco; medio día alcanza.  
-- Otras opciones: **Baden**, **Semmeringbahn** o **Neusiedlersee** (este último mejor con auto).  
+- **Prioridad alta: Wachau (Melk + Dürnstein + Danubio)** — *tren a Melk ~1h + barco DDSG*; día completo, mezcla abadía + crucero + pueblos. Ojo: **barco es estacional, confirmar**.  
+- **Prioridad media: Bratislava** — *REX ~1h* o Twin City Liner (barco); **EURegio Ticket €18 ida/vta** recomendado; alcanza medio día.  
+- También menciona: **Baden bei Wien, Semmeringbahn, Neusiedlersee** (este último mejor con auto) y que **Hallstatt queda lejos** para day trip.  
 
 📖 Más: http://localhost:3000/guias/viena/desvios-cercanos
 ```
@@ -80,16 +80,16 @@ Buena — el doc de *Desvíos cercanos* tiene esto claro:
 **→** cuando estemos en Cracovia, ¿qué onda con el domingo? ¿podemos ir al súper?
 *zakaz handlu*
 
-⏱ dispatch `11.2s` · total `11.2s`
+⏱ dispatch `13.3s` · total `13.3s`
 
-🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_guides,search_guides,read_guide_doc
+🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
 
 ```
-Sí — ojo con las restricciones de domingo en Polonia. Resumen corto:
+Sí — podemos comprar, pero ojo con la ley de domingos. Resumen rápido:
 
-- **Żabka** suele estar **24h** y **abre domingos**; es la opción segura.  
-- **Biedronka / Lidl / Kaufland** suelen cerrar **más temprano (hasta 21–22h)** y **en algunos domingos hay restricciones** (no todos los domingos abren).  
-- Consejo de la guía: **comprar el sábado por las dudas** si necesitás cocinar.
+- *Żabka* y muchos kioscos/food-to-go suelen estar **24h**; *Biedronka/Lidl/Kaufland* pueden cerrar por la **restricción de domingos** (no siempre abren).  
+- Recomendación de la guía: **comprar el sábado** por las dudas; si no, depender de Żabka o de puestos/food halls.  
+- También hay *Hala Targowa* y Stary Kleparz que suelen funcionar los domingos por la mañana.
 
 📖 Más: http://localhost:3000/guias/cracovia/gastronomia
 ```
@@ -99,16 +99,15 @@ Sí — ojo con las restricciones de domingo en Polonia. Resumen corto:
 **→** y lo del tip en Polonia: si digo dziękuję al pagar, ¿qué pasa con el vuelto?
 *dziękuję = quedate el cambio*
 
-⏱ dispatch `8.4s` · total `8.4s`
+⏱ dispatch `11.1s` · total `11.1s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
 
 ```
-Buenísimo — lo que anotamos en la guía:
-
-- **Ojo:** decir *“dziękuję”* al darle el dinero **se interpreta como “quedate el cambio”**.  
-- Consejo: **no digas dziękuję hasta recibir el vuelto** si querés que te lo den.  
-- Doc: *Gastronomía* (Cracovia) — 📖 Más: http://localhost:3000/guias/cracovia/gastronomia
+Sí — ojo con eso: en Polonia *decir “dziękuję” al entregar el dinero se interpreta como “quedate el cambio”*.  
+Entonces **no digas “dziękuję” hasta recibir el vuelto** si querés que te lo devuelvan.  
+Si querés dejar propina, lo mejor es **decir el total** o dejar efectivo aparte (~10% si gustó).  
+📖 Más: http://localhost:3000/guias/cracovia/gastronomia
 ```
 
 ---
@@ -132,14 +131,19 @@ Buenísimo — lo que anotamos en la guía:
 **→** ¿qué anotamos de Auschwitz?
 *list_notes cracovia*
 
-⏱ dispatch `7.5s` · total `7.5s`
+⏱ dispatch `12.9s` · total `12.9s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_notes
 
 ```
-- **Anotación:** *Auschwitz — crítico* (Cracovia, pinned).
-- **Qué dice:** reservar en *visit.auschwitz.org*; slot preferido *lun/mar 5-6 oct 09:00*; *Educator ~150 PLN*; *Día completo; respeto*; bus *MDA ~1h30*.
-- Si querés, mirá la guía de **Cracovia** para logística y alternativas.
+Tenemos una nota guardada sobre Auschwitz:
+
+- *Reserva*: **visit.auschwitz.org**.  
+- *Slot preferido*: **lun/mar 5‑6 oct 09:00**.  
+- *Precio educator*: **~150 PLN**.  
+- *Duración*: **día completo**; *respeto*.  
+- *Transporte*: **bus MDA ~1h30**.  
+- Está marcada como **crítico / pinned** en nuestras anotaciones.
 ```
 
 ### bruno
@@ -147,14 +151,14 @@ Buenísimo — lo que anotamos en la guía:
 **→** ok y según la guía cuánto sale el tour con educator?
 *read guía → ~150 PLN*
 
-⏱ dispatch `7.6s` · total `7.7s`
+⏱ dispatch `13.0s` · total `13.1s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
 
 ```
-- Según la guía: *tour con educator oficial*: **150 PLN** por adulto.  
-- Si buscás paquete desde Cracovia con transporte incluido, la guía marca **~160–250 PLN**.  
-- 📖 Más: http://localhost:3000/guias/cracovia/actividades
+Según la guía de Cracovia: el tour con *educator* oficial cuesta **150 PLN** por persona.  
+Si lo tomás como excursión desde la ciudad (transporte incluido) suelen salir **~160-250 PLN**.  
+📖 Más: http://localhost:3000/guias/cracovia/actividades
 ```
 
 ---
@@ -178,20 +182,19 @@ Buenísimo — lo que anotamos en la guía:
 **→** en Praga qué tenemos que comer sí o sí?
 *praga/gastronomia*
 
-⏱ dispatch `9.2s` · total `9.2s`
+⏱ dispatch `13.0s` · total `13.0s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
 
 ```
-Perfecto — lo que *tenemos que probar sí o sí* según la guía de Praga:
+Perfecto — lo que en la guía figura como imperdible:
 
-- **Svíčková na smetaně** (ternera en salsa cremosa con knedlíky) — plato nacional.  
-- **Guláš** con knedlíky — contundente y barato (Mlejnice recomendado).  
-- **Pivo de tanque (tankové)** — la experiencia cervecera local; 0.5L **50-70 CZK**.  
-- **Knedlíky** (dumplings) como acompañamiento en todo.  
-- **Smažený sýr** (queso frito) para un comfort food barato.  
-- **Koláče / buchty / bábovka** — la repostería checa real (mejor que el trdelník turístico).  
-- Si querés foto: **trdelník** está por todos lados pero la guía lo marca como trampa turística.
+- **Svíčková na smetaně** (el plato nacional) — *~180-250 CZK*.  
+- **Guláš** con knedlíky — *~120-180 CZK*.  
+- **Pivo (tankové)**: cerveza de tanque local — *~50-70 CZK la 0.5L*.  
+- **Vepřo‑knedlo‑zelo** (cerdo + dumplings + chucrut).  
+- Para picar/rápido: **chlebíčky** y **klobása**.  
+- Para dulce: probar **koláče / buchty** (la guía marca al **trdelník** como trampa turística).
 
 📖 Más: http://localhost:3000/guias/praga/gastronomia
 ```
@@ -201,16 +204,14 @@ Perfecto — lo que *tenemos que probar sí o sí* según la guía de Praga:
 **→** y según nuestras notas, la propina en Praga es igual que en Polonia?
 *nota Propina Chequia vs dziękuję PL*
 
-⏱ dispatch `6.6s` · total `6.6s`
+⏱ dispatch `11.1s` · total `11.1s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_notes
 
 ```
-No, **según nuestras notas no es igual**.  
-- En Praga: **redondear / ~10%** y pedir la cuenta con *"Účet, prosím."*  
-- Nota aclara: **NO es como Polonia** (el "dziękuję" no reemplaza dar vuelto).  
-
-La anotación está guardada bajo *Propina Chequia* (parada: Praga).
+Sí — según *nuestras notas* para Praga: **redondear / ~10%**.  
+La nota aclara: **NO es como Polonia** (ojo con dar por descontado el vuelto; cita: *Účet, prosím.*).  
+Documento encontrado: *Propina Chequia* (nota en Praga).
 ```
 
 ---
@@ -234,17 +235,19 @@ La anotación está guardada bajo *Propina Chequia* (parada: Praga).
 **→** algo urgente que tengamos anotado para Cracovia?
 *notas pinned Auschwitz/hostel*
 
-⏱ dispatch `6.6s` · total `6.6s`
+⏱ dispatch `8.6s` · total `8.6s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_notes
 
 ```
-Sí, algunas cosas marcadas como urgentes en *nuestras notas* para **Cracovia**:
+Sí: tenemos varias anotaciones urgentes para **Cracovia**.
 
-- *Auschwitz — crítico*: reservar en **visit.auschwitz.org**, slot preferido **lun/mar 5-6 oct 09:00**, Educator ~**150 PLN**; día entero y respeto.  
-- *Hostel Cracovia*: **check-in 15:00**, código **4421**.  
-- *Domingos*: *Zakaz handlu* — la mayoría de los supermercados cierran; **comprar el sábado** (abren Żabka y gastronomía).  
-- Monedas: **PLN** (y otras notas: CHF, CZK, HUF); anotamos *"dziękuję al pagar = quedate el cambio"*.
+- *Auschwitz — crítico*: reservar en **visit.auschwitz.org**; slot preferido **5–6 oct 09:00**, Educator **~150 PLN**.  
+- **Hostel Cracovia**: check-in **15:00**, código **4421**.  
+- Moneda y pago: **PLN** (también aparece CZK/HUF/CHF en notas); recomendación registrada: **OTP Bank, nunca Euronet**.  
+- Compra previa: **Zakaz handlu** — muchos supermercados cerrados los domingos; comprar el sábado (Żabka y restaurantes suelen abrir).
+
+Si querés que busque algún voucher o reserva en los docs, decime qué querés que busque.
 ```
 
 ### bruno
@@ -252,13 +255,12 @@ Sí, algunas cosas marcadas como urgentes en *nuestras notas* para **Cracovia**:
 **→** bárbaro. ¿cuánto llevamos gastado en Viena?
 *cambio a finanzas*
 
-⏱ dispatch `7.9s` · total `7.9s`
+⏱ dispatch `8.9s` · total `8.9s`
 
 🔍 intent=question · canal=qa · outcome=ok · tools=aggregate_expenses
 
 ```
-📍 *Viena*  
-💸 Total gastado: *USD 92,4* (2 gastos).
+📍 *Viena* — 💸 Total gastado: *USD 92,4* (2 gastos, total del viaje entre los dos).
 ```
 
 ---
@@ -282,15 +284,18 @@ Sí, algunas cosas marcadas como urgentes en *nuestras notas* para **Cracovia**:
 **→** el IKEA de Viena abre los domingos? a qué hora?
 *NO está en las guías*
 
-⏱ dispatch `11.7s` · total `11.7s`
+⏱ dispatch `10.6s` · total `10.6s`
 
-🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc,search_guides
+🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides
 
 ```
-No hay info en nuestras guías sobre el **IKEA de Viena** ni sus horarios de domingo.  
-Revisé la guía *Actividades* y el resto de docs de Viena: no lo menciona.
+Che, busqué en nuestras guías de Viena y **no dicen nada sobre el IKEA ni su horario los domingos**.
 
-Si querés, buscá el horario en la **web oficial de IKEA Austria** o en Google Maps; nuestras guías no lo cubren.
+Busqué en:
+- Actividades
+- Gastronomía
+
+Si querés, buscó en algún doc más de la guía (decime cuál) o lo vemos en la web vos misma — las guías no lo cubren.
 ```
 
 ### katia
@@ -298,30 +303,26 @@ Si querés, buscá el horario en la **web oficial de IKEA Austria** o en Google 
 **→** ok olvidate. para Interlaken, ¿qué anotamos de lo caro / pases?
 *nota Suiza caro / Swiss Travel*
 
-⏱ dispatch `13.1s` · total `13.1s`
+⏱ dispatch `12.9s` · total `12.9s`
 
-🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_notes,search_guides,read_guide_doc
+🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_notes
 
 ```
-Perfecto — esto es lo que anotamos sobre lo caro y los pases en Interlaken:
-
-- Nota nuestra *pinned*: **"Suiza caro"** — **CHF**, hacer picnic/ir al súper; **Jungfraujoch carísimo** (mirar Lauterbrunnen/Grindelwald en la guía).  
-- Pases: **Eurail** (ya comprado) cubre trenes SBB/BOB y barcos; **teleféricos y trenes de montaña van aparte con −25% con Eurail**.  
-- Alternativas: **Swiss Half Fare Card CHF 150 (1 mes)**; **Jungfrau Travel Pass CHF 210 / 3 días** (si vas full montaña); **Swiss Travel Pass desde CHF 254** no conviene.  
-- Regla práctica: usar **2–3 días de Eurail** en Suiza y comprar tickets sueltos para teleféricos.  
-
-📖 Más detalle: guía Transporte de Interlaken — http://localhost:3000/guias/interlaken/transporte
+- *Nota*: **"Suiza caro"** (Interlaken) — **CHF. Picnic/súper. Jungfraujoch carísimo — mirar Lauterbrunnen/Grindelwald en la guía.**
+- No hay anotación sobre **pases** (p. ej. Swiss Travel Pass) en nuestras notas.
+- Si querés, miramos la guía de Interlaken/Lauterbrunnen para ver opciones de excursiones y pases (no lo anotamos).
 ```
 
 ---
 
-## 7. Frases útiles Polonia (guía país) ✅
+## 7. Frases útiles Polonia (guía país) ❌
 
 **Id:** `frases-polonia` — reproducir con `--only frases-polonia`
 
 **Goal:** Pedidos de idioma: read/search polonia/frases-utiles, no inventar vocabulario.
 
-**Checks deterministas: ✅ pasan**
+**Checks deterministas: ❌ FALLAN**
+- todos los turnos son del canal viaje, fueron ['trip', 'qa']
 
 **Mirar:**
 - Turno 1: cita formas de la guía (p.ej. rachunek/proszę, dziękuję). FAIL si inventa frases que no están o responde en checo/húngaro.
@@ -334,13 +335,13 @@ Perfecto — esto es lo que anotamos sobre lo caro y los pases en Interlaken:
 **→** según nuestras frases útiles de Polonia, cómo pedimos la cuenta y cómo se dice gracias?
 *frases-utiles → rachunek / dziękuję*
 
-⏱ dispatch `7.7s` · total `7.7s`
+⏱ dispatch `14.8s` · total `14.8s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_guides,read_guide_doc
 
 ```
-- *La cuenta*: **Rachunek, proszę** (ra-JÚ-nek PRO-she).  
-- *Gracias*: **Dziękuję** (dyen-KÚ-ye) — informal **Dzięki** (DYEN-ki).
+- *La cuenta:* **Rachunek, proszę** (ra-JÚ-nek PRO-she)  
+- *Gracias:* **Dziękuję** (dyen-KÚ-ye) — informal: **Dzięki** (DYEN-ki)
 
 📖 Más: http://localhost:3000/guias/polonia/frases-utiles
 ```
@@ -350,16 +351,12 @@ Perfecto — esto es lo que anotamos sobre lo caro y los pases en Interlaken:
 **→** y hay algo ahí sobre saludar al entrar a un negocio?
 *follow-up frases · dzień dobry*
 
-⏱ dispatch `9.3s` · total `9.3s`
+⏱ dispatch `9.0s` · total `9.0s`
 
-🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
+🔍 intent=question · canal=qa · outcome=ok · tools=-
 
 ```
-Sí: la guía dice saludar al entrar.  
-- *Saludo*: **Dzień dobry** (buenos días) — usar al entrar a tiendas y restaurantes.  
-- En milk bars lo remarcan: entrar con *Dzień dobry* y ser formal/respetuoso.  
-
-📖 Más: http://localhost:3000/guias/polonia/costumbres
+Sí — en Austria es común saludar al entrar a un negocio. Lo más típico en Viena: decir "Grüß Gott" o "Servus" al entrar y un "Danke" al irse. En tiendas grandes o turistas no es obligatorio, pero se aprecia y suena bien. ¿Querés que te arme un mini listado de frases para usar?
 ```
 
 ---
@@ -383,17 +380,14 @@ Sí: la guía dice saludar al entrar.
 **→** qué anotamos de los baños en Budapest?
 *list_notes budapest*
 
-⏱ dispatch `6.5s` · total `6.5s`
+⏱ dispatch `9.0s` · total `9.0s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_notes
 
 ```
-Tenemos una nota sobre los baños en Budapest (pinned):
-
-- *Széchenyi / Gellért*: **comprar entrada ONLINE** (no reventa en la calle).  
-- *Pago*: **efectivo HUF** en OTP Bank.
-
-Eso es todo lo que anotamos sobre baños.
+Encontré nuestra nota *Baños Budapest* (pinned).  
+- **Széchenyi / Gellért**: comprar entrada **ONLINE** (no hay reventa en la calle).  
+- **Efectivo**: llevar **HUF**; cambiar/usar **OTP Bank**.
 ```
 
 ### katia
@@ -401,17 +395,14 @@ Eso es todo lo que anotamos sobre baños.
 **→** ok y según la guía de actividades, Széchenyi o Gellért — qué conviene?
 *budapest/actividades termales*
 
-⏱ dispatch `9.5s` · total `9.5s`
+⏱ dispatch `13.3s` · total `13.3s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
 
 ```
-Tenemos esa nota pinned:
-
-- *Széchenyi / Gellért*: **comprar entrada ONLINE**.  
-- *Pago*: **efectivo HUF** en OTP Bank.
-
-Pero la guía de actividades aclara que **Gellért está CERRADO hasta 2028**, así que conviene ir a *Széchenyi* (icono, piscinas exteriores; **~13,200 HUF** entre semana / **~14,800 HUF** finde).  
+Entonces: **Gellért está CERRADO hasta 2028**, así que no es opción.  
+- **Széchenyi** conviene para la experiencia icónica y fotos; precio aprox **~13,200 HUF (semana) / ~14,800 HUF (finde)**.  
+- Tips rápidos: traje de baño y chanclas, llevar **HUF**, preferir mañana entre semana para menos gente; comprar entrada **online**.  
 📖 Más: http://localhost:3000/guias/budapest/actividades
 ```
 
@@ -436,16 +427,12 @@ Pero la guía de actividades aclara que **Gellért está CERRADO hasta 2028**, a
 **→** después de acá, ¿a dónde vamos y cuándo llegamos?
 *snapshot próximas → Praga 28/9*
 
-⏱ dispatch `4.8s` · total `4.8s`
+⏱ dispatch `5.9s` · total `5.9s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=-
 
 ```
-Después de Viena vamos a:
-
-- **Praga** — llegada: *2026-09-28*  
-- **Cracovia** — llegada: *2026-10-03*  
-- **Budapest** — llegada: *2026-10-07*
+Después de acá vas para **Praga** — **llegan el 2026-09-28**; y después **Cracovia** — **llegan el 2026-10-03**; y luego **Budapest** — **llegan el 2026-10-07**.
 ```
 
 ### bruno
@@ -453,17 +440,18 @@ Después de Viena vamos a:
 **→** joya. en Praga, según la guía de transporte, ¿cómo nos movemos en la ciudad?
 *praga/transporte*
 
-⏱ dispatch `8.3s` · total `8.3s`
+⏱ dispatch `10.9s` · total `10.9s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
 
 ```
-Perfecto — según la guía de Transporte de Praga:
+Perfecto — según la guía de Praga:
 
-- Centro **muy caminable**; usar transporte para distancias largas o lluvia/cuestas.  
-- App **PID Lítačka** = lo más barato: **30 min 36 CZK / 90 min 42 CZK / 24h 140 CZK** (activar antes de subir).  
-- Red: **metro (A/B/C), tranvías** (22/23 suben al Castillo) y buses; **bus 119** conecta el aeropuerto (ticket 90 min sirve).  
-- Taxis: **Bolt / Uber / Liftago**; evitar taxis de calle y cajeros Euronet (DCC).
+- Centro **muy caminable**; usás transporte para distancias largas, cuestas o lluvia.  
+- Usar **PID Lítačka (app)**: tickets por tiempo **30 min 36 CZK / 90 min 42 CZK / 24h 140 CZK** (app más barato).  
+- Red: **metro (A/B/C)** + **tranvías** (los **22/23** suben al Castillo).  
+- Aeropuerto: **bus 119** → metro A o **bus 100** → B (todo con ticket 90 min) o **Airport Express (AE)** a Praha hl.n.  
+- Apps útiles: **PID Lítačka, Liftago, Bolt/Uber, ČD, RegioJet, Leo Express**.
 
 📖 Más: http://localhost:3000/guias/praga/transporte
 ```
@@ -490,16 +478,16 @@ Perfecto — según la guía de Transporte de Praga:
 **→** en Cracovia qué es un bar mleczny y cómo se pide según las costumbres?
 *polonia/costumbres milk bar*
 
-⏱ dispatch `9.6s` · total `9.6s`
+⏱ dispatch `13.2s` · total `13.2s`
 
-🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
+🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_guides,read_guide_doc
 
 ```
-Un *bar mleczny* es básicamente una **cantina subsidiada (\"milk bar\")** de la era comunista: comida casera polaca muy barata (almuerzo completo **15–25 PLN**, pierogi < **15 PLN**).  
-Cómo pedir / costumbres según la guía:  
-- Ir temprano: **antes de las 14:00** suelen agotarse platos.  
-- Mirás el menú (a veces en polaco) y pedís en la barra o al mostrador; Google Lens ayuda (la guía lo recomienda).  
-- Precio en efectivo o tarjeta; **propina ~10% si gustó**. OJO: no digas *“dziękuję”* al entregar el dinero porque en Polonia eso se interpreta como “quedate el cambio” — esperá el vuelto.  
+Un *bar mleczny* es una **cantina subvencionada** polaca de comida casera (pierogi, sopas, placki) — muy barata: **comida completa 15–25 PLN** (~€3-6).  
+Cómo pedir / costumbres en Cracovia:  
+- Ir **antes de las 14h** si querés variedad (se agotan platos).  
+- Pedís en mostrador o al mozo el **menú/sopa + plato + bebida**; muchos usan cartel/vidriera con los platos.  
+- Propina: **~10%** si gustó; atención cultural: **no digas “dziękuję”** hasta recibir el vuelto (decirlo puede interpretarse como “quedate el cambio”).  
 📖 Más: http://localhost:3000/guias/cracovia/gastronomia
 ```
 
@@ -508,16 +496,14 @@ Cómo pedir / costumbres según la guía:
 **→** ahí hace falta efectivo o va tarjeta? y a qué hora conviene ir?
 *follow-up cash + antes 14h*
 
-⏱ dispatch `10.4s` · total `10.4s`
+⏱ dispatch `14.4s` · total `14.4s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides,read_guide_doc
 
 ```
-Las guías no dicen nada sobre si aceptan **tarjeta** en los milk bars (no está especificado).  
-
-- Mejor llevar **algo de efectivo** por las dudas; la guía sí recomienda que los milk bars son muy baratos (15–25 PLN comida).  
-- **Hora:** ir temprano, ideal **antes de las 14:00** (almuerzo 12–15h; muchos platos se agotan).  
-- Tip práctico: **propina ~10%** si te gustó y no digas *“dziękuję”* al entregar el dinero hasta recibir el vuelto.  
+- **Efectivo:** las guías insisten en costumbres con dinero en mano (propina en efectivo; no decir “dziękuję” hasta recibir el vuelto) y los *bar mleczny* son muy baratos, así que **lleva efectivo** para estar cómodo.  
+- **Tarjeta:** *las guías no dicen nada* explícito sobre si los milk bars aceptan tarjeta.  
+- **Mejor hora:** **ir antes de las 14:00** (muchos platos se agotan).  
 📖 Más: http://localhost:3000/guias/cracovia/gastronomia
 ```
 
@@ -526,12 +512,12 @@ Las guías no dicen nada sobre si aceptan **tarjeta** en los milk bars (no está
 **→** ok gracias. al margen: ¿quién debe plata ahora?
 *cambio a finanzas → balance*
 
-⏱ dispatch `6.5s` · total `6.5s`
+⏱ dispatch `9.5s` · total `9.5s`
 
 🔍 intent=question · canal=qa · outcome=ok · tools=-
 
 ```
-💸 *katia* le debe *USD 3,3* a *bruno*.
+💸 Ahora: *USD 3,3* — *katia* le debe a *bruno*.
 ```
 
 ---
@@ -556,16 +542,18 @@ Las guías no dicen nada sobre si aceptan **tarjeta** en los milk bars (no está
 **→** ¿hay algo de Harry Potter para ver en Lisboa o en Porto?
 *multi-ciudad + sinónimo (ninguna guía dice 'Harry Potter')*
 
-⏱ dispatch `10.1s` · total `10.1s`
+⏱ dispatch `12.9s` · total `12.9s`
 
-🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_guides,search_guides,search_guides
+🔍 intent=trip_question · canal=trip · outcome=ok · tools=list_guides,search_guides
 
 ```
-Las guías no dicen nada de *Harry Potter* ni en **Lisboa** ni en **Porto**.
+Busqué “Harry Potter” en *Lisboa* y *Porto* y **las guías no dicen nada de eso**.
 
-- Revisé los docs de *Actividades* de ambas guías.
-- Si querés mirar vos: **Lisboa — Actividades** 📖 http://localhost:3000/guias/lisboa/actividades  
-- **Porto — Actividades** 📖 http://localhost:3000/guias/porto/actividades
+Si querés confirmarlo en los docs, fijate en:
+- *Actividades* de **Lisboa**
+- *Actividades* de **Porto**
+
+Si querés que los lea y te diga si hay algo related (por ejemplo, tours temáticos, tiendas o film locations bajo otro nombre), decime cuál doc y lo abro.
 ```
 
 ### katia
@@ -573,14 +561,16 @@ Las guías no dicen nada de *Harry Potter* ni en **Lisboa** ni en **Porto**.
 **→** ¿y cuánto sale entrar?
 *follow-up sobre el mismo lugar*
 
-⏱ dispatch `9.7s` · total `9.7s`
+⏱ dispatch `15.7s` · total `15.7s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_guides
 
 ```
-Revisé las guías buscando *Harry Potter* (todas) y **no hay nada sobre atracciones ni precios de entrada** en Lisboa ni en Porto.  
+No hay datos de precios: **las guías no dicen nada sobre entradas ni tarifas de Harry Potter** en Lisboa ni en Porto.
 
-- Las guías no dicen cuánto sale entrar ni mencionan lugares relacionados.
+Docs donde mirar (si querés que los abra): 
+- *Actividades* — **Lisboa**
+- *Actividades* — **Porto**
 ```
 
 ---
@@ -604,14 +594,17 @@ Revisé las guías buscando *Harry Potter* (todas) y **no hay nada sobre atracci
 **→** ¿dónde está el voucher del hostel de Viena?
 *documento, no guía*
 
-⏱ dispatch `5.7s` · total `5.7s`
+⏱ dispatch `8.6s` · total `8.6s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_documents
 
 ```
-- Está guardado como *Voucher Wombats Viena* (parada **Viena**).  
-- *Check-in 15:00*, código *8812* (según la nota).  
-- 📎 http://localhost:3000/api/documents/d-viena-hostel
+Lo tengo: *Voucher del hostel en Viena*.
+
+- *Archivo*: Voucher Wombats Viena  
+- *Dónde*: parada **Viena**  
+- *Notas*: *Check-in 15:00, código 8812*  
+- 📎 **http://localhost:3000/api/documents/d-viena-hostel**
 ```
 
 ### bruno
@@ -619,14 +612,16 @@ Revisé las guías buscando *Harry Potter* (todas) y **no hay nada sobre atracci
 **→** ¿y la entrada de Auschwitz la tenemos?
 *follow-up sobre otro documento, otra parada*
 
-⏱ dispatch `6.5s` · total `6.5s`
+⏱ dispatch `7.9s` · total `7.9s`
 
 🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_documents
 
 ```
-- Sí — *Entrada Auschwitz* guardada en la parada **Cracovia**.  
-- *Fecha y hora: 6-oct, 09:00* (slot) — nota: *educator*.  
-- 📎 http://localhost:3000/api/documents/d-auschwitz
+Lo tenemos: *Entrada Auschwitz*.
+
+- *Archivo*: **Entrada Auschwitz** (slot *6-oct 09:00*, *educator*)  
+- *Dónde*: parada **Cracovia**  
+- 📎 **http://localhost:3000/api/documents/d-auschwitz**
 ```
 
 ---
@@ -649,14 +644,14 @@ Revisé las guías buscando *Harry Potter* (todas) y **no hay nada sobre atracci
 **→** ¿tenemos guardado el pasaje de avión de vuelta?
 *no hay ningún documento de vuelo en el seed*
 
-⏱ dispatch `9.4s` · total `9.4s`
+⏱ dispatch `14.1s` · total `14.1s`
 
-🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_documents,search_documents
+🔍 intent=trip_question · canal=trip · outcome=ok · tools=search_documents
 
 ```
-No, **no tenemos guardado el pasaje de avión de vuelta** en nuestros documentos.  
-Lo busqué con los términos *"pasaje de avión de vuelta"* y *"vuelo vuelta"* y no salió nada.  
-Si querés que intente con otro nombre exacto (compañía, número de reserva) decime cuál.
+Busqué "pasaje de avión de vuelta" en nuestros documentos y **no hay nada guardado**.  
+En el viaje tenemos **4 documentos** guardados en total, pero ninguno coincide.  
+Si tenés la **aerolínea o la fecha exacta** decímela y lo vuelvo a buscar.
 ```
 
 ---
@@ -679,21 +674,21 @@ Si querés que intente con otro nombre exacto (compañía, número de reserva) d
 **→** anotá que el hostel de Praga pide efectivo para el depósito
 *trip_note con ciudad explícita*
 
-⏱ dispatch `5.1s` · total `5.1s`
+⏱ dispatch `4.3s` · total `4.3s`
 
 🔍 intent=trip_note · tools=-
 
 ```
 📝 *Nota*
 
-*Hostel: depósito en efectivo*
+*Hostel: depósito efectivo*
 El hostel de Praga pide efectivo para el depósito
 📍 Praga
 
 _¿Guardo esto?_
 [botones]
-  · Guardar 📝  (`note_save:hEuLQ_d99Ca5XukJu5YI02jo`)
-  · Cancelar  (`note_cancel:hEuLQ_d99Ca5XukJu5YI02jo`)
+  · Guardar 📝  (`note_save:s3yExy5O9mg5lYuQIXjFxUiy`)
+  · Cancelar  (`note_cancel:s3yExy5O9mg5lYuQIXjFxUiy`)
 ```
 
 ---
@@ -716,7 +711,7 @@ _¿Guardo esto?_
 **→** tomá nota: el free tour sale 11am de la plaza
 *sin ciudad → resolve_place con hoy*
 
-⏱ dispatch `3.3s` · total `3.3s`
+⏱ dispatch `4.2s` · total `4.2s`
 
 🔍 intent=trip_note · tools=-
 
@@ -729,8 +724,8 @@ El free tour sale 11am de la plaza
 
 _¿Guardo esto?_
 [botones]
-  · Guardar 📝  (`note_save:9aY4R6Rv_wg6TX49Z72Zn68Q`)
-  · Cancelar  (`note_cancel:9aY4R6Rv_wg6TX49Z72Zn68Q`)
+  · Guardar 📝  (`note_save:6h-2pfSrT48rbAVnWnjzf1N_`)
+  · Cancelar  (`note_cancel:6h-2pfSrT48rbAVnWnjzf1N_`)
 ```
 
 ---
@@ -753,7 +748,7 @@ _¿Guardo esto?_
 **→** anotá que el hostel de Cracovia cobra 20 zloty de depósito en efectivo
 *trip_note con monto y moneda — NO es expense*
 
-⏱ dispatch `3.2s` · total `3.2s`
+⏱ dispatch `4.7s` · total `4.7s`
 
 🔍 intent=trip_note · tools=-
 
@@ -766,8 +761,8 @@ El hostel de Cracovia cobra 20 zloty de depósito en efectivo
 
 _¿Guardo esto?_
 [botones]
-  · Guardar 📝  (`note_save:3Gz1d_qEJrEWtrIKxuQmvCFM`)
-  · Cancelar  (`note_cancel:3Gz1d_qEJrEWtrIKxuQmvCFM`)
+  · Guardar 📝  (`note_save:beTlpJHbkYsM46vpqLsDuPtE`)
+  · Cancelar  (`note_cancel:beTlpJHbkYsM46vpqLsDuPtE`)
 ```
 
 ---
@@ -776,35 +771,35 @@ _¿Guardo esto?_
 
 | # | Escenario | Turno | Quién | dispatch_s | total_s |
 |---:|---|---:|---|---:|---:|
-| 1 | Viena deíctica + follow-up day-trip | 1 | bruno | 12.3 | 12.3 |
-| 1 | Viena deíctica + follow-up day-trip | 2 | bruno | 8.7 | 8.7 |
-| 2 | Polonia: domingo + dziękuję (guía país + notas) | 1 | katia | 11.2 | 11.2 |
-| 2 | Polonia: domingo + dziękuję (guía país + notas) | 2 | katia | 8.4 | 8.4 |
-| 3 | Auschwitz: nota propia + precio de la guía | 1 | bruno | 7.5 | 7.5 |
-| 3 | Auschwitz: nota propia + precio de la guía | 2 | bruno | 7.6 | 7.7 |
-| 4 | Praga comida → propina (cross-doc + nota) | 1 | katia | 9.2 | 9.2 |
-| 4 | Praga comida → propina (cross-doc + nota) | 2 | katia | 6.6 | 6.6 |
-| 5 | Cambio de canal: guía → plata | 1 | bruno | 6.6 | 6.6 |
-| 5 | Cambio de canal: guía → plata | 2 | bruno | 7.9 | 7.9 |
-| 6 | Grounding negativo + Suiza caro | 1 | katia | 11.7 | 11.7 |
-| 6 | Grounding negativo + Suiza caro | 2 | katia | 13.1 | 13.1 |
-| 7 | Frases útiles Polonia (guía país) | 1 | bruno | 7.7 | 7.7 |
-| 7 | Frases útiles Polonia (guía país) | 2 | bruno | 9.3 | 9.3 |
-| 8 | Budapest: nota baños + guía termales | 1 | katia | 6.5 | 6.5 |
-| 8 | Budapest: nota baños + guía termales | 2 | katia | 9.5 | 9.5 |
-| 9 | Próxima parada → transporte Praga | 1 | bruno | 4.8 | 4.8 |
-| 9 | Próxima parada → transporte Praga | 2 | bruno | 8.3 | 8.3 |
-| 10 | Bar mleczny + efectivo PLN (3 turnos) | 1 | katia | 9.6 | 9.6 |
-| 10 | Bar mleczny + efectivo PLN (3 turnos) | 2 | katia | 10.4 | 10.4 |
-| 10 | Bar mleczny + efectivo PLN (3 turnos) | 3 | katia | 6.5 | 6.5 |
-| 11 | Harry Potter en Lisboa o Porto (multi-ciudad + sinónimos) | 1 | katia | 10.1 | 10.1 |
-| 11 | Harry Potter en Lisboa o Porto (multi-ciudad + sinónimos) | 2 | katia | 9.7 | 9.7 |
-| 12 | Dónde está el voucher del hostel | 1 | bruno | 5.7 | 5.7 |
-| 12 | Dónde está el voucher del hostel | 2 | bruno | 6.5 | 6.5 |
-| 13 | Documento que no existe | 1 | katia | 9.4 | 9.4 |
-| 14 | Dictar una nota con parada explícita | 1 | bruno | 5.1 | 5.1 |
-| 15 | Nota sin ciudad → parada de hoy | 1 | katia | 3.3 | 3.3 |
-| 16 | Nota que menciona plata | 1 | bruno | 3.2 | 3.2 |
+| 1 | Viena deíctica + follow-up day-trip | 1 | bruno | 22.3 | 22.3 |
+| 1 | Viena deíctica + follow-up day-trip | 2 | bruno | 13.8 | 13.8 |
+| 2 | Polonia: domingo + dziękuję (guía país + notas) | 1 | katia | 13.3 | 13.3 |
+| 2 | Polonia: domingo + dziękuję (guía país + notas) | 2 | katia | 11.1 | 11.1 |
+| 3 | Auschwitz: nota propia + precio de la guía | 1 | bruno | 12.9 | 12.9 |
+| 3 | Auschwitz: nota propia + precio de la guía | 2 | bruno | 13.0 | 13.1 |
+| 4 | Praga comida → propina (cross-doc + nota) | 1 | katia | 13.0 | 13.0 |
+| 4 | Praga comida → propina (cross-doc + nota) | 2 | katia | 11.1 | 11.1 |
+| 5 | Cambio de canal: guía → plata | 1 | bruno | 8.6 | 8.6 |
+| 5 | Cambio de canal: guía → plata | 2 | bruno | 8.9 | 8.9 |
+| 6 | Grounding negativo + Suiza caro | 1 | katia | 10.6 | 10.6 |
+| 6 | Grounding negativo + Suiza caro | 2 | katia | 12.9 | 12.9 |
+| 7 | Frases útiles Polonia (guía país) | 1 | bruno | 14.8 | 14.8 |
+| 7 | Frases útiles Polonia (guía país) | 2 | bruno | 9.0 | 9.0 |
+| 8 | Budapest: nota baños + guía termales | 1 | katia | 9.0 | 9.0 |
+| 8 | Budapest: nota baños + guía termales | 2 | katia | 13.3 | 13.3 |
+| 9 | Próxima parada → transporte Praga | 1 | bruno | 5.9 | 5.9 |
+| 9 | Próxima parada → transporte Praga | 2 | bruno | 10.9 | 10.9 |
+| 10 | Bar mleczny + efectivo PLN (3 turnos) | 1 | katia | 13.2 | 13.2 |
+| 10 | Bar mleczny + efectivo PLN (3 turnos) | 2 | katia | 14.4 | 14.4 |
+| 10 | Bar mleczny + efectivo PLN (3 turnos) | 3 | katia | 9.5 | 9.5 |
+| 11 | Harry Potter en Lisboa o Porto (multi-ciudad + sinónimos) | 1 | katia | 12.9 | 12.9 |
+| 11 | Harry Potter en Lisboa o Porto (multi-ciudad + sinónimos) | 2 | katia | 15.7 | 15.7 |
+| 12 | Dónde está el voucher del hostel | 1 | bruno | 8.6 | 8.6 |
+| 12 | Dónde está el voucher del hostel | 2 | bruno | 7.9 | 7.9 |
+| 13 | Documento que no existe | 1 | katia | 14.1 | 14.1 |
+| 14 | Dictar una nota con parada explícita | 1 | bruno | 4.3 | 4.3 |
+| 15 | Nota sin ciudad → parada de hoy | 1 | katia | 4.2 | 4.2 |
+| 16 | Nota que menciona plata | 1 | bruno | 4.7 | 4.7 |
 
 ```bash
 cd backend
