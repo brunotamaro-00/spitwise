@@ -22,10 +22,6 @@ _CONF_THRESHOLD = 0.6
 _BATCH_MAX = 10  # más que esto huele a alucinación del parser (y revienta el mensaje)
 
 
-def _cat_names() -> list[str]:
-    return [c[0] for c in CATEGORIES]
-
-
 async def load_categories(session: AsyncSession) -> list[tuple[str, str | None]]:
     """(name, description) desde la DB, en orden estable — para el prompt del parser."""
     rows = (await session.execute(
@@ -52,10 +48,6 @@ async def _category_id(session: AsyncSession, name: str | None) -> int | None:
     if not name:
         return None
     return (await session.execute(select(Category.id).where(Category.name == name))).scalar_one_or_none()
-
-
-# Alias histórico: la política vive en app/fx.py, único dueño del mapeo.
-_map_source = map_fx_source
 
 
 async def all_users(session: AsyncSession) -> list[User]:
@@ -267,7 +259,7 @@ async def _persist(session, *, payer, parsed, amount_usd, rate, src, stop_slug, 
     mv = Movement(
         type="settlement" if parsed.is_settlement else "expense",
         amount=parsed.amount, currency=parsed.currency, amount_usd=amount_usd,
-        fx_rate=rate, fx_source=_map_source(src, parsed.currency), paid_by=payer.id, split=parsed.split,
+        fx_rate=rate, fx_source=map_fx_source(src, parsed.currency), paid_by=payer.id, split=parsed.split,
         description=parsed.description, category_id=cat_id, stop_slug=stop_slug, city_name=city_name,
         payment_date=parsed.payment_date, status=status,
         cashback_kind=parsed.cashback_kind, cashback_value=parsed.cashback_value,
@@ -284,7 +276,7 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
         from app.llm.parser import parse_message
         users = await all_users(session)
         parsed = await parse_message(
-            text, today=today, category_names=_cat_names(),
+            text, today=today, categories=await load_categories(session),
             usernames=[u.username for u in users], sender=user.username, client=llm_client,
             city_names=await load_city_names(session),
         )
@@ -389,7 +381,7 @@ async def handle_capture(session, user: User, wa_id: str, text: str, today: date
     if not parsed.is_settlement and parsed.confidence < _CONF_THRESHOLD and len(parsed.category_candidates) >= 2:
         payload = {
             "amount": str(parsed.amount), "currency": parsed.currency, "amount_usd": str(amount_usd),
-            "fx_rate": str(rate), "fx_source": _map_source(src, parsed.currency), "split": parsed.split,
+            "fx_rate": str(rate), "fx_source": map_fx_source(src, parsed.currency), "split": parsed.split,
             "description": parsed.description, "stop_slug": stop_slug, "city_name": city_name,
             "payment_date": parsed.payment_date.isoformat() if parsed.payment_date else None,
             "status": status,
@@ -481,7 +473,7 @@ async def handle_capture_batch(session, user: User, wa_id: str, text: str, today
         mv = Movement(
             type="settlement" if item.is_settlement else "expense",
             amount=item.amount, currency=currency, amount_usd=amount_usd,
-            fx_rate=rate, fx_source=_map_source(src, currency), paid_by=payer.id,
+            fx_rate=rate, fx_source=map_fx_source(src, currency), paid_by=payer.id,
             split=split, description=item.description, category_id=cat_id,
             stop_slug=stop_slug, city_name=city_name,
             payment_date=item.payment_date, status=status,
@@ -524,7 +516,7 @@ async def _repriced_pending(session, data: dict, amount: Decimal, cb_kind, cb_va
     )
     if src == "fallback" and data.get("fx_source") != "fallback":
         return snapshot
-    return amount_usd, rate, _map_source(src, currency)
+    return amount_usd, rate, map_fx_source(src, currency)
 
 
 async def apply_category_pick(session, user: User, token: str, category_id: int,

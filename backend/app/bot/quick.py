@@ -12,7 +12,7 @@ from app.api.city_analytics import _itinerary_days
 from app.balance import compute_balance
 from app.bot import copy
 from app.bot.capture import all_users
-from app.bot.editor import _fold
+from app.textnorm import fold
 from app.bot.render import BotReply, balance_card, text_reply, trip_card
 from app.db.models import Movement, User
 from app.spend import user_share
@@ -28,7 +28,7 @@ _PUNCT = "¿?¡!."
 
 def route(text: str) -> str | None:
     """'balance' | 'total' si el mensaje es un comando rápido."""
-    t = _fold(text).strip().strip(_PUNCT).strip()
+    t = fold(text).strip().strip(_PUNCT).strip()
     if t in _BALANCE:
         return "balance"
     if t in _TOTAL:
@@ -54,7 +54,7 @@ def ledger_signal(text: str) -> bool:
     Se usa para rutear un `unknown` sin intent claro: sin esto, "¿y cuánto
     llevamos gastado?" después de una charla de guías caía en el agente de
     guías, que no tiene tools para responderlo y termina redirigiendo."""
-    words = {w for w in re.split(r"[^0-9a-z]+", _fold(text)) if w}
+    words = {w for w in re.split(r"[^0-9a-z]+", fold(text)) if w}
     return bool(_LEDGER_WORDS & words)
 
 

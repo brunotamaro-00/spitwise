@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import copy
 from app.bot.capture import (
-    _category_id, _map_source, other_user, owner_split, resolve_place, user_by_username,
+    _category_id, other_user, owner_split, resolve_place, user_by_username,
 )
 from app.bot.pending import close_pending, create_pending, load_pending, new_token
 from app.bot.render import (
@@ -141,15 +141,11 @@ async def describe_recent(session: AsyncSession, mv: Movement) -> str:
     return " · ".join(parts)
 
 
-# Alias histórico: el folding vive en app/textnorm.py.
-_fold = fold
-
-
 def _score(mv: Movement, ref_tokens: set[str]) -> int:
     """La descripción pesa más que ciudad/raw: los hermanos de un batch comparten
     raw_message ('cena 40, taxi 12…') y empatarían solo por él."""
-    desc = _fold(mv.description or "")
-    rest = _fold(f"{mv.city_name or ''} {mv.raw_message or ''}")
+    desc = fold(mv.description or "")
+    rest = fold(f"{mv.city_name or ''} {mv.raw_message or ''}")
     return sum(3 if t in desc else (1 if t in rest else 0) for t in ref_tokens)
 
 
@@ -178,7 +174,7 @@ async def find_candidates(session: AsyncSession, *, ref_last: bool, ref_text: st
     # por texto va primero aunque el parser también haya marcado ref_last. El
     # último queda como fallback (ref_last o sin match usable).
     if ref_text:
-        ref_tokens = {t for t in _fold(ref_text).split() if len(t) > 2}
+        ref_tokens = {t for t in fold(ref_text).split() if len(t) > 2}
         if ref_tokens:
             scored = [(m, _score(m, ref_tokens)) for m in movements]
             best = max(s for _, s in scored)

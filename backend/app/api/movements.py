@@ -22,10 +22,6 @@ router = APIRouter(prefix="/movements", tags=["movements"])
 _TWO = Decimal("0.01")
 
 
-# Alias histórico: la política vive en app/fx.py, único dueño del mapeo.
-_map_source = map_fx_source
-
-
 async def _load_today(session: AsyncSession, username: str | None = None):
     tz = await resolve_trip_timezone(session, username)
     return today_in_tz(tz)
@@ -92,7 +88,7 @@ async def create_movement(
         amount_usd, rate, src = await convert_to_usd(
             session, net, body.currency, fx_reference_date(payment_date, today)
         )
-        fx_source = _map_source(src, body.currency)
+        fx_source = map_fx_source(src, body.currency)
 
     # Paradas con dueño (Pititas/Portugal): el gasto es de esa persona por
     # default, igual que por el bot. Estaba solo en el camino de WhatsApp, así
