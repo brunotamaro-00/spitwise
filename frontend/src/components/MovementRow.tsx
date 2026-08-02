@@ -107,7 +107,7 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
         <button
           onClick={() => onOpen(mv)}
           aria-label={`Ver detalle de ${mv.description || "movimiento"}`}
-          className="-mx-2 flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-surface-2/60 focus-ring-inset"
+          className="-mx-2 flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2 py-3 text-left transition-[background-color,transform] hover:bg-surface-2/60 active:scale-[0.99] focus-ring-inset"
         >
           {body}
         </button>

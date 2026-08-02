@@ -317,7 +317,7 @@ export default function Movements() {
             description="Tocá el botón + para cargar el primer gasto del viaje." />
         </Card>
         ) : filtered.length === 0 ? (
-        <Card>
+        <Card className="animate-fade-in">
           <EmptyState icon={SearchX} title="Nada coincide"
             description="Ningún movimiento coincide con los filtros aplicados."
             action={
@@ -327,7 +327,9 @@ export default function Movements() {
             } />
         </Card>
         ) : (
-        <div className="flex flex-col gap-4">
+        // key por firma de filtros: al cambiar un filtro la lista re-entra con
+        // un fade corto en vez de un swap seco (reduced-motion la apaga).
+        <div key={JSON.stringify(f)} className="animate-fade-in flex flex-col gap-4">
           {groups.map((g) => (
             <section key={g.date}>
               <h2 className="mb-1.5 flex items-baseline justify-between gap-2 px-1">

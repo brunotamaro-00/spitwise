@@ -274,7 +274,7 @@ function CityRow({ c, onEdit }: { c: CityBudget; onEdit: () => void }) {
       type="button"
       onClick={onEdit}
       aria-label={`Editar el plan de ${c.city_name}`}
-      className="focus-ring-inset flex w-full min-h-[56px] cursor-pointer flex-col gap-1.5 border-b border-border py-3 text-left transition-colors last:border-0 hover:bg-surface-2/60"
+      className="focus-ring-inset flex w-full min-h-[56px] cursor-pointer flex-col gap-1.5 border-b border-border py-3 text-left transition-[background-color,transform] last:border-0 hover:bg-surface-2/60 active:scale-[0.99]"
     >
       <div className="flex w-full items-center gap-3">
         <div className="min-w-0 flex-1">
