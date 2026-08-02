@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, BedDouble, ExternalLink, MapPin, Receipt, TrendingUp, UtensilsCrossed } from "lucide-react";
 import { motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { errorDetail } from "@/api/client";
@@ -118,6 +118,22 @@ export default function Cities() {
     () => Object.fromEntries(cities.map((c) => [c.stop_slug, c])) as Record<string, CityPace>,
     [cities],
   );
+
+  // Slugs que ya no existen (parada borrada en Andiamo, deep-link viejo del bot,
+  // marcador de una ciudad renombrada) se sacan de la selección en cuanto hay
+  // itinerario con qué comparar. Sin esto la página quedaba con el hero titulado
+  // con el slug crudo ("no-existe · USD 0") y los tres KPI en skeleton PARA
+  // SIEMPRE: `singlePace` nunca llegaba, así que el `ready` no se cumplía nunca.
+  // Se corrige la URL, no solo la vista: el marcador queda sano para la próxima.
+  useEffect(() => {
+    if (!pace || selected.length === 0) return;
+    const known = new Set([...cities.map((c) => c.stop_slug), ...stops.map((s) => s.slug)]);
+    const valid = selected.filter((s) => known.has(s));
+    if (valid.length === selected.length) return;
+    const p = new URLSearchParams();
+    for (const s of valid) p.append("c", s);
+    setParams(p, { replace: true });
+  }, [pace, cities, stops, selected, setParams]);
 
   function toggle(slug: string) {
     const next = new Set(selected);
