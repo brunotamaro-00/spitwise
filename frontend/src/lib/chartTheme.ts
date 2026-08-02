@@ -34,25 +34,30 @@ export type CategoryMeta = {
  *  Salud↔Otros ΔE 6.4 (deutan), dentro de la banda 6–8 que exige encoding
  *  secundario: toda superficie que pinta color acá lo acompaña con ícono + label
  *  (leyenda del donut, chips, filas) y el donut suma tooltip por gajo, así que el
- *  color nunca es el único canal de identidad. Estos mismos valores viven como
- *  tokens --color-accent-* en index.css: UI y charts comparten una sola verdad. */
+ *  color nunca es el único canal de identidad.
+ *
+ *  Los colores son referencias var() a los tokens --color-accent-* de index.css
+ *  (los hex viven SOLO ahí): antes estaban duplicados acá y ya driftearon una
+ *  vez (FALLBACK_SERIES quedó en el ink-3 viejo cuando el token se corrigió por
+ *  contraste). SVG acepta var() en fill/stroke — el stroke del donut ya lo usaba.
+ *  chartTheme.test.ts verifica que cada token referenciado exista en index.css. */
 export const CATEGORY_META = {
-  Alojamiento: { icon: BedDouble, color: "#C44428", bg: "var(--color-brick-bg)" },
-  Comida: { icon: UtensilsCrossed, color: "#2E6FBF", bg: "var(--color-accent-blue-bg)" },
-  Cafetería: { icon: Coffee, color: "#96530D", bg: "var(--color-accent-brown-bg)" },
-  Supermercado: { icon: ShoppingCart, color: "#C2185B", bg: "var(--color-accent-pink-bg)" },
-  Transporte: { icon: Bus, color: "#A67F2A", bg: "var(--color-accent-amber-bg)" },
-  Actividades: { icon: Ticket, color: "#0B8F80", bg: "var(--color-accent-teal-bg)" },
-  Compras: { icon: ShoppingBag, color: "#8E3D88", bg: "var(--color-accent-plum-bg)" },
-  Salidas: { icon: Wine, color: "#55902F", bg: "var(--color-accent-green-bg)" },
-  Lavandería: { icon: WashingMachine, color: "#B0327C", bg: "var(--color-accent-rose-bg)" },
-  Salud: { icon: HeartPulse, color: "#0F86B0", bg: "var(--color-accent-cyan-bg)" },
-  Otros: { icon: Tag, color: "#7A5AC4", bg: "var(--color-accent-indigo-bg)" },
+  Alojamiento: { icon: BedDouble, color: "var(--color-brick)", bg: "var(--color-brick-bg)" },
+  Comida: { icon: UtensilsCrossed, color: "var(--color-accent-blue)", bg: "var(--color-accent-blue-bg)" },
+  Cafetería: { icon: Coffee, color: "var(--color-accent-brown)", bg: "var(--color-accent-brown-bg)" },
+  Supermercado: { icon: ShoppingCart, color: "var(--color-accent-pink)", bg: "var(--color-accent-pink-bg)" },
+  Transporte: { icon: Bus, color: "var(--color-accent-amber)", bg: "var(--color-accent-amber-bg)" },
+  Actividades: { icon: Ticket, color: "var(--color-accent-teal)", bg: "var(--color-accent-teal-bg)" },
+  Compras: { icon: ShoppingBag, color: "var(--color-accent-plum)", bg: "var(--color-accent-plum-bg)" },
+  Salidas: { icon: Wine, color: "var(--color-accent-green)", bg: "var(--color-accent-green-bg)" },
+  Lavandería: { icon: WashingMachine, color: "var(--color-accent-rose)", bg: "var(--color-accent-rose-bg)" },
+  Salud: { icon: HeartPulse, color: "var(--color-accent-cyan)", bg: "var(--color-accent-cyan-bg)" },
+  Otros: { icon: Tag, color: "var(--color-accent-indigo)", bg: "var(--color-accent-indigo-bg)" },
 } satisfies Record<string, CategoryMeta>;
 
-export const FALLBACK_SERIES = "#857F74"; // = --color-ink-3: sin categoría
+export const FALLBACK_SERIES = "var(--color-ink-3)"; // sin categoría / serie apagada
 
-export const ACCENT = "#C44428"; // brick: serie única (barras, línea)
+export const ACCENT = "var(--color-brick)"; // brick: serie única (barras, línea)
 export const GRID = "var(--color-border)"; // grilla tenue, tokenizada
 export const TICK = { fill: "var(--color-ink-3)", fontSize: 12 } as const;
 
