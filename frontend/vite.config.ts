@@ -11,7 +11,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       manifest: false, // usamos el manifest.webmanifest estático de public/
       workbox: {
-        globPatterns: ["**/*.{js,css,html,woff2,png,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,woff2,png,svg,webmanifest}"],
         navigateFallbackDenylist: [/^\/api\//, /^\/webhooks\//],
       },
     }),
