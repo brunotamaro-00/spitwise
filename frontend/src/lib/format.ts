@@ -96,10 +96,32 @@ export function sanitizeAmountInput(s: string): string {
   return t.slice(0, comma + 1) + decimals.slice(0, 2);
 }
 
+/** Puntos usados como separador de MILES, sin coma decimal a la vista:
+ *  grupos de 3 dígitos exactos ("1.500", "12.500", "1.234.500"). Es la única
+ *  forma en que el punto no es ambiguo — "20.50" (grupo de 2) sigue leyéndose
+ *  como decimal, que es el hábito en-US que también hay que respetar. */
+const THOUSANDS_ONLY = /^\d{1,3}(\.\d{3})+$/;
+
 /** Normaliza lo tipeado por el usuario a decimal con punto para el backend.
- *  Acepta coma decimal ("20,50") y miles con punto ("1.234,50"). */
+ *  Acepta coma decimal ("20,50") y miles con punto ("1.234,50").
+ *
+ *  Sin la regla de miles, tipear "1.500" (el separador de es-AR, que el
+ *  teclado del celu ofrece igual que la coma) mandaba `1.5` al backend: un
+ *  gasto de mil quinientos entraba como uno cincuenta, en silencio y sin
+ *  error que lo delate. */
 export function normalizeAmountInput(s: string): string {
   const t = s.trim();
   if (t.includes(",")) return t.replace(/\./g, "").replace(",", ".");
+  if (THOUSANDS_ONLY.test(t)) return t.replace(/\./g, "");
   return t;
+}
+
+/** ¿El texto tipeado es un monto de plata usable (número finito y > 0)?
+ *  Frena del lado del cliente lo que el backend rechaza con `Field(gt=0)`:
+ *  sin esto, cargar `0` daba un round-trip que volvía con el texto crudo de
+ *  Pydantic ("Input should be greater than 0") dentro de un sheet en
+ *  castellano. */
+export function isValidAmountInput(s: string): boolean {
+  const n = Number(normalizeAmountInput(s));
+  return Number.isFinite(n) && n > 0;
 }

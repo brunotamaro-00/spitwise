@@ -13,7 +13,7 @@ import Modal from "@/components/ui/Modal";
 import Segmented from "@/components/ui/Segmented";
 import { useToast } from "@/components/ui/Toast";
 import { categoryBg, categoryColor, categoryIcon } from "@/lib/chartTheme";
-import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue, todayLocal } from "@/lib/format";
+import { capitalize, isValidAmountInput, normalizeAmountInput, sanitizeAmountInput, toInputValue, todayLocal } from "@/lib/format";
 import { invalidateLedger } from "@/lib/queryClient";
 import { stopForDate } from "@/lib/stops";
 import { useMe } from "@/lib/useMe";
@@ -155,10 +155,12 @@ export default function AddMovementDialog({ editing, onClose }: {
     e.preventDefault();
     setErr(null);
     setAmountErr(null);
-    if (!amount || Number.isNaN(Number(normalizeAmountInput(amount)))) {
+    if (!isValidAmountInput(amount)) {
       // El mensaje va pegado al campo y el foco vuelve ahí: el sheet puede estar
       // scrolleado y un error al pie no se ve (el Monto está arriba de todo).
-      setAmountErr("Ingresá un monto válido.");
+      // Incluye el 0 y los negativos: el backend los rechaza con `Field(gt=0)`
+      // y la respuesta cruda de Pydantic viene en inglés.
+      setAmountErr("Ingresá un monto mayor a cero.");
       firstRef.current?.focus();
       return;
     }

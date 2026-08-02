@@ -5,6 +5,7 @@ import {
   formatDayHeader,
   formatShortDate,
   formatUsd,
+  isValidAmountInput,
   isZeroMoney,
   normalizeAmountInput,
   parseMoney,
@@ -41,6 +42,28 @@ describe("format", () => {
     expect(normalizeAmountInput("20,50")).toBe("20.50");
     expect(normalizeAmountInput("1.234,50")).toBe("1234.50");
     expect(normalizeAmountInput("20.50")).toBe("20.50");
+  });
+  // El bug que arregla: "1.500" (separador de miles de es-AR, sin coma) se
+  // mandaba como 1.5 y el gasto entraba mil veces más chico, sin error visible.
+  it("normalizeAmountInput lee el punto como miles solo en grupos de 3", () => {
+    expect(normalizeAmountInput("1.500")).toBe("1500");
+    expect(normalizeAmountInput("12.500")).toBe("12500");
+    expect(normalizeAmountInput("1.234.500")).toBe("1234500");
+    // Grupos que no son de 3 dígitos siguen siendo decimales (hábito en-US).
+    expect(normalizeAmountInput("20.50")).toBe("20.50");
+    expect(normalizeAmountInput("20.5")).toBe("20.5");
+    expect(normalizeAmountInput("0.75")).toBe("0.75");
+    // Con coma decimal manda la coma, pase lo que pase con los puntos.
+    expect(normalizeAmountInput("1.500,25")).toBe("1500.25");
+  });
+  it("isValidAmountInput rechaza vacío, cero y negativos", () => {
+    expect(isValidAmountInput("20,50")).toBe(true);
+    expect(isValidAmountInput("1.500")).toBe(true);
+    expect(isValidAmountInput("")).toBe(false);
+    expect(isValidAmountInput("0")).toBe(false);
+    expect(isValidAmountInput("0,00")).toBe(false);
+    expect(isValidAmountInput(",")).toBe(false);
+    expect(isValidAmountInput("-5")).toBe(false);
   });
   it("sanitizeAmountInput filtra símbolos y limita a 2 decimales tras la coma", () => {
     expect(sanitizeAmountInput("20a,5!0")).toBe("20,50");

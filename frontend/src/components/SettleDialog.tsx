@@ -8,7 +8,7 @@ import Button from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { capitalize, normalizeAmountInput, sanitizeAmountInput, toInputValue } from "@/lib/format";
+import { capitalize, isValidAmountInput, normalizeAmountInput, sanitizeAmountInput, toInputValue } from "@/lib/format";
 import { invalidateLedger } from "@/lib/queryClient";
 import type { Balance } from "@/types";
 
@@ -56,9 +56,8 @@ export default function SettleDialog({ balance, onClose }: {
   function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setErr(null);
-    const normalized = normalizeAmountInput(amount);
-    if (!normalized || Number.isNaN(Number(normalized)) || Number(normalized) <= 0) {
-      setErr("Ingresá un monto válido en USD.");
+    if (!isValidAmountInput(amount)) {
+      setErr("Ingresá un monto mayor a cero en USD.");
       return;
     }
     if (!paidBy) {
