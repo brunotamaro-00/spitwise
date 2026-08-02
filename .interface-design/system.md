@@ -76,9 +76,34 @@ espresso. Firma de marca: el "trail" de puntitos del escupitajo del logo (`.spit
 
 ## Medidas de referencia
 
-- `Button` md — min-h 44px · px-16px · radio lg · 15px/600. `sm` — 36px · px-12px.
+- `Button` md — min-h 44px · px-16px · radio lg · text-entry/600 (+ `loading`/`loadingLabel`;
+  `buttonClasses()` para links-CTA). `sm` — 36px · px-12px.
+- `Badge` md — px-8 py-2 text-meta/700 pill · sm — px-6 text-fine. Tonos neutral/teal/amber/brick
+  (tinte suave + texto -ink; nunca rojo: informa, no alarma). `CountBadge` — h-5/h-4 sólido.
+- `SectionHeader` — text-sm/700 (o `quiet` = text-xs/500 ink-3 para charts) + ícono 28px
+  tintado + `hint`/`action` a la derecha; `as` fija h2/h3.
+- `Hero` — superficie brick-gradient + spit-dots + sheen; padding lg (p-6/7) o md (p-5);
+  `eyebrow` uppercase tracking-eyebrow; `loading` = skeletons blancos sobre el gradiente.
 - Bottom nav tab — min-h 56px; FAB 56×56 a `safe-area + 4.75rem`.
+- Tap targets ≥44px (Toast usa expansor `before:-inset-2.5`); mínimo duro 40px.
 - Verificación visual: SIEMPRE viewport iPhone 17 (402×874 CSS px, DPR 3, mobile UA).
+
+## Escala tipográfica (tokens `--text-*`)
+
+`fine` 10px · `meta` 11px (caballo de batalla) · `xs` 12 y `sm` 14 (default Tailwind) ·
+`note` 13px · `entry` 15px · `wordmark` 1.8rem · `title` 1.9rem · `splash` 2.5rem.
+Tracking: `display` −0.02em (Anton grande) · `caps` 0.08em · `eyebrow` 0.14em.
+El −0.035em del Wordmark es spec del logo (vive en Brand.tsx, no es token).
+**Al sumar un token `--text-*`/`--tracking-*`: registrarlo también en `lib/cn.ts`**
+(twMerge lo clasificaría como color y pisa `text-white` — bug real cazado por tests).
+
+## Anti-drift
+
+- Charts: `chartTheme.ts` referencia colores por `var(--color-*)`; los hex viven SOLO en
+  `index.css`. `chartTheme.test.ts` falla si una referencia cuelga o si vuelve un hex.
+- Motion: springs de superficie = `SPRING_POP`/`SPRING_SLIDE` (lib/motion.ts); los
+  gestuales (drag del Modal, FAB) quedan inline con comentario, a propósito.
+- Banderas: subset local en `public/flags` (scripts/fetch-flags.mjs) + fallback CDN.
 
 ## Registro de auditorías
 
