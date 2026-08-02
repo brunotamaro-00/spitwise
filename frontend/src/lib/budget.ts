@@ -8,26 +8,69 @@ import type {
   TripCushion,
 } from "@/types";
 
-/** Qué dice el bloque focal de la ciudad en curso.
+/** Qué dice el bloque focal de la ciudad en curso: **el pote de la parada**.
  *
- *  El caso `over` NO muestra el "por día" negativo: "podés gastar USD -103 por
- *  día" no es una frase. Muestra el excedente total, que es el dato que sirve
- *  para decidir cuánto aflojar en la próxima parada. */
-export type BudgetVerdict =
+ *  El hero es plata total (lo que queda del plan de esta ciudad), no una tasa.
+ *  La tasa por día existía antes como número grande y era hipervolátil: se
+ *  divide por los días que faltan, así que un almuerzo caro la movía 10% y el
+ *  último día concentraba todo el remanente en una cifra absurda. Acá baja a
+ *  lectura secundaria (`dailyUsd`), que es lo que es.
+ *
+ *  `over` da vuelta el número en vez de clampear a cero: cuando ya no hay
+ *  permiso, decir "te quedan USD 0" es la peor versión del dato. */
+export type StayEnvelope =
   | { kind: "no_target" }
-  | { kind: "margin"; amountUsd: string; days: number }
-  | { kind: "over"; amountUsd: string };
+  | {
+      kind: "left" | "over";
+      /** Lo que queda del pote, o el exceso si `over`. Siempre positivo: el
+       *  signo lo cuenta el `kind`, así el copy no arranca con un menos. */
+      amountUsd: string;
+      dailyUsd: string;
+      spentUsd: string;
+      envelopeUsd: string;
+      maxUsd: string;
+      /** Lo que el plan separó hasta hoy: el poste contra el que se lee el
+       *  relleno. El hueco entre los dos es el ahorro de la parada. */
+      accruedUsd: string | null;
+    };
 
-export function currentVerdict(c: CurrentCityBudget): BudgetVerdict {
-  if (c.target_daily_usd == null || c.remaining_daily_usd == null) {
+export function stayEnvelope(c: CurrentCityBudget): StayEnvelope {
+  if (c.envelope_usd == null || c.remaining_budget_usd == null) {
     return { kind: "no_target" };
   }
-  const daily = parseMoney(c.remaining_daily_usd);
-  if (daily < 0) {
-    const over = Math.abs(parseMoney(c.remaining_budget_usd ?? "0"));
-    return { kind: "over", amountUsd: String(over) };
+  const left = parseMoney(c.remaining_budget_usd);
+  return {
+    kind: left < 0 ? "over" : "left",
+    amountUsd: String(Math.abs(left)),
+    dailyUsd: c.remaining_daily_usd ?? "0",
+    spentUsd: c.living_usd,
+    envelopeUsd: c.envelope_usd,
+    maxUsd: c.envelope_max_usd ?? c.envelope_usd,
+    accruedUsd: c.budget_to_date_usd,
+  };
+}
+
+/** La fila de hoy. `clean` = todavía sin gastos (no es lo mismo que no tener el
+ *  dato: `none`), `over` = el día ya se pasó de la tasa.
+ *
+ *  Sin banda el gasto de hoy igual se muestra —es un hecho, no una
+ *  comparación— pero no hay permiso del día que ofrecer. */
+export type TodayRead =
+  | { kind: "none" }
+  | { kind: "clean" | "spent" | "over"; spentUsd: string; leftUsd: string | null };
+
+export function todayRead(c: CurrentCityBudget): TodayRead {
+  const spent = parseMoney(c.spent_today_usd);
+  const left = c.left_today_usd == null ? null : parseMoney(c.left_today_usd);
+  if (spent <= 0) {
+    // Sin gastos y sin permiso que mostrar, la fila no dice nada: se oculta.
+    return left == null ? { kind: "none" } : { kind: "clean", spentUsd: "0", leftUsd: String(left) };
   }
-  return { kind: "margin", amountUsd: c.remaining_daily_usd, days: c.remaining_days };
+  return {
+    kind: left != null && left < 0 ? "over" : "spent",
+    spentUsd: c.spent_today_usd,
+    leftUsd: left == null ? null : String(Math.abs(left)),
+  };
 }
 
 /* ------------------------------------------------------------ la banda --- */

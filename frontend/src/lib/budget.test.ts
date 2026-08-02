@@ -7,11 +7,12 @@ import {
   categoryPerDay,
   levelTone,
   coverageLine,
-  currentVerdict,
   cushionRead,
   lodgingCoverage,
   projectionRead,
+  stayEnvelope,
   stayProgress,
+  todayRead,
   tripCostRead,
 } from "@/lib/budget";
 import type { CurrentCityBudget, FixedBlock, TripCost, TripCushion } from "@/types";
@@ -32,8 +33,12 @@ const base: CurrentCityBudget = {
   living_per_day_usd: "34.00",
   budget_to_date_usd: "189.00",
   variance_usd: "-87.00",
+  envelope_usd: "315.00",
+  envelope_max_usd: "350.00",
   remaining_budget_usd: "213.00",
   remaining_daily_usd: "71.00",
+  spent_today_usd: "0.00",
+  left_today_usd: "71.00",
   band_position: "under",
   edge_delta_pct: -39.3,
   delta_pct: -46,
@@ -42,24 +47,63 @@ const base: CurrentCityBudget = {
 
 const cur = (over: Partial<CurrentCityBudget>): CurrentCityBudget => ({ ...base, ...over });
 
-describe("currentVerdict", () => {
-  it("con margen devuelve el sobrante por día y los días que quedan", () => {
-    expect(currentVerdict(base)).toEqual({ kind: "margin", amountUsd: "71.00", days: 3 });
+describe("stayEnvelope", () => {
+  it("el hero es lo que queda del pote, con la tasa como lectura secundaria", () => {
+    expect(stayEnvelope(base)).toEqual({
+      kind: "left",
+      amountUsd: "213",
+      dailyUsd: "71.00",
+      spentUsd: "102.00",
+      envelopeUsd: "315.00",
+      maxUsd: "350.00",
+      accruedUsd: "189.00",
+    });
   });
 
-  it("pasado de presupuesto muestra el excedente TOTAL, no el por día negativo", () => {
-    const v = currentVerdict(cur({ remaining_daily_usd: "-103.32", remaining_budget_usd: "-103.32" }));
-    expect(v).toEqual({ kind: "over", amountUsd: "103.32" });
+  it("pasado el pote el número se da vuelta y el signo lo cuenta el kind", () => {
+    const v = stayEnvelope(cur({ remaining_budget_usd: "-103.32", remaining_daily_usd: "-34.44" }));
+    expect(v.kind).toBe("over");
+    expect(v).toMatchObject({ amountUsd: "103.32" });
   });
 
-  it("sin plan no hay veredicto", () => {
-    expect(currentVerdict(cur({ target_daily_usd: null, remaining_daily_usd: null })).kind).toBe(
+  it("un remanente de exactamente cero todavía es 'te queda', no sobregiro", () => {
+    expect(stayEnvelope(cur({ remaining_budget_usd: "0.00" })).kind).toBe("left");
+  });
+
+  it("sin plan no hay pote", () => {
+    expect(stayEnvelope(cur({ envelope_usd: null, remaining_budget_usd: null })).kind).toBe(
       "no_target",
     );
   });
 
-  it("un remanente de exactamente cero sigue siendo margen, no sobregiro", () => {
-    expect(currentVerdict(cur({ remaining_daily_usd: "0.00" })).kind).toBe("margin");
+  it("el último día no rompe: la tasa es todo el remanente", () => {
+    const v = stayEnvelope(cur({ remaining_days: 1, remaining_daily_usd: "213.00" }));
+    expect(v).toMatchObject({ kind: "left", amountUsd: "213", dailyUsd: "213.00" });
+  });
+});
+
+describe("todayRead", () => {
+  it("sin gastos todavía ofrece el día entero", () => {
+    expect(todayRead(base)).toEqual({ kind: "clean", spentUsd: "0", leftUsd: "71" });
+  });
+
+  it("con gasto muestra lo gastado y lo que queda del día", () => {
+    const t = todayRead(cur({ spent_today_usd: "12.00", left_today_usd: "59.00" }));
+    expect(t).toEqual({ kind: "spent", spentUsd: "12.00", leftUsd: "59" });
+  });
+
+  it("pasarse del día se dice, y el monto va sin signo", () => {
+    const t = todayRead(cur({ spent_today_usd: "95.00", left_today_usd: "-24.00" }));
+    expect(t).toEqual({ kind: "over", spentUsd: "95.00", leftUsd: "24" });
+  });
+
+  it("sin banda el gasto de hoy sigue siendo un hecho, sin permiso al lado", () => {
+    const t = todayRead(cur({ spent_today_usd: "12.00", left_today_usd: null }));
+    expect(t).toEqual({ kind: "spent", spentUsd: "12.00", leftUsd: null });
+  });
+
+  it("sin gastos y sin banda la fila no tiene nada que decir", () => {
+    expect(todayRead(cur({ left_today_usd: null })).kind).toBe("none");
   });
 });
 

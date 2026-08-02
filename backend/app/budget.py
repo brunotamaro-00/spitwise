@@ -288,12 +288,24 @@ def city_budget_rows(
 
 
 def current_city_budget(cities: list[dict], bands: Bands, *, trip: dict) -> dict | None:
-    """Bloque focal: la parada en curso y cuánto queda por día hasta el check-out.
+    """Bloque focal: el **pote** de la parada en curso y cómo va el día de hoy.
 
-    `remaining_daily_usd` es la métrica que responde "¿salimos a comer hoy?":
-    lo que sobra del presupuesto de la parada repartido en los días que faltan.
-    Si vinieron gastando poco, sube. Se calcula contra el **centro** de la
-    banda, que es el objetivo.
+    El hero de la página es `remaining_budget_usd`: lo que queda del pote de esta
+    ciudad (`envelope_usd` = centro de la banda × noches). Es plata total, no una
+    tasa, y por eso no salta con un almuerzo caro — la tasa por día
+    (`remaining_daily_usd`) baja a ser su lectura secundaria.
+
+    **El pote se arma contra el centro**, no contra el techo: el colchón, la
+    proyección y la varianza ya se miden contra el centro (invariante 11), y un
+    hero calculado con otro borde haría que la misma página se contradiga.
+    `envelope_max_usd` viaja al lado solo como marca visual del margen que queda
+    antes de pasarse.
+
+    **Una sola tasa alimenta tres lecturas**: `remaining_budget_usd`
+    (= tasa × días restantes), la sub-línea por día y el presupuesto de hoy
+    (`left_today_usd` = tasa − gastado hoy). Consecuencia deliberada: gastar hoy
+    baja un poco la tasa de los días que quedan. El pote es finito y esconderlo
+    sería el mismo error que tenía el hero anterior.
 
     **Hoy cuenta** en los días restantes (`nights - lived + 1`): el último día
     `nights - lived` es 0 y la división explota justo cuando más se mira la
@@ -319,13 +331,25 @@ def current_city_budget(cities: list[dict], bands: Bands, *, trip: dict) -> dict
     band = _band(bands, row["stop_slug"])
     remaining_days = max(nights - lived + 1, 1)
 
+    # Gasto de vivir cargado hoy (`analytics.build_trip_pace`). Se expone
+    # **aunque no haya banda**: es un hecho del día, no una comparación.
+    spent_today = row.get("other_today_usd") or _ZERO
+
     if band is None or nights <= 0:
         budget_to_date = variance = remaining_budget = remaining_daily = None
+        envelope = envelope_max = left_today = None
     else:
         budget_to_date = band.center * lived
         variance = living - budget_to_date
-        remaining_budget = band.center * nights - living
+        envelope = band.center * nights
+        envelope_max = band.max * nights
+        remaining_budget = envelope - living
         remaining_daily = remaining_budget / remaining_days
+        # Con el pote ya vacío no hay permiso del día que ofrecer: restarle el
+        # gasto de hoy a una tasa negativa da un número que mezcla el exceso de
+        # toda la parada con lo del día ("gastaste 82, te pasaste 187"). El
+        # exceso lo cuenta el hero; la fila HOY se queda con el hecho del día.
+        left_today = remaining_daily - spent_today if remaining_daily > 0 else None
 
     return {
         "stop_slug": row["stop_slug"],
@@ -343,8 +367,14 @@ def current_city_budget(cities: list[dict], bands: Bands, *, trip: dict) -> dict
         "living_per_day_usd": per_day,
         "budget_to_date_usd": budget_to_date,
         "variance_usd": variance,
+        # El pote de la parada y su techo: el hero es `remaining_budget_usd`
+        # contra `envelope_usd`, y `envelope_max_usd` solo se marca en la barra.
+        "envelope_usd": envelope,
+        "envelope_max_usd": envelope_max,
         "remaining_budget_usd": remaining_budget,
         "remaining_daily_usd": remaining_daily,
+        "spent_today_usd": spent_today,
+        "left_today_usd": left_today,
         "band_position": band_position(per_day, band),
         "edge_delta_pct": edge_delta_pct(per_day, band),
         "delta_pct": _delta_pct(per_day, band.center if band else None),

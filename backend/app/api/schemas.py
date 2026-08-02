@@ -304,7 +304,7 @@ class CategoryMixOut(BaseModel):
 
 
 class CurrentCityBudgetOut(BaseModel):
-    """La parada en curso: cuánto queda por día hasta el check-out."""
+    """La parada en curso: el pote que queda y cómo va el día de hoy."""
 
     stop_slug: str
     city_name: str
@@ -321,9 +321,18 @@ class CurrentCityBudgetOut(BaseModel):
     living_per_day_usd: str | None
     budget_to_date_usd: str | None
     variance_usd: str | None
+    # El pote de la parada (centro × noches) y su techo (máximo × noches). El
+    # techo solo se marca en la barra: el veredicto sigue midiéndose contra el
+    # centro, igual que el colchón y la proyección.
+    envelope_usd: str | None
+    envelope_max_usd: str | None
     remaining_budget_usd: str | None
     # Puede ser negativo: ya se pasaron. La página cambia el copy, no el signo.
     remaining_daily_usd: str | None
+    # El día de hoy. `spent_today_usd` existe siempre (es un hecho, no una
+    # comparación); `left_today_usd` = tasa por día − gastado hoy, sin clampear.
+    spent_today_usd: str
+    left_today_usd: str | None
     band_position: BandPosition | None
     edge_delta_pct: float | None
     delta_pct: float | None

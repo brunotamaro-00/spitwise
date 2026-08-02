@@ -11,7 +11,7 @@ había antes: por eso toda la batería vieja de tests sigue escrita con escalare
 y funciona como el test de no-regresión del modelo de rango.
 """
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -33,10 +33,14 @@ def _stop(slug, order=1, arrival=None, departure=None, **kw):
     return SimpleNamespace(**base)
 
 
-def _mov(slug, usd, cat=OTHER, split="shared", paid_by=1):
+def _mov(slug, usd, cat=OTHER, split="shared", paid_by=1, loaded=None):
+    """`loaded` = día de carga (`created_at`). Default: una fecha vieja, así el
+    gasto no cae "hoy" salvo en los tests de la fila HOY."""
+    day = loaded or date(2000, 1, 1)
     return SimpleNamespace(
         type="expense", split=split, amount_usd=Decimal(usd),
         paid_by=paid_by, stop_slug=slug, category_id=cat,
+        created_at=datetime(day.year, day.month, day.day, 12, 0),
     )
 
 
@@ -121,6 +125,68 @@ def test_current_city_remaining_daily():
     assert cur["remaining_days"] == 7
     assert cur["remaining_budget_usd"] == Decimal("200")
     assert round(cur["remaining_daily_usd"], 2) == Decimal("28.57")
+
+
+def test_envelope_is_the_center_times_the_nights():
+    """El pote del hero va contra el centro; el techo solo viaja como marca."""
+    data = _budget([ROMA], [_mov("roma", "600")], date(2026, 8, 4), {"roma": (40, 60)})
+    cur = data["current"]
+    assert cur["envelope_usd"] == Decimal("500")  # centro 50 x 10 noches
+    assert cur["envelope_max_usd"] == Decimal("600")  # techo 60 x 10
+    # El hero es el pote menos lo gastado, y la tasa lo reparte: los tres cierran.
+    assert cur["remaining_budget_usd"] == cur["envelope_usd"] - cur["living_usd"]
+    assert (
+        cur["remaining_daily_usd"] * cur["remaining_days"]
+        == cur["remaining_budget_usd"]
+    )
+
+
+def test_today_row_counts_only_living_loaded_today():
+    """La fila HOY: vivir cargado hoy en la parada. El alojamiento de hoy y el
+    gasto de ayer no entran."""
+    hoy = date(2026, 8, 4)
+    movs = [
+        _mov("roma", "600"),                          # cargado hace años
+        _mov("roma", "40", loaded=hoy),               # vivir de hoy
+        _mov("roma", "1000", cat=LODGING, loaded=hoy),  # dormir no es vivir
+        _mov("roma", "80", loaded=date(2026, 8, 3)),  # ayer
+    ]
+    cur = _budget([ROMA], movs, hoy, {"roma": "50"})["current"]
+    assert cur["spent_today_usd"] == Decimal("20")  # share de los 40
+    # Una sola tasa: el presupuesto del día es la misma que reparte el pote.
+    assert cur["left_today_usd"] == cur["remaining_daily_usd"] - Decimal("20")
+
+
+def test_today_row_exists_without_a_band():
+    """El gasto de hoy es un hecho, no una comparación: se expone igual. Lo que
+    no existe sin banda es el permiso del día."""
+    hoy = date(2026, 8, 4)
+    cur = _budget([ROMA], [_mov("roma", "40", loaded=hoy)], hoy)["current"]
+    assert cur["spent_today_usd"] == Decimal("20")
+    assert cur["left_today_usd"] is None
+    assert cur["envelope_usd"] is None
+
+
+def test_today_row_is_negative_when_the_day_is_blown():
+    """Gastar hoy más que la tasa del día se dice con signo, no con un cero."""
+    hoy = date(2026, 8, 4)
+    # Pote 500, llevan 300 + 120 de hoy => quedan 80 para 7 días (11,43/día).
+    movs = [_mov("roma", "600"), _mov("roma", "240", loaded=hoy)]
+    cur = _budget([ROMA], movs, hoy, {"roma": "50"})["current"]
+    assert cur["spent_today_usd"] == Decimal("120")
+    assert cur["left_today_usd"] < 0
+
+
+def test_no_daily_allowance_once_the_envelope_is_empty():
+    """Pasados de pote, la fila HOY se queda con el hecho del día: restarle el
+    gasto de hoy a una tasa negativa mezcla el exceso de toda la parada con el
+    del día. El exceso ya lo cuenta el hero."""
+    hoy = date(2026, 8, 4)
+    movs = [_mov("roma", "1400"), _mov("roma", "80", loaded=hoy)]
+    cur = _budget([ROMA], movs, hoy, {"roma": "50"})["current"]
+    assert cur["remaining_daily_usd"] < 0
+    assert cur["spent_today_usd"] == Decimal("40")
+    assert cur["left_today_usd"] is None
 
 
 def test_last_day_has_no_division_by_zero():

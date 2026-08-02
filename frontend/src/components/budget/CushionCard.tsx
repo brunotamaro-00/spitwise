@@ -72,13 +72,16 @@ export default function CushionCard({ b }: { b: BudgetAnalysis }) {
         )}
       </div>
 
-      {/* Superficie propia: es la cifra con la que se decide el almuerzo de hoy,
-          no una nota al pie de la de arriba. */}
+      {/* Superficie propia: es el ritmo al que hay que ir en lo que queda del
+          viaje. **No es un permiso** — el permiso vive en el hero y es uno solo
+          en toda la página. Decir "podés gastar" acá abría un segundo permiso
+          de otro scope, y dos permisos distintos en la misma pantalla es la
+          forma más rápida de que ninguno se crea. */}
       {needed && read.remainingNights > 0 && (
         <div className="flex items-end justify-between gap-3 border-t border-border bg-surface-2/60 px-5 py-4">
           <div>
             <p className="text-meta font-semibold uppercase tracking-caps text-ink-3">
-              {ahead ? "Podés gastar" : "Para cerrar en plan"}
+              Ritmo del resto del viaje
             </p>
             <p className="mt-1 font-display text-2xl leading-none tracking-display text-ink font-tabular">
               {formatUsd(needed, "whole")}

@@ -144,9 +144,17 @@ export type CurrentCityBudget = {
   living_per_day_usd: string | null;
   budget_to_date_usd: string | null;
   variance_usd: string | null;
+  /** El pote de la parada (centro × noches) y su techo (máximo × noches). El
+   *  techo solo se marca en la barra: el veredicto sigue siendo contra el centro. */
+  envelope_usd: string | null;
+  envelope_max_usd: string | null;
   remaining_budget_usd: string | null;
   /** Puede ser negativo: ya se pasaron. Cambia el copy, no el signo. */
   remaining_daily_usd: string | null;
+  /** El día de hoy. El gasto existe siempre (es un hecho); lo que queda del día
+   *  necesita banda y puede ser negativo. */
+  spent_today_usd: string;
+  left_today_usd: string | null;
   band_position: BandPosition | null;
   edge_delta_pct: number | null;
   delta_pct: number | null;
