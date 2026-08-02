@@ -101,6 +101,9 @@ async def get_budget(
                         share_pct=m["share_pct"],
                         trip_share_pct=m["trip_share_pct"],
                         ratio=m["ratio"],
+                        per_day_usd=_money_opt(m["per_day_usd"]),
+                        trip_per_day_usd=_money_opt(m["trip_per_day_usd"]),
+                        delta_per_day_usd=_money_opt(m["delta_per_day_usd"]),
                     )
                     for m in cur["by_category"]
                 ],

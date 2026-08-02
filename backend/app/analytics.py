@@ -166,6 +166,7 @@ def build_trip_pace(
     cities: list[dict] = []
     accrued = _ZERO
     trip_by_cat: dict[int | None, Decimal] = {}
+    trip_by_cat_accrued: dict[int | None, Decimal] = {}
     for s in row_stops:
         agg = per_stop.get(
             s.slug, {"lodging": _ZERO, "other": _ZERO, "count": 0, "by_cat": {}}
@@ -220,6 +221,17 @@ def build_trip_pace(
         )
         for cat_id, amount in agg["by_cat"].items():
             trip_by_cat[cat_id] = trip_by_cat.get(cat_id, _ZERO) + amount
+            # Base **devengada** de la mezcla: misma frontera que `accrued_cities`
+            # (de donde sale `run_rate_usd`), o sea sin el `other` de las paradas
+            # futuras. Existe aparte de `trip_by_cat` porque las dos preguntas
+            # son distintas: el *share* se calcula sobre lo comprometido (una
+            # entrada ya pagada de la próxima ciudad es parte de la mezcla),
+            # pero un **$/día** dividido por las noches vividas no puede incluir
+            # plata de noches que todavía no se vivieron.
+            if status != "future":
+                trip_by_cat_accrued[cat_id] = (
+                    trip_by_cat_accrued.get(cat_id, _ZERO) + amount
+                )
 
     general_per_day = general / total_nights if total_nights else None
     # `accrued` venía solo de ciudades: ese es el ritmo que se compara contra
@@ -272,6 +284,11 @@ def build_trip_pace(
             # Mezcla de "vivir" de todo el viaje: la baseline contra la que se
             # compara la de una parada. Suma de las ciudades ⇒ sin generales.
             "living_by_category": trip_by_cat,
+            # La misma mezcla pero solo de lo ya devengado. Su suma es el
+            # "vivir" acumulado del viaje (sin alojamiento, a diferencia de
+            # `run_rate_usd`), así que dividida por `elapsed_nights` da el
+            # $/día de vivir: la baseline honesta del desglose por categoría.
+            "living_by_category_accrued": trip_by_cat_accrued,
         },
         "cities": cities,
     }

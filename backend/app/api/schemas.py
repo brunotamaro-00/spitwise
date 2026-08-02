@@ -286,8 +286,9 @@ class CityBudgetOut(BaseModel):
 class CategoryMixOut(BaseModel):
     """En qué se va el vivir de la parada, contra la mezcla del viaje.
 
-    Compara **proporciones**: el monto crudo depende de cuántos días llevás acá,
-    el share dice si esta ciudad se te va en algo distinto que el resto.
+    Dos lecturas: el **share** dice si esta ciudad se te va en algo distinto que
+    el resto (inmune a cuántos días llevás acá), y el **$/día** le pone magnitud
+    a ese desvío. Ver `budget.category_mix` para por qué las dos bases difieren.
     """
 
     category_id: int | None
@@ -295,6 +296,11 @@ class CategoryMixOut(BaseModel):
     share_pct: float | None
     trip_share_pct: float | None
     ratio: float | None
+    # $/día de esta categoría en la parada, el promedio del viaje, y la
+    # diferencia (con signo: menos que el promedio también es información).
+    per_day_usd: str | None
+    trip_per_day_usd: str | None
+    delta_per_day_usd: str | None
 
 
 class CurrentCityBudgetOut(BaseModel):

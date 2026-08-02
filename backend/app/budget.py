@@ -162,18 +162,37 @@ def _coverage(eligible: list[dict], bands: Bands) -> dict:
 
 
 def category_mix(city: dict, trip: dict) -> list[dict]:
-    """En qué se va el "vivir" de una parada, comparado con la mezcla del viaje.
+    """En qué se va el "vivir" de una parada, en proporción y en plata por día.
 
-    Compara **proporciones**, no montos: que en Viena hayas gastado más en café
-    que en Praga puede ser solo que estuviste más días. Lo que dice algo es que
-    el café sea el 22% de lo que gastás acá cuando en el viaje es el 9%.
+    **Dos lecturas, y las dos hacen falta.**
 
-    `ratio = share de la parada / share del viaje`. None cuando no hay base
-    contra la que comparar (categoría nueva, o viaje sin gasto todavía).
+    - `share_pct` / `ratio` comparan **proporciones**: que en Viena hayas gastado
+      más en café que en Praga puede ser solo que estuviste más días. Lo que dice
+      algo es que el café sea el 22% de lo que gastás acá cuando en el viaje es
+      el 9%. `ratio = share de la parada / share del viaje`.
+    - `per_day_usd` / `delta_per_day_usd` dan la magnitud: "×1,7 de lo normal" no
+      dice si son USD 3 o USD 30 por día, que es lo único accionable.
+
+    **Las dos bases son distintas a propósito** (no unificarlas):
+    el share va sobre lo **comprometido** (`living_by_category`, que incluye lo
+    ya cargado a paradas futuras: es parte de la mezcla del viaje), y el $/día
+    sobre lo **devengado** (`living_by_category_accrued`, sin paradas futuras),
+    porque dividir plata de noches no vividas por las noches vividas infla el
+    promedio. Ver el comentario de `analytics.build_trip_pace`.
+
+    None en cualquier campo cuando falta la base contra la que comparar
+    (categoría nueva, viaje sin gasto, o parada sin noches vividas).
     """
     living = city["other_usd"]
     trip_by_cat = trip.get("living_by_category") or {}
     trip_living = sum(trip_by_cat.values(), _ZERO)
+
+    # Mismo divisor que `other_per_day_usd` de una parada en curso
+    # (`analytics.build_trip_pace`), así la suma de los `per_day_usd` da el
+    # $/día de vivir de la ciudad en vez de un número parecido pero distinto.
+    lived = city.get("elapsed_nights") or 0
+    trip_elapsed = trip.get("elapsed_nights") or 0
+    trip_by_cat_day = trip.get("living_by_category_accrued") or {}
 
     rows: list[dict] = []
     for cat_id, amount in (city.get("living_by_category") or {}).items():
@@ -182,6 +201,10 @@ def category_mix(city: dict, trip: dict) -> list[dict]:
         share = float(amount * 100 / living) if living > 0 else None
         trip_amount = trip_by_cat.get(cat_id, _ZERO)
         trip_share = float(trip_amount * 100 / trip_living) if trip_living > 0 else None
+        per_day = amount / lived if lived else None
+        trip_per_day = (
+            trip_by_cat_day.get(cat_id, _ZERO) / trip_elapsed if trip_elapsed else None
+        )
         rows.append(
             {
                 "category_id": cat_id,
@@ -191,6 +214,15 @@ def category_mix(city: dict, trip: dict) -> list[dict]:
                 "ratio": (
                     share / trip_share
                     if share is not None and trip_share
+                    else None
+                ),
+                "per_day_usd": per_day,
+                "trip_per_day_usd": trip_per_day,
+                # Signo sin clampear: gastar menos que tu promedio es tan
+                # informativo como gastar más.
+                "delta_per_day_usd": (
+                    per_day - trip_per_day
+                    if per_day is not None and trip_per_day is not None
                     else None
                 ),
             }

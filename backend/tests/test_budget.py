@@ -469,6 +469,62 @@ def test_category_mix_compares_proportions_not_amounts():
     assert cafe["ratio"] == 2.0                              # el doble de lo normal
 
 
+def test_category_mix_per_day_sums_to_the_city_rate():
+    """Canario de unidad: el $/día por categoría tiene que usar el MISMO divisor
+    que `other_per_day_usd`, o el desglose no cierra con el total de la ciudad."""
+    FOOD, COFFEE = 2, 3
+    movs = [_mov("roma", "400", cat=FOOD), _mov("roma", "200", cat=COFFEE)]
+    data = _budget([ROMA], movs, date(2026, 8, 5), {"roma": 50})  # día 5 de 10
+    cur = data["current"]
+
+    assert sum(m["per_day_usd"] for m in cur["by_category"]) == cur["living_per_day_usd"]
+    comida, cafe = cur["by_category"]
+    assert comida["per_day_usd"] == Decimal("40")   # 200 de share en 5 días
+    assert cafe["per_day_usd"] == Decimal("20")
+
+
+def test_category_mix_delta_against_the_trip_average():
+    """Roma se come el café: acá va a USD 20/día contra un promedio de 10."""
+    FOOD, COFFEE = 2, 3
+    stops = [_stop("paris", order=1, arrival=date(2026, 7, 22),
+                   departure=date(2026, 8, 1)), ROMA]
+    movs = [
+        _mov("paris", "400", cat=FOOD),     # 200 share en 10 noches
+        _mov("roma", "200", cat=COFFEE),    # 100 share en 5 días vividos
+    ]
+    data = _budget(stops, movs, date(2026, 8, 5), {"roma": 50, "paris": 50})
+    cafe = next(m for m in data["current"]["by_category"] if m["category_id"] == COFFEE)
+
+    assert cafe["per_day_usd"] == Decimal("20")       # 100 / 5
+    assert cafe["trip_per_day_usd"] == Decimal("100") / 15  # 100 / 15 noches vividas
+    assert cafe["delta_per_day_usd"] == Decimal("20") - Decimal("100") / 15
+
+
+def test_category_mix_trip_baseline_ignores_future_stops():
+    """Una entrada ya pagada de una parada futura es parte de la MEZCLA
+    (`share`) pero no de un promedio POR DÍA: sus noches no se vivieron.
+    Sin la base devengada, el promedio del viaje se diluía y toda la ciudad en
+    curso aparecía gastando de más."""
+    COFFEE = 3
+    futura = _stop("paris", order=2, arrival=date(2026, 9, 1),
+                   departure=date(2026, 9, 11))
+    movs = [_mov("roma", "200", cat=COFFEE)]
+    solo = _budget([ROMA, futura], movs, date(2026, 8, 5), {"roma": 50})
+    con_prepago = _budget(
+        [ROMA, futura], movs + [_mov("paris", "600", cat=COFFEE)],
+        date(2026, 8, 5), {"roma": 50},
+    )
+
+    def _cafe(d):
+        return next(m for m in d["current"]["by_category"] if m["category_id"] == COFFEE)
+
+    assert _cafe(con_prepago)["trip_per_day_usd"] == _cafe(solo)["trip_per_day_usd"]
+    # El share sí lo cuenta: la plata de París está comprometida y es parte de
+    # la mezcla del viaje. Las dos bases dicen cosas distintas a propósito.
+    assert _cafe(con_prepago)["share_pct"] == 100.0
+    assert _cafe(con_prepago)["trip_share_pct"] == 100.0
+
+
 def test_category_mix_is_empty_without_living_spend():
     data = _budget([ROMA], [_mov("roma", "1000", cat=LODGING)], date(2026, 8, 5),
                    {"roma": 50})
