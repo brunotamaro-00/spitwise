@@ -12,8 +12,7 @@ export function Wordmark({ className, tone = "light" }: { className?: string; to
   return (
     <span
       className={cn(
-        // Sin font-size propio: lo fija quien lo usa (cn es clsx, no tw-merge,
-        // así que dos clases de tamaño colisionarían).
+        // Sin font-size propio: lo fija quien lo usa.
         "inline-block whitespace-nowrap font-sans font-extrabold lowercase leading-none tracking-[-0.035em]",
         className,
       )}
