@@ -454,13 +454,22 @@ def fixed_block(cities: list[dict], *, general_usd: Decimal, total_nights: int) 
 
     Son plata ya comprometida, no algo que se "gaste bien". El alojamiento suma
     **todas** las filas, archivadas incluidas: esa plata existió.
+
+    El `per_night_usd` divide por las **noches efectivamente reservadas** (las
+    de las paradas que tienen alojamiento cargado), no por `total_nights`: con
+    el itinerario a medio reservar, dividir por el viaje entero mezcla plata ya
+    comprometida con noches todavía sin pagar y sale un precio por noche que no
+    es el de ningún hostel. Las noches salen de las paradas de Andiamo.
     """
     lodging = sum((c["lodging_usd"] for c in cities), _ZERO)
+    booked_nights = sum(c["nights"] for c in cities if c["lodging_usd"] > 0)
     return {
         "lodging_usd": lodging,
         "general_usd": general_usd,
         "total_usd": lodging + general_usd,
-        "per_night_usd": lodging / total_nights if total_nights else None,
+        "booked_nights": booked_nights,
+        "total_nights": total_nights,
+        "per_night_usd": lodging / booked_nights if booked_nights else None,
     }
 
 

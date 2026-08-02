@@ -83,6 +83,21 @@ def test_lodging_is_not_living():
     assert r["living_per_day_usd"] == Decimal("10")
     assert data["fixed"]["lodging_usd"] == Decimal("1000")
     assert data["fixed"]["per_night_usd"] == Decimal("100")
+    assert data["fixed"]["booked_nights"] == 10
+
+
+def test_per_night_divides_by_booked_nights_only():
+    """El precio por noche es el de las noches reservadas, no las del viaje.
+
+    Con media Europa sin reservar, dividir por `total_nights` daría un precio
+    por noche que no es el de ningún hostel (la mitad, acá).
+    """
+    paris = _stop("paris", order=2, arrival=date(2026, 8, 11), departure=date(2026, 8, 21))
+    movs = [_mov("roma", "2000", cat=LODGING)]  # 1000 de share, solo Roma reservada
+    data = _budget([ROMA, paris], movs, date(2026, 9, 1))
+    assert data["fixed"]["booked_nights"] == 10   # no las 20 del itinerario
+    assert data["fixed"]["total_nights"] == 20
+    assert data["fixed"]["per_night_usd"] == Decimal("100")
 
 
 def test_generals_are_not_living():

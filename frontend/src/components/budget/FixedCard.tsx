@@ -41,7 +41,21 @@ export default function FixedCard({ b }: { b: BudgetAnalysis }) {
       {f.per_night_usd && !isZeroMoney(f.per_night_usd) && (
         <p className="mt-3 text-meta font-medium text-ink-3">
           Alojamiento ={" "}
-          <span className="font-tabular">{formatUsd(f.per_night_usd, "whole")}</span> por noche.
+          <span className="font-tabular">{formatUsd(f.per_night_usd, "whole")}</span> por noche
+          {/* La cobertura va al lado del precio: sin ella, un itinerario a medio
+              reservar hace leer el promedio como si cubriera todo el viaje. */}
+          {f.booked_nights > 0 && (
+            <>
+              {" "}
+              sobre{" "}
+              <span className="font-tabular">
+                {f.booked_nights}
+                {f.total_nights > f.booked_nights ? ` de ${f.total_nights}` : ""}
+              </span>{" "}
+              noches reservadas
+            </>
+          )}
+          .
         </p>
       )}
     </Card>

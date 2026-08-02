@@ -395,6 +395,10 @@ class FixedBlockOut(BaseModel):
     lodging_usd: str
     general_usd: str
     total_usd: str
+    # Noches con alojamiento cargado (denominador de `per_night_usd`) vs noches
+    # del itinerario: la web muestra la cobertura al lado del precio por noche.
+    booked_nights: int
+    total_nights: int
     per_night_usd: str | None
 
 

@@ -202,6 +202,8 @@ export type FixedBlock = {
   lodging_usd: string;
   general_usd: string;
   total_usd: string;
+  booked_nights: number;
+  total_nights: number;
   per_night_usd: string | null;
 };
 

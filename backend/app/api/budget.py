@@ -183,6 +183,8 @@ async def get_budget(
             lodging_usd=_money(fixed["lodging_usd"]),
             general_usd=_money(fixed["general_usd"]),
             total_usd=_money(fixed["total_usd"]),
+            booked_nights=fixed["booked_nights"],
+            total_nights=fixed["total_nights"],
             per_night_usd=_money_opt(fixed["per_night_usd"]),
         ),
     )
