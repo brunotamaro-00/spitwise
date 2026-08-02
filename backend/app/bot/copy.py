@@ -232,3 +232,25 @@ def link_andiamo_stop(slug: str | None) -> str | None:
     if not base:
         return None
     return f"{base}/stops/{slug}" if slug else f"{base}/general"
+
+
+def help_text() -> str:
+    """Texto de `ayuda` / `help`. Vive acá con el resto de las strings de UX:
+    el dispatcher solo lo envuelve en `text_reply`."""
+    home = link_home()
+    lines = [
+        "👋 Soy *Spitwise*, el contador del viaje. Puedo:",
+        bullets([
+            "*Cargar gastos*: _cena 20 euros_",
+            "*Marcar de una persona*: _pagó katia 15gbp el museo, solo de ella_",
+            "*Editar*: _la cena de ayer fue 25, no 20_",
+            "*Borrar*: _borrá el último_",
+            "*Consultar*: _¿cuánto gastamos en Roma?_ · _¿quién debe plata?_",
+            "*Preguntar del viaje*: _¿qué hacemos mañana?_ · _¿cómo llegamos a Sintra?_",
+            "*Archivar documentos*: mandame el PDF o foto de una reserva/entrada y lo guardo en Andiamo",
+        ]),
+        "⚡ Atajos al instante: *saldo* · *total*",
+    ]
+    if home:
+        lines.append(f"📲 O abrí la app: {home}")
+    return "\n".join(lines)

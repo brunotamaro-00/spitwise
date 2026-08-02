@@ -11,7 +11,9 @@ from decimal import Decimal
 from app import trace
 from app.balance import UNSETTLED
 from app.bot import copy
-from app.bot.active_stop import get_state_payload, resolve_trip_timezone, update_state_payload
+from app.bot.active_stop import (
+    fresh_history, get_state_payload, resolve_trip_timezone, update_state_payload,
+)
 from app.bot.capture import all_users
 from app.bot.render import BotReply, text_reply
 from app.config import get_settings
@@ -286,24 +288,11 @@ def _false_zero(answer: str, tool_calls) -> bool:
     return bool(_ZERO_CLAIM.search(answer))
 
 
-def _fresh_history(entries: list[dict], *, max_turns: int, ttl_minutes: int) -> list[dict]:
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=ttl_minutes)
-    fresh = []
-    for e in entries:
-        try:
-            ts = datetime.fromisoformat(e.get("ts", ""))
-        except ValueError:
-            continue
-        if ts >= cutoff and e.get("role") in ("user", "assistant") and e.get("content"):
-            fresh.append(e)
-    return fresh[-max_turns * 2:]
-
-
 async def has_fresh_history(session, wa_id: str) -> bool:
     """¿Hay conversación Q&A reciente? (para rutear follow-ups cortos al agente)."""
     s = get_settings()
     payload = await get_state_payload(session, wa_id)
-    return bool(_fresh_history(
+    return bool(fresh_history(
         payload.get("qa_history") or [],
         max_turns=s.qa_history_max_turns, ttl_minutes=s.qa_history_ttl_minutes,
     ))
@@ -313,7 +302,7 @@ async def handle_question(session, user: User, wa_id: str, text: str, today: dat
                           *, chat_client=None) -> BotReply:
     s = get_settings()
     payload = await get_state_payload(session, wa_id)
-    history = _fresh_history(
+    history = fresh_history(
         payload.get("qa_history") or [],
         max_turns=s.qa_history_max_turns, ttl_minutes=s.qa_history_ttl_minutes,
     )

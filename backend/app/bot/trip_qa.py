@@ -12,8 +12,7 @@ from sqlalchemy import func, select
 
 from app import trace
 from app.bot import copy
-from app.bot.active_stop import get_state_payload, update_state_payload
-from app.bot.qa import _fresh_history
+from app.bot.active_stop import fresh_history, get_state_payload, update_state_payload
 from app.bot.render import BotReply, text_reply
 from app.config import get_settings
 from app.db.models import GuideDoc, Stop, StopGuide, TripDocument, TripNote, User
@@ -210,7 +209,7 @@ def latest_fresh_channel(payload: dict, *, max_turns: int, ttl_minutes: int) -> 
     """A qué agente rutear un follow-up sin intent claro: el canal ('qa' |
     'trip') con actividad fresca más reciente, o None si ambos vencieron."""
     def last_ts(key: str) -> str:
-        entries = _fresh_history(payload.get(key) or [],
+        entries = fresh_history(payload.get(key) or [],
                                  max_turns=max_turns, ttl_minutes=ttl_minutes)
         return max((e.get("ts", "") for e in entries), default="")
 
@@ -231,7 +230,7 @@ async def handle_trip_question(session, user: User, wa_id: str, text: str, today
 
     s = get_settings()
     payload = await get_state_payload(session, wa_id)
-    history = _fresh_history(
+    history = fresh_history(
         payload.get(_HISTORY_KEY) or [],
         max_turns=s.qa_history_max_turns, ttl_minutes=s.qa_history_ttl_minutes,
     )

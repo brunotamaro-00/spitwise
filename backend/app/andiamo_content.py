@@ -16,14 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db.models import GuideDoc, StopGuide, SyncMeta, TripDocument, TripNote
+from app.trip_time import utcnow_naive
 
 logger = logging.getLogger(__name__)
 
 _GUIDES_VERSION_KEY = "guides_version"
-
-
-def _utcnow_naive() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _parse_dt(v: str | None) -> datetime | None:
@@ -138,7 +135,7 @@ async def sync_guides(session: AsyncSession, *, client: httpx.AsyncClient | None
         row.kind = item.get("kind", "city")
         row.file = item.get("file", "")
         row.content_md = item.get("content", "")
-        row.synced_at = _utcnow_naive()
+        row.synced_at = utcnow_naive()
         if key not in existing:
             session.add(row)
         n += 1
@@ -194,7 +191,7 @@ async def sync_notes(session: AsyncSession, *, client: httpx.AsyncClient | None 
         row.body = item.get("body", "")
         row.pinned = bool(item.get("pinned"))
         row.updated_at = _parse_dt(item.get("updatedAt"))
-        row.synced_at = _utcnow_naive()
+        row.synced_at = utcnow_naive()
         if note_id not in existing:
             session.add(row)
         n += 1
@@ -242,7 +239,7 @@ async def sync_documents(session: AsyncSession, *, client: httpx.AsyncClient | N
         row.file_name = item.get("fileName")
         row.mime_type = item.get("mimeType")
         row.created_at = _parse_dt(item.get("createdAt"))
-        row.synced_at = _utcnow_naive()
+        row.synced_at = utcnow_naive()
         if doc_id not in existing:
             session.add(row)
         n += 1
@@ -299,7 +296,7 @@ async def ensure_content_fresh(session: AsyncSession) -> None:
     if _refresh_running or not get_settings().andiamo_url:
         return
     last = (await session.execute(select(func.max(GuideDoc.synced_at)))).scalar_one_or_none()
-    now = _utcnow_naive()
+    now = utcnow_naive()
     if last is not None:
         last_naive = last.replace(tzinfo=None) if last.tzinfo else last
         if now - last_naive < _CONTENT_FRESH_TTL:

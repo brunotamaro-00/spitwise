@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db.models import Movement, Stop
+from app.trip_time import utcnow_naive
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +20,6 @@ def _parse_date(v: str | None) -> date | None:
         return date.fromisoformat(v)
     except ValueError:
         return None
-
-
-def _utcnow_naive() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 async def fetch_stops(*, client: httpx.AsyncClient | None = None) -> list[dict]:
@@ -95,7 +92,7 @@ async def sync_stops(session: AsyncSession, *, client: httpx.AsyncClient | None 
             row.is_flex_margin = bool(item.get("isFlexMargin"))
             # Si reaparece un slug archivado (recreado en Andiamo), se desarchiva.
             row.is_archived = False
-            row.synced_at = _utcnow_naive()
+            row.synced_at = utcnow_naive()
             if slug not in existing:
                 session.add(row)
             n += 1
@@ -161,7 +158,7 @@ async def ensure_stops_fresh(session: AsyncSession) -> None:
     if _refresh_running or not get_settings().andiamo_url:
         return
     last = (await session.execute(select(func.max(Stop.synced_at)))).scalar_one_or_none()
-    now = _utcnow_naive()
+    now = utcnow_naive()
     if last is not None:
         last_naive = last.replace(tzinfo=None) if last.tzinfo else last
         if now - last_naive < _FRESH_TTL:

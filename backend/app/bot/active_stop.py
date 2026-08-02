@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,13 +77,24 @@ async def place_for_date(session: AsyncSession, d: date, username: str | None = 
     stops = await visible_stops(session, username)
     return _stop_in_range(stops, d) if stops else None
 
+
+async def stop_name_for_slug(session: AsyncSession, slug: str | None) -> str | None:
+    """Nombre visible de una parada por slug (None => General)."""
+    if not slug:
+        return None
+    from app.db.models import Stop
+
+    row = (await session.execute(select(Stop).where(Stop.slug == slug))).scalar_one_or_none()
+    return row.name if row else None
+
+
 async def resolve_trip_timezone(session: AsyncSession, username: str | None = None) -> str | None:
     """Timezone de la parada activa por fecha (para today_in_tz). None => fallback default.
 
     Con username, respeta su parada propia: durante Pititas (Europe/Paris) el
     'hoy' de Katia no lo define Portugal (Europe/Lisbon), que va una hora atrás.
     """
-    from datetime import datetime, timezone as _tz
+    from datetime import time, timezone as _tz
     from zoneinfo import ZoneInfo
 
     from app.config import get_settings
@@ -109,3 +120,19 @@ async def update_state_payload(session: AsyncSession, wa_id: str, **keys) -> Non
         data.update(keys)
         st.payload_json = json.dumps(data)
     await session.commit()
+
+
+def fresh_history(entries: list[dict], *, max_turns: int, ttl_minutes: int) -> list[dict]:
+    """Turnos vigentes de un historial de chat. Vive acá (dueño del payload de
+    sesión) y no en `qa.py`: los dos canales lo usan sobre SU key, y que el de
+    viaje importara un privado del financiero era el único hilo entre ellos."""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=ttl_minutes)
+    fresh = []
+    for e in entries:
+        try:
+            ts = datetime.fromisoformat(e.get("ts", ""))
+        except ValueError:
+            continue
+        if ts >= cutoff and e.get("role") in ("user", "assistant") and e.get("content"):
+            fresh.append(e)
+    return fresh[-max_turns * 2:]

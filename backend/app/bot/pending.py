@@ -6,10 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import BotPendingAction
-
-
-def _utcnow_naive() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from app.trip_time import utcnow_naive
 
 
 def new_token() -> str:
@@ -25,7 +22,7 @@ async def create_pending(session: AsyncSession, owner: str, payload: dict, kind:
     session.add(BotPendingAction(
         token=token, channel="whatsapp", owner=owner, action_type=kind,
         payload_json=json.dumps(payload),
-        expires_at=_utcnow_naive() + timedelta(hours=6),
+        expires_at=utcnow_naive() + timedelta(hours=6),
     ))
     await session.commit()
     return token
@@ -43,8 +40,8 @@ async def load_pending(
     )).scalar_one_or_none()
     if row is None or row.confirmed_at is not None or row.cancelled_at is not None:
         return None
-    if row.expires_at is not None and row.expires_at < _utcnow_naive():
-        row.cancelled_at = _utcnow_naive()
+    if row.expires_at is not None and row.expires_at < utcnow_naive():
+        row.cancelled_at = utcnow_naive()
         await session.commit()
         return None
     if owner is not None and row.owner != owner:
@@ -59,7 +56,7 @@ async def close_pending(session: AsyncSession, token: str) -> None:
         select(BotPendingAction).where(BotPendingAction.token == token)
     )).scalar_one_or_none()
     if row is not None:
-        row.confirmed_at = _utcnow_naive()
+        row.confirmed_at = utcnow_naive()
         await session.commit()
 
 
@@ -67,7 +64,7 @@ async def purge_closed(session: AsyncSession, older_than_hours: int = 48) -> int
     """Limpieza de pendings viejos. Corta por `expires_at` (NOT NULL, siempre
     created+6h): pasado ese margen la fila ya no la puede tocar nadie, esté
     confirmada, cancelada o simplemente vencida."""
-    cutoff = _utcnow_naive() - timedelta(hours=older_than_hours)
+    cutoff = utcnow_naive() - timedelta(hours=older_than_hours)
     res = await session.execute(
         delete(BotPendingAction).where(BotPendingAction.expires_at < cutoff)
     )
@@ -80,5 +77,5 @@ async def cancel_pending(session: AsyncSession, token: str) -> None:
         select(BotPendingAction).where(BotPendingAction.token == token)
     )).scalar_one_or_none()
     if row is not None and row.cancelled_at is None:
-        row.cancelled_at = _utcnow_naive()
+        row.cancelled_at = utcnow_naive()
         await session.commit()

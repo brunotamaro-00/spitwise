@@ -262,6 +262,10 @@ class AnthropicChat(_BaseChat):
             return finish(outcome, text)
 
         for i in range(max_iterations):
+            # `if i` a propósito: la primera vuelta NO evalúa el deadline, así
+            # que siempre hay al menos una llamada al proveedor. Un turno que
+            # arranca con el presupuesto ya vencido tiene que responder algo,
+            # no degradar sin haber intentado.
             if i and time.monotonic() > loop_deadline:
                 res.limit_hit = "time"
                 return await synthesize(BUDGET_EXCEEDED)

@@ -248,6 +248,11 @@ class FxRate(Base):
     fetched_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+# Ojo con las ventanas de frescura (dedupe, pendings, cache de sync): las
+# columnas con `server_default=now()` las estampa POSTGRES y las comparaciones
+# las hace el reloj de la app (`trip_time.utcnow_naive`). Cierra porque Railway
+# corre en UTC; unificarlo del lado de la app tocaría todos los defaults y el
+# riesgo es mayor que el beneficio.
 class WhatsAppDedupe(Base):
     __tablename__ = "whatsapp_dedupe"
 

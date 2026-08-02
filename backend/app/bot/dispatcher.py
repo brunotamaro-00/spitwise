@@ -22,26 +22,6 @@ _HELP_COMMANDS = {
 }
 
 
-def _help_reply() -> BotReply:
-    home = copy.link_home()
-    lines = [
-        "👋 Soy *Spitwise*, el contador del viaje. Puedo:",
-        copy.bullets([
-            "*Cargar gastos*: _cena 20 euros_",
-            "*Marcar de una persona*: _pagó katia 15gbp el museo, solo de ella_",
-            "*Editar*: _la cena de ayer fue 25, no 20_",
-            "*Borrar*: _borrá el último_",
-            "*Consultar*: _¿cuánto gastamos en Roma?_ · _¿quién debe plata?_",
-            "*Preguntar del viaje*: _¿qué hacemos mañana?_ · _¿cómo llegamos a Sintra?_",
-            "*Archivar documentos*: mandame el PDF o foto de una reserva/entrada y lo guardo en Andiamo",
-        ]),
-        "⚡ Atajos al instante: *saldo* · *total*",
-    ]
-    if home:
-        lines.append(f"📲 O abrí la app: {home}")
-    return text_reply("\n".join(lines))
-
-
 async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, today,
                           *, llm_client, chat_client, media=None, vision_client=None) -> BotReply:
     user = await resolve_user_by_wa_id(session, wa_id)
@@ -73,7 +53,7 @@ async def _dispatch_inner(session, wa_id, message_type, text, interactive_id, to
         from app.bot.editor import handle_delete_command
         return await handle_delete_command(session, user)
     if low in _HELP_COMMANDS:
-        return _help_reply()
+        return text_reply(copy.help_text())
     # Consultas frecuentes ('saldo', 'total'): respuesta instantánea sin LLM.
     from app.bot import quick
     quick_intent = quick.route(stripped)

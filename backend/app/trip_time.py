@@ -4,6 +4,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from app.config import get_settings
 
 
+def utcnow_naive() -> datetime:
+    """Ahora en UTC, sin tzinfo. Es el reloj de todas las columnas DateTime del
+    proyecto (`server_default=now()` de Postgres tampoco lleva tz) — Railway
+    corre en UTC, así que app y DB miran el mismo reloj."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def today_in_tz(tz_name: str | None, *, now: datetime | None = None) -> date:
     """'Hoy' en la timezone del viaje. Nunca usar date.today() (UTC del server).
 

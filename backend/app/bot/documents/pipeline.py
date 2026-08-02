@@ -15,11 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.andiamo_documents import AndiamoUploadError, upload_document
 from app.bot import copy
+from app.bot.active_stop import stop_name_for_slug
 from app.bot.documents.kinds import DOC_KINDS, normalize_kind
 from app.bot.pending import cancel_pending, close_pending, create_pending, load_pending
 from app.bot.render import BotReply, buttons_reply, document_preview_card, document_saved_card, text_reply
 from app.config import get_settings
 from app.db.models import BotPendingAction, Stop, User
+from app.trip_time import utcnow_naive
 from app.whatsapp.verify import MediaInfo
 
 logger = logging.getLogger(__name__)
@@ -30,10 +32,6 @@ PENDING_KIND = "doc_upload"
 MAX_BYTES = 20 * 1024 * 1024
 ALLOWED_MIME = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
 _MIME_EXT = {"application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
-
-
-def _utcnow_naive() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _parse_iso(v: str | None) -> date | None:
@@ -70,13 +68,6 @@ async def load_doc_stops(session: AsyncSession) -> list[dict]:
     } for s in rows]
 
 
-async def _stop_name(session: AsyncSession, slug: str | None) -> str | None:
-    if not slug:
-        return None
-    row = (await session.execute(select(Stop).where(Stop.slug == slug))).scalar_one_or_none()
-    return row.name if row else None
-
-
 def _make_meta_client():
     from app.whatsapp.meta_client import MetaClient
     s = get_settings()
@@ -84,7 +75,7 @@ def _make_meta_client():
 
 
 async def _preview_reply(session: AsyncSession, user: User, payload: dict) -> BotReply:
-    stop_name = await _stop_name(session, payload.get("stop_slug"))
+    stop_name = await stop_name_for_slug(session, payload.get("stop_slug"))
     token = await create_pending(session, owner=user.username, payload=payload, kind=PENDING_KIND)
     text = document_preview_card(
         payload.get("kind") or "other", payload.get("label") or "Documento",
@@ -168,7 +159,7 @@ async def _fresh_doc_pending(session: AsyncSession, owner: str) -> BotPendingAct
     """Último preview de documento sin resolver dentro de la ventana de
     corrección. Query indexada y sin LLM: es lo ÚNICO que el camino de texto
     financiero paga por este canal."""
-    cutoff = _utcnow_naive() - timedelta(minutes=get_settings().doc_pending_fresh_minutes)
+    cutoff = utcnow_naive() - timedelta(minutes=get_settings().doc_pending_fresh_minutes)
     return (await session.execute(
         select(BotPendingAction).where(
             BotPendingAction.owner == owner,
@@ -190,7 +181,7 @@ async def maybe_apply_correction(session: AsyncSession, user: User, wa_id: str, 
     import json
     payload = json.loads(row.payload_json)
     stops = await load_doc_stops(session)
-    stop_name = await _stop_name(session, payload.get("stop_slug"))
+    stop_name = await stop_name_for_slug(session, payload.get("stop_slug"))
 
     vision = vision_client
     if vision is None:
@@ -259,7 +250,7 @@ async def confirm_doc_upload(session: AsyncSession, user: User, token: str, *,
             return text_reply(copy.DOC_UPLOAD_FAILED)
 
     await close_pending(session, token)
-    stop_name = await _stop_name(session, data.get("stop_slug"))
+    stop_name = await stop_name_for_slug(session, data.get("stop_slug"))
     return text_reply(document_saved_card(
         data.get("kind") or "other", data["label"], data.get("note"), stop_name,
         _parse_iso(data.get("doc_date")), copy.link_andiamo_stop(data.get("stop_slug")),
