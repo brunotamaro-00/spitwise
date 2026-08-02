@@ -84,7 +84,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   type="button"
                   aria-label="Cerrar aviso"
                   onClick={() => dismiss(t.id)}
-                  className="focus-ring-inverse flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-white/15"
+                  // before:-inset-2.5 estira el hit area a 44×44 sin tocar el
+                  // visual de 24px (los pseudo-elementos cuentan para el hit test).
+                  className="focus-ring-inverse relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors before:absolute before:-inset-2.5 before:content-[''] hover:bg-white/15"
                 >
                   <X size={14} strokeWidth={2.25} aria-hidden="true" />
                 </button>

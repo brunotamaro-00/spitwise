@@ -117,14 +117,14 @@ export default function MovementRow({ mv, myId, category, flag, onOpen, onEdit, 
         <div className="-mr-2 hidden shrink-0 items-center lg:flex">
           <button
             aria-label={`Editar ${mv.description || "movimiento"}`}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
             onClick={() => onEdit?.(mv)}
           >
             <Pencil size={14} strokeWidth={1.75} aria-hidden="true" />
           </button>
           <button
             aria-label={`Borrar ${mv.description || "movimiento"}`}
-            className="focus-ring-danger flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-danger-bg hover:text-danger"
+            className="focus-ring-danger flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-danger-bg hover:text-danger"
             onClick={() => onDelete?.(mv)}
           >
             <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />

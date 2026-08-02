@@ -450,3 +450,21 @@ body {
   .animate-skeleton { animation: none; }
   .skeleton-shimmer::after { animation: none; content: none; }
 }
+
+/* ── Modos de contraste ──────────────────────────────────────────────────
+   prefers-contrast: los grises secundarios y los bordes suben un paso de la
+   propia escala (nada de negros nuevos: mismos tokens, más tinta).
+   forced-colors: las sombras desaparecen — un borde real mantiene la
+   estructura de cards y popovers legible en High Contrast. */
+@media (prefers-contrast: more) {
+  :root {
+    --color-ink-3: #56534C;      /* = ink-2 */
+    --color-ink-faint: #6B655B;  /* = ink-3 normal */
+    --color-border: #CFC8BB;     /* = border-strong */
+  }
+}
+@media (forced-colors: active) {
+  .soft-card, .soft-pop, .soft-hero {
+    border: 1px solid CanvasText;
+  }
+}

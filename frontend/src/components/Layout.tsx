@@ -53,6 +53,13 @@ export default function Layout() {
 
   return (
     <div className="min-h-dvh lg:flex">
+      {/* Skip link: primer tab-stop de la página; visible solo con foco. */}
+      <a
+        href="#contenido"
+        className="focus-ring sr-only rounded-lg soft-pop focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-(--z-toast) focus:block focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ink"
+      >
+        Saltar al contenido
+      </a>
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-(--z-sidebar) hidden w-60 flex-col border-r border-border bg-surface px-4 py-6 lg:flex">
         <NavLink
@@ -153,7 +160,7 @@ export default function Layout() {
         )}
         {/* pb-40: espacio para scrollear el último ítem por encima del FAB
             (bottom nav 3.5rem + FAB 3.5rem alto a 4.75rem del borde). */}
-        <main className="mx-auto max-w-lg p-4 pb-40 lg:max-w-5xl lg:p-8 lg:pb-28">
+        <main id="contenido" className="mx-auto max-w-lg p-4 pb-40 lg:max-w-5xl lg:p-8 lg:pb-28">
           {/* key por ruta: cada cambio de tab remonta el contenido y dispara
               las animaciones de entrada de la página. */}
           <motion.div

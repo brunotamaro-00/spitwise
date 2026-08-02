@@ -251,7 +251,7 @@ export default function AddMovementDialog({ editing, onClose }: {
                   onClick={() => setCategoryId(active ? "" : String(c.id))}
                   aria-pressed={active}
                   whileTap={{ scale: 0.94 }}
-                  className={`flex min-h-[32px] cursor-pointer items-center gap-1.5 rounded-full border px-2 text-note font-semibold transition-colors focus-ring ${
+                  className={`flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-note font-semibold transition-colors focus-ring ${
                     active ? "" : "border-border bg-surface text-ink-2 hover:bg-surface-2"
                   }`}
                   style={active ? {

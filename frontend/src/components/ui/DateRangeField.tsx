@@ -1,5 +1,5 @@
 import { CalendarRange, ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import Button from "@/components/ui/Button";
 import { formatShortDate } from "@/lib/format";
@@ -33,7 +33,15 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const today = todayIso();
+
+  /** Cierre con devolución de foco al trigger (contrato mínimo del popover
+   *  hand-rolled: Escape cierra desde cualquier control interno). */
+  function close() {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
   const anchor = from || today;
   const [view, setView] = useState(() => {
     const [y, m] = anchor.split("-").map(Number);
@@ -84,9 +92,20 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
   const single = !to || from === to;
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      // En el wrapper y no en el popover: tras abrir, el foco sigue en el
+      // trigger — el Escape tiene que funcionar desde ahí también.
+      onKeyDown={(e) => {
+        if (open && e.key === "Escape") {
+          e.stopPropagation(); // que no cierre también el Modal contenedor
+          close();
+        }
+      }}
+    >
       <div className="relative rounded-lg">
         <button
+          ref={triggerRef}
           type="button"
           onClick={toggle}
           aria-expanded={open}
@@ -122,18 +141,19 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
             type="button"
             aria-label="Cerrar calendario"
             tabIndex={-1}
-            onClick={() => setOpen(false)}
+            onClick={close}
             className="fixed inset-0 z-10 cursor-default"
           />
           {/* Popover hacia ARRIBA del trigger: absoluto (no ocupa flujo, no
-              agrega scroll al sheet) y por encima del contenido. */}
+              agrega scroll al sheet) y por encima del contenido.
+              Escape (manejado en el wrapper) cierra y devuelve el foco. */}
           <div className="animate-rise-in absolute bottom-full left-0 right-0 z-20 mb-2 rounded-xl border border-border bg-surface p-3 soft-pop">
           <div className="flex items-center justify-between">
             <button
               type="button"
               aria-label="Mes anterior"
               onClick={() => shiftMonth(-1)}
-              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
+              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
             >
               <ChevronLeft size={17} strokeWidth={2} aria-hidden="true" />
             </button>
@@ -144,7 +164,7 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
               type="button"
               aria-label="Mes siguiente"
               onClick={() => shiftMonth(1)}
-              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
+              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
             >
               <ChevronRight size={17} strokeWidth={2} aria-hidden="true" />
             </button>
@@ -189,7 +209,7 @@ export default function DateRangeField({ from, to, onChange, placeholder = "Eleg
               Tocá el último día · el mismo día para un solo día
             </p>
           )}
-          <Button type="button" size="sm" className="mt-2 w-full" onClick={() => setOpen(false)}>
+          <Button type="button" size="sm" className="mt-2 w-full" onClick={close}>
             Aplicar
           </Button>
           </div>

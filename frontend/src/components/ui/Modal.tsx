@@ -155,7 +155,7 @@ export default function Modal({ title, onClose, children, size = "md", locked = 
                 <h2 className="text-xl font-bold text-ink">{title}</h2>
                 <button
                   aria-label="Cerrar"
-                  className="flex min-h-[40px] min-w-[40px] cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
+                  className="flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-ring"
                   onClick={requestClose}
                 >
                   <X size={20} strokeWidth={1.75} aria-hidden="true" />
