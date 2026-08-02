@@ -153,6 +153,21 @@
   --tracking-caps: 0.08em;
   --tracking-eyebrow: 0.14em;
 
+  /* ── Eases (escala transitions.dev) ─────────────────────────────────────
+     En @theme para que existan como utilidades (`ease-smooth-out`). Las
+     duraciones NO: Tailwind v4 no genera utilidades de duración por namespace —
+     viven en :root y se consumen como `duration-(--duration-fast)` o var(). */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1); /* open/close, slide, resize */
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);        /* pop de badge */
+  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1); /* hover-out con resorte */
+
+  /* Default del sistema para TODA utilidad transition-*: mismo 150ms que traía
+     Tailwind (formalizado en la escala) + nuestro ease de superficie en lugar
+     del ease genérico. Los ~30 `transition-colors` de la app quedan tokenizados
+     sin tocar call sites. */
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: var(--ease-smooth-out);
+
   /* Escala de radios del sistema (fija el estándar: controles = lg,
      paneles/inputs grandes = xl, cards = 2xl, chips = full). */
   --radius-lg: 0.5rem;
@@ -199,12 +214,11 @@
   --duration-medium: 350ms;   /* cierre de panel, entrada de card */
   --duration-slow: 400ms;     /* apertura de panel, reveal de skeleton */
   --duration-very-slow: 500ms;/* momentos de énfasis, number pop-in */
-  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1); /* open/close, slide, resize */
+  /* Los --ease-* custom viven en @theme (generan utilidades); estos alias de
+     keywords se quedan acá para los var() del propio CSS. */
   --ease-in-out: ease-in-out; /* swap de icono/texto, reveal */
   --ease-out: ease-out;       /* tooltip */
   --ease-linear: linear;      /* shimmer, pulse, spinner */
-  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);       /* pop de badge */
-  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);/* hover-out con resorte */
   --distance-micro: 4px;      /* text swap */
   --distance-small: 6px;      /* shake chico */
   --distance-base: 8px;       /* page slide, badge */
