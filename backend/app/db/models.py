@@ -253,6 +253,10 @@ class WhatsAppDedupe(Base):
 
     wamid: Mapped[str] = mapped_column(String(128), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
+    # NULL = claimed pero todavía sin terminar. Si el proceso muere a mitad, el
+    # reintento de Meta puede re-claimear la fila pasada la ventana de gracia en
+    # vez de descartar el mensaje (ver `whatsapp/dedupe.py`).
+    processed_at: Mapped[datetime | None] = mapped_column(nullable=True, default=None)
 
 
 class BotPendingAction(Base):

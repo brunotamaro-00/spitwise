@@ -15,7 +15,7 @@ from app.config import get_settings
 from app.db.engine import get_session, get_sessionmaker
 from app.due import ensure_due_settled
 from app.trip_time import today_in_tz
-from app.whatsapp.dedupe import claim_wamid
+from app.whatsapp.dedupe import claim_wamid, mark_processed
 from app.whatsapp.meta_client import MetaClient
 from app.whatsapp.verify import IncomingMessage, iter_incoming_messages, verify_signature
 
@@ -108,6 +108,16 @@ async def process_message(m: IncomingMessage) -> None:
         # Meta ya recibió 200 + wamid claimed: sin este aviso el mensaje se pierde en silencio.
         await _notify_user(meta, m.wa_id, copy.SOMETHING_FAILED)
     finally:
+        # Cierra el claim del dedupe recién acá: hasta este punto, un reinicio
+        # del proceso deja la fila sin `processed_at` y el reintento de Meta la
+        # re-claimea pasada la ventana de gracia. Best-effort a propósito: si
+        # esto falla, el peor caso es un duplicado por reintento, nunca un
+        # mensaje perdido.
+        try:
+            async with maker() as session:
+                await mark_processed(session, m.wamid)
+        except Exception:
+            logger.exception("dedupe_mark_processed_failed wamid=%s", m.wamid)
         await meta.aclose()
 
 
