@@ -117,21 +117,6 @@ export default function Login() {
                 misma app, con datos de ejemplo.
               </p>
 
-              {/* Franja editorial: un numeral dominante en Anton, la firma de la
-                  marca. La feature más fuerte del proyecto no se ve en la app —
-                  decirla acá es la única forma de que llegue. */}
-              <div className="mt-4 flex items-baseline gap-3 border-t border-border pt-3.5">
-                <span className="font-display text-splash leading-none text-brick">2</span>
-                <span className="flex flex-col gap-0.5">
-                  <span className="text-meta font-extrabold uppercase tracking-caps text-ink-2">
-                    Canales de carga
-                  </span>
-                  <span className="text-meta text-ink-3">
-                    Un bot de WhatsApp con LLM · esta web
-                  </span>
-                </span>
-              </div>
-
               <a
                 href={demoUrl}
                 rel="noopener"
