@@ -254,12 +254,12 @@ Antes de commitear valida y aborta si algo no cierra, **antes** del commit — u
 
 ### Reset diario
 
-Un servicio cron por app, del mismo repo y rama, con las variables de la DB de demo pero **sin dominio**. El CLI de Railway no setea ni el start command ni el schedule: eso va en el dashboard, *Settings → Deploy*.
+Un servicio cron por app, del mismo repo y rama, con las variables de la DB de demo pero **sin dominio**. Cada uno apunta a su propio config-as-code (`railway.cron.json` en la raíz del repo) vía *Settings → Config-as-code → Railway Config File* = `/railway.cron.json`. Sin eso, el `railway.json` de la app pisa el start command y el cron levanta Next/Uvicorn 24/7 en vez de reseedeear.
 
-| Servicio | Custom Start Command | Cron Schedule (UTC) |
-|---|---|---|
-| `andiamo-demo-cron` | `npx tsx prisma/seed-demo.ts` | `0 7 * * *` |
-| `spitwise-demo-cron` | `python scripts/seed_demo_money.py` | `10 7 * * *` |
+| Servicio | Config file | Start (en el file) | Cron (UTC) |
+|---|---|---|---|
+| `andiamo-demo-cron` | `/railway.cron.json` | `npx tsx prisma/seed-demo.ts` | `0 7 * * *` |
+| `spitwise-demo-cron` | `/railway.cron.json` | `python scripts/seed_demo_money.py` | `10 7 * * *` |
 
 **Andiamo diez minutos antes que Spitwise**: el segundo sincroniza el itinerario desde la demo de Andiamo y necesita el dataset ya regenerado. `0 7 * * *` UTC ≈ 4am ART.
 
@@ -267,7 +267,8 @@ Notas:
 
 - `npx tsx` y no `npm run db:seed:demo` porque `tsx` es devDependency y el build de producción puede podarla; `npx` la baja si falta.
 - El `Dockerfile` de Spitwise deja `WORKDIR /app/backend`, así que el path del script es relativo a ahí. `PYTHONPATH=scripts` ya está en las variables del servicio (el seed importa `demo_common`).
-- Hasta que el schedule esté cargado conviene dejar el servicio **sin deployment activo** (`railway down -s <servicio> -y`): con el start command por defecto levantaría la app entera y quedaría corriendo 24/7 al pedo.
+- `restartPolicyType: NEVER` en el cron: el seed tiene que salir solo. Si queda un proceso vivo, Railway saltea la corrida siguiente.
+- Entre deploys el cron no tiene que estar Online: `railway down -s <servicio> -y` baja el deployment activo y el schedule lo vuelve a levantar a la hora.
 
 ## Stop local Pititas
 
