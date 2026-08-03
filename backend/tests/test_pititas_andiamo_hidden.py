@@ -1,5 +1,6 @@
-"""Andiamo no conoce el stop local Pititas: no debe recibirlo como ciudad.
-El total del viaje sí lo incluye — es plata realmente gastada."""
+"""Pititas es is_local: el listado /cities/spend no la mezcla con el spine,
+pero /cities/spend-detail sí la expone (Andiamo tiene /stops/pititas).
+El total del viaje siempre la incluye — es plata realmente gastada."""
 from datetime import date
 from decimal import Decimal
 
@@ -67,14 +68,28 @@ async def test_cities_spend_conserva_los_gastos_generales(app_client, api_key):
     assert rows[None]["total_usd"] == "10.00"
 
 
-async def test_spend_detail_de_pititas_devuelve_ceros(app_client, api_key):
+async def test_spend_detail_de_pititas_expone_gastos(app_client, api_key):
+    """Andiamo pide este endpoint desde StopSpendPanel en /stops/pititas."""
     await _seed(app_client)
     r = await app_client.get("/api/v1/cities/spend-detail?slug=pititas", headers=api_key)
     assert r.status_code == 200  # nunca 404
     body = r.json()
-    assert body["total_usd"] == "0.00"
-    assert body["movement_count"] == 0
-    assert body["city_name"] is None  # no filtra el nombre del stop local
+    assert body["total_usd"] == "30.00"
+    assert body["movement_count"] == 1
+    assert body["city_name"] == "Pititas"
+    assert body["itinerary_days"] == 8
+
+
+async def test_spend_detail_de_pititas_respeta_user_share(app_client, api_key):
+    await _seed(app_client)
+    r = await app_client.get(
+        "/api/v1/cities/spend-detail?slug=pititas&user=katia", headers=api_key
+    )
+    assert r.status_code == 200
+    body = r.json()
+    # shared → mitad para katia
+    assert body["total_usd"] == "15.00"
+    assert body["movement_count"] == 1
 
 
 async def test_trip_spend_sigue_incluyendo_pititas(app_client, api_key):

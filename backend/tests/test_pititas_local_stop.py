@@ -1,7 +1,8 @@
 """Stop local Pititas: Katia imputa a Pititas del 4 al 11 de sept, Bruno a Portugal.
 
-Andiamo no sabe que Pititas existe: ni la reconciliación del sync ni el contrato
-de /cities/spend deben verla.
+El sync de Andiamo no reconcilia is_local (no la borra). El listado /cities/spend
+tampoco la mezcla con el spine; /cities/spend-detail sí la expone (Andiamo tiene
+/stops/pititas).
 """
 from datetime import date
 

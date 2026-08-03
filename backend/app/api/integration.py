@@ -64,8 +64,9 @@ def _shares(movements: list[Movement], user: User | None) -> list[tuple[Movement
 
 
 async def _local_slugs(session: AsyncSession) -> list[str]:
-    """Slugs que solo existen en Spitwise. Andiamo no los conoce, así que nunca
-    se le exponen como ciudad (su itinerario no tiene dónde renderizarlos)."""
+    """Slugs `is_local` (hoy Pititas). El listado `/cities/spend` los omite para
+    no mezclarlos con el spine de Andiamo; `/cities/spend-detail` sí los sirve
+    porque Andiamo tiene página propia (`/stops/pititas`) y pide el detalle."""
     return list(
         (await session.execute(select(Stop.slug).where(Stop.is_local.is_(True)))).scalars().all()
     )
@@ -78,7 +79,7 @@ async def cities_spend(
     session: AsyncSession = Depends(get_session),
 ) -> list[CitySpendPublicOut]:
     """Total del hogar (gross amount_usd de expenses), no share personal.
-    Excluye stops locales: son ciudades que no existen en el itinerario de Andiamo."""
+    Excluye stops locales del listado agregado; el detalle por slug los expone."""
     stmt = (
         select(Movement.stop_slug, Movement.city_name,
                func.sum(Movement.amount_usd), func.count())
@@ -112,19 +113,16 @@ async def cities_spend_detail(
     compartido, entero de un payer_only/other_only suyo) y los gastos privados
     del otro quedan afuera.
     Siempre 200: slug desconocido => ceros y arrays vacíos (nunca 404).
-    Un stop local se trata como desconocido: para Andiamo no existe."""
+    Incluye stops locales (Pititas): Andiamo los renderiza en `/stops/[slug]`."""
     who = await _resolve_user(session, user)
-    is_local = slug in await _local_slugs(session)
-    movements: list[Movement] = []
-    if not is_local:
-        base = select(Movement).where(_EXPENSE, Movement.stop_slug == slug)
-        movements = list((await session.execute(base)).scalars().all())
+    base = select(Movement).where(_EXPENSE, Movement.stop_slug == slug)
+    movements = list((await session.execute(base)).scalars().all())
 
     shares = _shares(movements, who)
     total = sum((s for _m, s in shares), Decimal("0"))
     city_name = shares[0][0].city_name if shares else None
 
-    stop = None if is_local else (
+    stop = (
         await session.execute(select(Stop).where(Stop.slug == slug))
     ).scalar_one_or_none()
     days = 0
