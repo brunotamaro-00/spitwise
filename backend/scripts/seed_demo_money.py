@@ -346,7 +346,7 @@ async def _report(s, cats, stops, first, last, days) -> None:
     if uncovered:
         raise SystemExit(
             f"Paradas sin banda de presupuesto: {', '.join(uncovered)}. Mapealas "
-            "en scripts/seed_stop_budgets.py (BLOQUE_POR_PAIS / BLOQUE_POR_SLUG)."
+            "en scripts/seed_stop_budgets.py (BANDA_POR_SLUG / BANDA_POR_PAIS)."
         )
     print(f"✓ presupuesto: {len(seeded)} paradas con banda (cobertura 100%)")
 

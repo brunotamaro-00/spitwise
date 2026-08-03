@@ -298,13 +298,12 @@ def budget_band_for(stop) -> tuple[Decimal, Decimal] | None:
     sería un decorado que no se parece a lo que produce el seed de producción,
     y las dos tablas driftearían en la primera actualización del PRESUPUESTO.
 
-    None = parada que el mapeo por país/slug no cubre. El llamador decide qué
+    None = parada que el mapeo por slug/país no cubre. El llamador decide qué
     hacer (la demo local lo usa para dejar un hueco a propósito).
     """
-    from seed_stop_budgets import band_for_bloque, bloque_for
+    from seed_stop_budgets import band_for_stop
 
-    bloque = bloque_for(stop)
-    return band_for_bloque(bloque) if bloque else None
+    return band_for_stop(stop)
 
 
 def rate_for(currency: str | None) -> tuple[str, Decimal]:

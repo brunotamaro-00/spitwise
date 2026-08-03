@@ -143,7 +143,8 @@ async def main() -> None:
             if band is None:
                 raise SystemExit(
                     f"Parada sin banda de presupuesto: {slug} ({country}). "
-                    "Mapeala en scripts/seed_stop_budgets.py."
+                    "Mapeala en scripts/seed_stop_budgets.py "
+                    "(BANDA_POR_SLUG / BANDA_POR_PAIS)."
                 )
             s.add(StopBudget(stop_slug=slug,
                              daily_min_usd=band[0], daily_max_usd=band[1]))
