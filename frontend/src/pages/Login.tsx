@@ -1,28 +1,20 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 
-import { isAuthenticated, loginAs } from "@/api/auth";
+import { isAuthenticated, login } from "@/api/auth";
 import { Wordmark } from "@/components/ui/Brand";
-import { buttonClasses } from "@/components/ui/Button";
+import Button, { buttonClasses } from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Field";
 import { usePublicConfig } from "@/lib/useConfig";
 
-const PEOPLE = [
-  { username: "bruno", label: "Bruno" },
-  { username: "katia", label: "Katia" },
-] as const;
-
 const DEFAULT_DEMO_URL = "https://demo.spitwise.lat";
-/** Enter en el campo de contraseña dispara el primer submit del form, así que el
- *  orden de los chips decide con quién entrás sin tocar la pantalla. */
-const LAST_PERSON_KEY = "spitwise_last_person";
 
 export default function Login() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const config = usePublicConfig();
   // Mientras la config no llegó asumimos producción: mostrar el campo de más y
   // esconderlo después es preferible al salto inverso, que dejaría entrar sin
@@ -34,21 +26,17 @@ export default function Login() {
     return <Navigate to="/" replace />;
   }
 
-  const last = localStorage.getItem(LAST_PERSON_KEY);
-  const people = last === "katia" ? [PEOPLE[1], PEOPLE[0]] : PEOPLE;
-
-  async function choose(username: string) {
+  async function enter() {
     if (!isDemo && !password) {
       setErr("Ingresá la contraseña.");
       return;
     }
     setErr(null);
-    setBusy(username);
+    setBusy(true);
     try {
-      // En demo no hay campo: el form OAuth2 rechaza un password vacío con 422,
-      // así que va un placeholder que el backend ignora (demo_mode no valida).
-      await loginAs(username, password || "-");
-      localStorage.setItem(LAST_PERSON_KEY, username);
+      // Quién sos no se elige acá: `login` manda la última persona del
+      // dispositivo como pista y el backend resuelve el resto (api/auth.py).
+      await login(password);
       // Full reload: remonta PersistQueryClient con buster del JWT nuevo.
       window.location.assign("/");
     } catch (e) {
@@ -60,20 +48,18 @@ export default function Login() {
             ? "Contraseña incorrecta."
             : "No se pudo entrar. Probá de nuevo.",
       );
-      setBusy(null);
+      setBusy(false);
     }
   }
 
   return (
     // overflow-x-hidden y no overflow-hidden: si el viewport es más bajo que el
     // contenido (barra del navegador, tipografía agrandada), preferimos scroll
-    // antes que recortar los chips de persona.
+    // antes que recortar la card.
     <div className="relative flex flex-1 flex-col overflow-x-hidden">
       <div className="spit-dots-ink pointer-events-none absolute inset-0" aria-hidden="true" />
 
       <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-3.5 px-5 py-4">
-        {/* El hero es decoración: con tres bloques en la pantalla se queda con
-            lo justo (marca, qué es, viaje) para que todo entre sin scroll. */}
         <header className="animate-rise-in espresso-panel relative overflow-hidden rounded-2xl px-5 py-5 soft-hero">
           <div className="spit-dots pointer-events-none absolute inset-0" aria-hidden="true" />
           <div className="hero-sheen pointer-events-none absolute inset-0" aria-hidden="true" />
@@ -99,98 +85,117 @@ export default function Login() {
           </div>
         </header>
 
-        {/* Casi todo el tráfico de spitwise.lat llega desde el CV, así que la
-            demo es la acción primaria y la contraseña la excepción. En el propio
-            deploy de demo este bloque sobra. */}
-        {!isDemo && (
+        {isDemo ? (
+          /* En el propio deploy de demo no hay contraseña ni persona que elegir:
+             una pantalla, un botón, adentro. El backend entra siempre como el
+             mismo usuario (ver api/auth.py). */
           <Card className="animate-rise-in stagger-2 p-5">
-            <p className="mb-1.5 text-meta font-extrabold uppercase tracking-eyebrow text-ink-3">
-              ¿Venís desde mi CV o LinkedIn?
-            </p>
             <p className="text-sm leading-snug text-ink-2">
-              Este es el ledger real del viaje: por eso pide contraseña. La demo pública es la
-              misma app, con datos de ejemplo.
+              Estás entrando a la demo pública de Spitwise: el mismo ledger que usamos en el
+              viaje, con datos inventados que se regeneran cada noche.
             </p>
-            <a
-              href={demoUrl}
-              rel="noopener"
-              className={buttonClasses({ className: "mt-3.5 flex min-h-[46px] w-full" })}
+            <Button
+              className="mt-3.5 w-full"
+              loading={busy}
+              loadingLabel="Entrando…"
+              onClick={() => void enter()}
             >
               Entrar a la demo
-              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-            </a>
+            </Button>
           </Card>
-        )}
+        ) : (
+          <>
+            {/* Casi todo el tráfico de spitwise.lat llega desde el CV, así que la
+                demo es el único focal de la pantalla y la contraseña se pliega
+                abajo. */}
+            <Card className="animate-rise-in stagger-2 p-5">
+              <p className="mb-1.5 text-meta font-extrabold uppercase tracking-eyebrow text-ink-3">
+                ¿Venís desde mi CV o LinkedIn?
+              </p>
+              <p className="text-sm leading-snug text-ink-2">
+                Este es el ledger real del viaje: por eso pide contraseña. La demo pública es la
+                misma app, con datos de ejemplo.
+              </p>
 
-        {!isDemo && (
-          <div className="flex animate-rise-in items-center gap-3 stagger-3" aria-hidden="true">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-meta font-extrabold uppercase tracking-eyebrow text-ink-faint">
-              o
-            </span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-        )}
-
-        <Card className="animate-rise-in stagger-4 p-5">
-          <form
-            className="flex flex-col gap-3.5"
-            onSubmit={(e) => {
-              // El submit lo disparan los chips (cada uno manda su persona);
-              // este handler solo cubre el Enter del campo de contraseña.
-              e.preventDefault();
-              void choose(people[0].username);
-            }}
-          >
-            {!isDemo && (
-              <Field label="Contraseña">
-                <Input
-                  type="password"
-                  name="password"
-                  autoComplete="current-password"
-                  enterKeyHint="go"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); }}
-                  aria-invalid={err !== null || undefined}
-                  aria-describedby={err ? "login-error" : undefined}
-                />
-              </Field>
-            )}
-
-            <fieldset>
-              <legend className="mb-1.5 text-meta font-extrabold uppercase tracking-eyebrow text-ink-3">
-                ¿Quién sos?
-              </legend>
-              <div className="grid grid-cols-2 gap-2.5">
-                {people.map(({ username, label }) => (
-                  <button
-                    key={username}
-                    type="submit"
-                    disabled={busy !== null}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      void choose(username);
-                    }}
-                    className="flex min-h-[56px] items-center justify-center rounded-xl border-2 border-border bg-surface-2 text-sm font-extrabold uppercase tracking-caps text-ink transition-[border-color,background-color,color,transform] hover:border-brick hover:bg-brick-bg hover:text-brick-ink active:translate-y-px disabled:opacity-50 focus-ring"
-                  >
-                    {busy === username ? "Entrando…" : label}
-                  </button>
-                ))}
+              {/* Franja editorial: un numeral dominante en Anton, la firma de la
+                  marca. La feature más fuerte del proyecto no se ve en la app —
+                  decirla acá es la única forma de que llegue. */}
+              <div className="mt-4 flex items-baseline gap-3 border-t border-border pt-3.5">
+                <span className="font-display text-splash leading-none text-brick">2</span>
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-meta font-extrabold uppercase tracking-caps text-ink-2">
+                    Canales de carga
+                  </span>
+                  <span className="text-meta text-ink-3">
+                    Un bot de WhatsApp con LLM · esta web
+                  </span>
+                </span>
               </div>
-            </fieldset>
 
-            {/* Región siempre presente: si apareciera recién con el error,
-                algunos lectores de pantalla no anuncian el primero. */}
-            <p
-              id="login-error"
-              role="alert"
-              aria-live="polite"
-              className="text-sm font-semibold text-danger empty:hidden"
-            >
-              {err}
-            </p>
-          </form>
-        </Card>
+              <a
+                href={demoUrl}
+                rel="noopener"
+                className={buttonClasses({ className: "mt-4 flex min-h-[52px] w-full" })}
+              >
+                Entrar a la demo
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+              </a>
+              <p className="mt-2.5 text-center text-meta text-ink-3">
+                FastAPI · SQLAlchemy 2 async · PostgreSQL · React 19
+              </p>
+            </Card>
+
+            {/* El gate no compite con el CTA: vive plegado. `<details>` nativo —
+                sin JS de apertura, sin estado que sincronizar. */}
+            <details open={err !== null} className="group animate-rise-in stagger-3">
+              <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-center gap-1 rounded-full text-meta font-extrabold uppercase tracking-eyebrow text-ink-3 transition-colors hover:text-ink-2 focus-ring [&::-webkit-details-marker]:hidden">
+                <ChevronRight
+                  className="h-3.5 w-3.5 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none"
+                  aria-hidden="true"
+                />
+                Soy Bruno o Katia
+              </summary>
+
+              <Card className="mt-2 p-5">
+                <form
+                  className="flex flex-col gap-3.5"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void enter();
+                  }}
+                >
+                  <Field label="Contraseña">
+                    <Input
+                      type="password"
+                      name="password"
+                      autoComplete="current-password"
+                      enterKeyHint="go"
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); }}
+                      aria-invalid={err !== null || undefined}
+                      aria-describedby={err ? "login-error" : undefined}
+                    />
+                  </Field>
+
+                  <Button type="submit" loading={busy} loadingLabel="Entrando…">
+                    Entrar
+                  </Button>
+
+                  {/* Región siempre presente: si apareciera recién con el error,
+                      algunos lectores de pantalla no anuncian el primero. */}
+                  <p
+                    id="login-error"
+                    role="alert"
+                    aria-live="polite"
+                    className="text-sm font-semibold text-danger empty:hidden"
+                  >
+                    {err}
+                  </p>
+                </form>
+              </Card>
+            </details>
+          </>
+        )}
       </div>
     </div>
   );

@@ -29,7 +29,12 @@ espresso. Firma de marca: el "trail" de puntitos del escupitajo del logo (`.spit
 ## Jerarquía
 
 - Un focal por página: el hero de gasto (Dashboard), la ciudad en curso (Presupuesto),
-  la parada seleccionada (Ciudades), la lista (Movimientos).
+  la parada seleccionada (Ciudades), la lista (Movimientos), el CTA de demo (Login).
+- `/login` (2026-08): hero de marca + **una** card (copy + franja editorial + CTA +
+  línea de stack) y el gate de contraseña plegado en un `<details>` discreto que se
+  abre solo con error. Se fueron el separador "o" y los chips Bruno/Katia — la
+  persona se decide adentro. La franja lleva un numeral Anton dominante
+  (`font-display text-splash text-brick`) + eyebrow + caption: un dato, no tres.
 - Jerarquía por peso + color antes que por tamaño: metadata en `text-ink-3`,
   labels `font-semibold`, valores `font-bold`/Anton.
 - Eyebrows: uppercase + tracking ancho + tamaño mínimo.
