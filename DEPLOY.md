@@ -259,7 +259,7 @@ Un servicio cron por app, del mismo repo y rama, con las variables de la DB de d
 | Servicio | Config file | Start (en el file) | Cron (UTC) |
 |---|---|---|---|
 | `andiamo-demo-cron` | `/railway.cron.json` | `npx tsx prisma/seed-demo.ts` | `0 7 * * *` |
-| `spitwise-demo-cron` | `/railway.cron.json` | `python scripts/seed_demo_money.py` | `10 7 * * *` |
+| `spitwise-demo-cron` | `/railway.cron.json` | `alembic upgrade head && python -u scripts/seed_demo_money.py` | `10 7 * * *` |
 
 **Andiamo diez minutos antes que Spitwise**: el segundo sincroniza el itinerario desde la demo de Andiamo y necesita el dataset ya regenerado. `0 7 * * *` UTC ≈ 4am ART.
 
