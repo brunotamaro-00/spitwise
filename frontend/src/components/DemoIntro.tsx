@@ -13,6 +13,9 @@ import { usePublicConfig } from "@/lib/useConfig";
  * llamativa del proyecto y la demo no la tiene (sin credenciales de Meta el
  * webhook no podría ni validar la firma), así que mejor decirlo que dejar que
  * la busquen.
+ *
+ * Vive fuera del `<Guard>` (App.tsx), así que aparece también sobre `/login`.
+ * Solo explica y se cierra: la puerta real es el CTA de Login.
  */
 const SEEN_KEY = "spitwise_demo_intro_v1";
 
@@ -64,11 +67,10 @@ export default function DemoIntro() {
             en la barra.
           </p>
         ) : null}
-        {/* Único foco del diálogo. Con un link acá adentro el foco inicial caía
-            ahí y un Enter se llevaba al visitante a la otra app en vez de
-            cerrar; el cross-link vive en el banner, que además queda siempre. */}
-        <Button onClick={dismiss} className="w-full">
-          Entrar a la demo
+        {/* Sin CTA de "entrar": el login de abajo es la puerta. Con un link acá
+            adentro el foco inicial caía ahí y un Enter se llevaba a la otra app. */}
+        <Button onClick={dismiss} className="w-full" variant="secondary">
+          Entendido
         </Button>
       </div>
     </Modal>
