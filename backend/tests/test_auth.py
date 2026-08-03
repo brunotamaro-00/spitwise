@@ -48,9 +48,46 @@ async def test_login_and_protected_route(app_client):
     assert r3.status_code == 401
 
 
-async def test_login_unknown_user(app_client):
+async def _seed_both(app_client):
+    from app.db.models import User
+
+    async with app_client._maker() as s:
+        s.add_all(
+            [
+                User(username="bruno", password_hash=hash_password("pw")),
+                User(username="katia", password_hash=hash_password("pw")),
+            ]
+        )
+        await s.commit()
+
+
+async def _me(app_client, token: str):
+    return await app_client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+
+async def test_login_without_username_uses_default(app_client):
+    """El login es solo la puerta: sin pista se entra como el usuario por defecto."""
+    await _seed_both(app_client)
+    r = await app_client.post("/api/v1/auth/login", data={"username": "", "password": "pw"})
+    assert r.status_code == 200
+    assert (await _me(app_client, r.json()["access_token"])).json()["username"] == "bruno"
+
+
+async def test_login_honours_username_hint(app_client):
+    """La pista del cliente (última persona del dispositivo) evita que Katia
+    tenga que cambiarse en cada sesión."""
+    await _seed_both(app_client)
+    r = await app_client.post("/api/v1/auth/login", data={"username": "katia", "password": "pw"})
+    assert r.status_code == 200
+    assert (await _me(app_client, r.json()["access_token"])).json()["username"] == "katia"
+
+
+async def test_login_ignores_unknown_username_hint(app_client):
+    """Una pista basura no es un error de autenticación: la contraseña es el gate."""
+    await _seed_bruno(app_client)
     r = await app_client.post("/api/v1/auth/login", data={"username": "nadie", "password": "pw"})
-    assert r.status_code == 401
+    assert r.status_code == 200
+    assert (await _me(app_client, r.json()["access_token"])).json()["username"] == "bruno"
 
 
 async def test_login_wrong_password(app_client):
@@ -99,6 +136,44 @@ async def test_demo_mode_is_passwordless(app_client, monkeypatch):
         "/api/v1/auth/login", data={"username": "bruno", "password": "cualquiera"}
     )
     assert r.status_code == 200
+
+
+async def test_demo_mode_ignores_the_username_hint(app_client, monkeypatch):
+    """En la demo nunca se elige persona: quien llega del CV entra siempre igual."""
+    await _seed_both(app_client)
+    monkeypatch.setenv("DEMO_MODE", "true")
+    get_settings.cache_clear()
+    r = await app_client.post(
+        "/api/v1/auth/login", data={"username": "katia", "password": "-"}
+    )
+    assert r.status_code == 200
+    assert (await _me(app_client, r.json()["access_token"])).json()["username"] == "bruno"
+
+
+async def test_switch_user_issues_a_token_for_the_other_person(app_client):
+    """Quién sos se decide adentro, y cambiarlo exige un JWT nuevo (va en el sub)."""
+    await _seed_both(app_client)
+    r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
+    h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+    sw = await app_client.post("/api/v1/auth/switch", json={"username": "Katia"}, headers=h)
+    assert sw.status_code == 200
+    assert (await _me(app_client, sw.json()["access_token"])).json()["username"] == "katia"
+
+
+async def test_switch_user_requires_a_session(app_client):
+    """Sin contraseña previa no hay switch: el gate del deploy sigue siendo el único."""
+    await _seed_both(app_client)
+    r = await app_client.post("/api/v1/auth/switch", json={"username": "katia"})
+    assert r.status_code == 401
+
+
+async def test_switch_user_rejects_unknown_person(app_client):
+    await _seed_both(app_client)
+    r = await app_client.post("/api/v1/auth/login", data={"username": "bruno", "password": "pw"})
+    h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    sw = await app_client.post("/api/v1/auth/switch", json={"username": "nadie"}, headers=h)
+    assert sw.status_code == 404
 
 
 async def test_login_throttles_after_repeated_failures(app_client):

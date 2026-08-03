@@ -1,22 +1,28 @@
 import asyncio
 import hmac
 import time
+from typing import Annotated
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.schemas import TokenResponse, UserOut
+from app.api.schemas import SwitchUserIn, TokenResponse, UserOut
 from app.config import get_settings
 from app.db.engine import get_session
 from app.db.models import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+# Con quién entrás cuando no hay a quién recordar (y siempre, en la demo pública).
+# Constante y no setting: los dos usuarios los crea el seed con estos nombres, y
+# una env var más sería una que puede quedar apuntando a un usuario inexistente.
+DEFAULT_USERNAME = "bruno"
 
 
 def hash_password(password: str) -> str:
@@ -78,6 +84,12 @@ def _client_key(request: Request) -> str:
     return forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
 
 
+async def _resolve_user(session: AsyncSession, username: str) -> User | None:
+    return (
+        await session.execute(select(User).where(User.username == username))
+    ).scalar_one_or_none()
+
+
 def create_jwt(username: str) -> str:
     s = get_settings()
     expire = datetime.now(timezone.utc) + timedelta(days=s.jwt_expire_days)
@@ -107,35 +119,43 @@ async def get_current_user(
 @router.post("/login", response_model=TokenResponse)
 async def login(
     request: Request,
-    form: OAuth2PasswordRequestForm = Depends(),
+    password: Annotated[str, Form()] = "",
+    username: Annotated[str, Form()] = "",
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
-    """Login: contraseña compartida (LOGIN_PASSWORDS) + picker de persona.
+    """Login: la contraseña compartida (LOGIN_PASSWORDS) es el único gate.
 
     ``spitwise.lat`` está impreso en un CV, así que /login es una puerta pública
     con gastos reales detrás. La contraseña es del deploy, no del usuario: el
-    ``username`` sigue eligiendo *quién* sos (una preferencia de vista, mismos
-    datos para los dos), y ``password_hash``/``AUTH_USERS`` siguen siendo solo el
-    mapeo de ``wa_id``.
+    login solo abre la puerta y *quién* sos se decide adentro (``/auth/switch``).
 
-    En ``demo_mode`` no hay gate: el picker pasa sin contraseña, que es todo el
-    punto del deploy público.
+    ``username`` sobrevive como **pista**, no como identidad: el frontend manda
+    la última persona con la que se entró desde ese dispositivo, para que Katia
+    no tenga que cambiarse en cada sesión. Si viene vacía o no existe, se entra
+    como ``DEFAULT_USERNAME``. Que sea el cliente el que la elige no agrega
+    superficie: pasar de una persona a la otra ya es libre para cualquiera que
+    tenga la contraseña, y eso es deliberado (es un ledger de pareja, no un
+    sistema multi-tenant).
+
+    Los dos campos van como ``Form`` opcionales en vez de
+    ``OAuth2PasswordRequestForm``: ese dependency los declara obligatorios y
+    FastAPI trata un campo vacío como ausente, así que un login sin pista —el
+    caso normal ahora— contestaba 422 en vez de entrar. El flujo "Authorize" de
+    /docs sigue andando: manda los mismos dos nombres de campo.
+
+    En ``demo_mode`` no hay gate ni pista: entrada libre y siempre como
+    ``DEFAULT_USERNAME`` — quien llega desde el CV no sabe quiénes somos.
     """
-    username = form.username.strip().lower()
-    user = (
-        await session.execute(select(User).where(User.username == username))
-    ).scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=401, detail="Usuario inválido")
+    demo = get_settings().demo_mode
 
-    if not get_settings().demo_mode:
+    if not demo:
         key = _client_key(request)
         now = time.time()
         if len(_recent_failures(key, now)) >= _MAX_FAILURES:
             raise HTTPException(
                 status_code=429, detail="Demasiados intentos. Probá de nuevo en un minuto."
             )
-        if not is_valid_login_password(form.password):
+        if not is_valid_login_password(password):
             _failures.setdefault(key, []).append(now)
             # asyncio.sleep, no time.sleep: un solo worker => bloquear el event
             # loop 300 ms congelaría también el webhook del bot.
@@ -143,7 +163,34 @@ async def login(
             raise HTTPException(status_code=401, detail="Contraseña incorrecta")
         _failures.pop(key, None)
 
-    return TokenResponse(access_token=create_jwt(username))
+    hint = "" if demo else username.strip().lower()
+    user = await _resolve_user(session, hint) if hint else None
+    if user is None:
+        user = await _resolve_user(session, DEFAULT_USERNAME)
+    if user is None:
+        # Base sin sembrar: no hay ninguna identidad que emitir.
+        raise HTTPException(status_code=503, detail="No hay usuarios configurados")
+
+    return TokenResponse(access_token=create_jwt(user.username))
+
+
+@router.post("/switch", response_model=TokenResponse)
+async def switch_user(
+    payload: SwitchUserIn,
+    _current: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> TokenResponse:
+    """Cambiar de persona ya adentro: emite un JWT nuevo para ``username``.
+
+    Sin contraseña a propósito. La identidad nunca fue el límite de seguridad acá
+    —el login ya dejaba elegir Bruno o Katia con la misma contraseña—; lo único
+    que separa lo público de lo privado es ``LOGIN_PASSWORDS``, y para llegar a
+    este endpoint ya hay que haberla pasado.
+    """
+    target = await _resolve_user(session, payload.username.strip().lower())
+    if target is None:
+        raise HTTPException(status_code=404, detail="Usuario inexistente")
+    return TokenResponse(access_token=create_jwt(target.username))
 
 
 @router.get("/me", response_model=UserOut)

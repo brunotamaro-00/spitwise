@@ -7,6 +7,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { logout } from "@/api/auth";
 import { listMovements } from "@/api/movements";
 import AddMovementDialog from "@/components/AddMovementDialog";
+import PersonSwitcher from "@/components/PersonSwitcher";
 import { CountBadge } from "@/components/ui/Badge";
 import { Wordmark } from "@/components/ui/Brand";
 import { capitalize } from "@/lib/format";
@@ -36,11 +37,9 @@ export default function Layout() {
   const tripToday = useTripToday();
   const confirmCount = movements.filter((m) => needsConfirmation(m, tripToday)).length;
 
-  const avatar = me && (
-    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 text-sm font-bold text-ink-2">
-      {capitalize(me.username).slice(0, 1)}
-    </span>
-  );
+  // El login ya no elige persona: esta es la única puerta para decidirlo, y por
+  // eso el avatar dejó de ser decorativo.
+  const avatar = <PersonSwitcher me={me} />;
   const logoutBtn = (
     <button
       aria-label="Cerrar sesión"

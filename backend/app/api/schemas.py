@@ -17,6 +17,12 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class SwitchUserIn(BaseModel):
+    """A quién pasás una vez adentro. El login no elige persona (ver api/auth.py)."""
+
+    username: str
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
